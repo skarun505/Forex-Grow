@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #121620;
+    color: #e2e8f0;
+  }
+
+  /* Custom scrollbar for trade history and tables */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #181c27;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2e354b;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3e4866;
+  }
+}
+
+.mono-num {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+@keyframes pulseGlowGreen {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 198, 121, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 198, 121, 0.8);
+  }
+}
+
+@keyframes pulseGlowRed {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 61, 90, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 61, 90, 0.8);
+  }
+}
+
+.glow-green {
+  animation: pulseGlowGreen 2s infinite;
+}
+
+.glow-red {
+  animation: pulseGlowRed 2s infinite;
+}
+
+/* Completely remove and hide TradingView logo & attribution from chart canvas */
+#tv-attr-logo,
+a[href*="tradingview.com"],
+a[title*="TradingView"],
+[id*="tv-attr"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  position: absolute !important;
+  left: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
