@@ -489,20 +489,20 @@ app.post('/api/admin/assets/:id/payout', (req, res) => {
 });
 
 // Admin Trade Management Endpoints
-app.get('/api/admin/users/:userId/trades', (req, res) => {
-  const { userId } = req.params;
+app.get('/api/admin/users/:userId/trades', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
   const trades = settlementEngine.getTradesForUser(userId);
   res.json(trades);
 });
 
-app.delete('/api/admin/trades/:tradeId', (req, res) => {
-  const { tradeId } = req.params;
+app.delete('/api/admin/trades/:tradeId', (req: express.Request, res: express.Response) => {
+  const tradeId = String(req.params.tradeId);
   const success = settlementEngine.deleteTrade(tradeId);
   res.json({ success });
 });
 
-app.delete('/api/admin/users/:userId/trades', (req, res) => {
-  const { userId } = req.params;
+app.delete('/api/admin/users/:userId/trades', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
   const count = settlementEngine.clearUserHistory(userId);
   res.json({ success: true, count });
 });
@@ -782,7 +782,7 @@ if (foundDist) {
   console.log(`📦 Serving compiled frontend from: ${foundDist}`);
   app.use(express.static(foundDist));
 
-  app.get('*', (req, res, next) => {
+  app.get('*', (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (req.path.startsWith('/api')) {
       return next();
     }
