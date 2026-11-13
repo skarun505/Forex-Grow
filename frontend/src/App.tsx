@@ -13,6 +13,7 @@ import { MobileNavBar } from './components/MobileNavBar';
 import { AdminDashboard } from './components/AdminDashboard';
 import { ManagerDashboard } from './components/ManagerDashboard';
 import { LoginPage } from './components/LoginPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const MainLayout: React.FC = () => {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -82,10 +83,12 @@ const MainLayout: React.FC = () => {
         onClose={() => setIsAssetModalOpen(false)}
       />
 
-      <CashierModal
-        isOpen={isCashierModalOpen}
-        onClose={() => setIsCashierModalOpen(false)}
-      />
+      <ErrorBoundary fallbackTitle="Payment Cashier">
+        <CashierModal
+          isOpen={isCashierModalOpen}
+          onClose={() => setIsCashierModalOpen(false)}
+        />
+      </ErrorBoundary>
 
       <LeaderboardModal
         isOpen={isLeaderboardModalOpen}

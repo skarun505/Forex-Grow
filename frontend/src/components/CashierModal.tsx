@@ -62,8 +62,6 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccessData, setWithdrawSuccessData] = useState<{ reference: string; amount: number } | null>(null);
 
-  if (!isOpen) return null;
-
   const upiId = 'foregrowx@naviaxis';
   const numericDeposit = Number(depositAmountInput) || 0;
   const depositAmountUSD = numericDeposit / curr.rateAgainstUSD;
@@ -93,7 +91,9 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const totalCreditedLocal = numericDeposit + bonusAmountLocal;
 
   // Generate standard scannable UPI string for all Indian apps (GPay, PhonePe, Paytm, Navi, BHIM)
+  // MUST run before any conditional returns to obey React Rules of Hooks
   useEffect(() => {
+    if (!isOpen) return;
     const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('Forex Grow')}&am=${numericDeposit > 0 ? numericDeposit.toFixed(2) : '100.00'}&cu=INR&tn=${encodeURIComponent('ForexGrow Deposit')}`;
     QRCode.toDataURL(upiUri, {
       width: 280,
@@ -106,7 +106,9 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
     })
       .then((url) => setRealQrDataUrl(url))
       .catch((err) => console.error('QR generation error:', err));
-  }, [upiId, numericDeposit]);
+  }, [isOpen, upiId, numericDeposit]);
+
+  if (!isOpen) return null;
 
   const handleApplyPromo = () => {
     setPromoError(null);
