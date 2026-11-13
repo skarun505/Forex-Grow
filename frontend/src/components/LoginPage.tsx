@@ -111,7 +111,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
           return;
         }
 
-        localStorage.setItem('quotex_current_user', JSON.stringify(data.user));
+        if (mode === 'ADMIN') {
+          localStorage.setItem('quotex_admin_user', JSON.stringify(data.user));
+        } else if (mode === 'MANAGER') {
+          localStorage.setItem('quotex_manager_user', JSON.stringify(data.user));
+        } else {
+          localStorage.setItem('quotex_trader_user', JSON.stringify(data.user));
+          localStorage.setItem('quotex_current_user', JSON.stringify(data.user));
+        }
         onLoginSuccess(data.user);
       } else {
         setErrorMsg(data.error || 'Invalid credentials. Please verify your email/phone and password.');

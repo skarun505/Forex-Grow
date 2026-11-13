@@ -167,7 +167,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       socket.onopen = () => {
         setIsConnected(true);
         try {
-          const savedUserRaw = localStorage.getItem('quotex_current_user');
+          const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
           if (savedUserRaw) {
             const savedUser = JSON.parse(savedUserRaw);
             if (savedUser && savedUser.id) {
@@ -196,10 +196,10 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
             case 'INIT_STATE':
               let mergedAccount = action.account;
               try {
-                const savedUserRaw = localStorage.getItem('quotex_current_user');
+                const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
                 if (savedUserRaw) {
                   const saved = JSON.parse(savedUserRaw);
-                  if (saved && saved.id === action.account.id) {
+                  if (saved && saved.id) {
                     mergedAccount = { ...action.account, ...saved };
                   }
                 }

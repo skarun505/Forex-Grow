@@ -2,17 +2,17 @@ import { CurrencyCode, CurrencyConfig } from '../types';
 
 export const CURRENCY_CONFIGS: Record<CurrencyCode, CurrencyConfig> = {
   USD: { code: 'USD', symbol: '$', name: 'US Dollar', rateAgainstUSD: 1.0, flag: '🇺🇸' },
-  EUR: { code: 'EUR', symbol: '€', name: 'Euro', rateAgainstUSD: 0.92, flag: '🇪🇺' },
-  GBP: { code: 'GBP', symbol: '£', name: 'British Pound', rateAgainstUSD: 0.77, flag: '🇬🇧' },
-  INR: { code: 'INR', symbol: '₹', name: 'Indian Rupee', rateAgainstUSD: 84.50, flag: '🇮🇳' },
-  BRL: { code: 'BRL', symbol: 'R$', name: 'Brazilian Real', rateAgainstUSD: 5.75, flag: '🇧🇷' },
-  IDR: { code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', rateAgainstUSD: 15800, flag: '🇮🇩' },
-  JPY: { code: 'JPY', symbol: '¥', name: 'Japanese Yen', rateAgainstUSD: 153.50, flag: '🇯🇵' },
-  NGN: { code: 'NGN', symbol: '₦', name: 'Nigerian Naira', rateAgainstUSD: 1650, flag: '🇳🇬' },
-  TRY: { code: 'TRY', symbol: '₺', name: 'Turkish Lira', rateAgainstUSD: 34.20, flag: '🇹🇷' },
+  EUR: { code: 'EUR', symbol: '€', name: 'Euro', rateAgainstUSD: 0.95, flag: '🇪🇺' },
+  GBP: { code: 'GBP', symbol: '£', name: 'British Pound', rateAgainstUSD: 0.80, flag: '🇬🇧' },
+  INR: { code: 'INR', symbol: '₹', name: 'Indian Rupee', rateAgainstUSD: 95.0, flag: '🇮🇳' },
+  BRL: { code: 'BRL', symbol: 'R$', name: 'Brazilian Real', rateAgainstUSD: 6.10, flag: '🇧🇷' },
+  IDR: { code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', rateAgainstUSD: 16500, flag: '🇮🇩' },
+  JPY: { code: 'JPY', symbol: '¥', name: 'Japanese Yen', rateAgainstUSD: 158.0, flag: '🇯🇵' },
+  NGN: { code: 'NGN', symbol: '₦', name: 'Nigerian Naira', rateAgainstUSD: 1750, flag: '🇳🇬' },
+  TRY: { code: 'TRY', symbol: '₺', name: 'Turkish Lira', rateAgainstUSD: 36.50, flag: '🇹🇷' },
   AED: { code: 'AED', symbol: 'AED', name: 'UAE Dirham', rateAgainstUSD: 3.67, flag: '🇦🇪' },
-  CAD: { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar', rateAgainstUSD: 1.39, flag: '🇨🇦' },
-  AUD: { code: 'AUD', symbol: 'A$', name: 'Australian Dollar', rateAgainstUSD: 1.52, flag: '🇦🇺' },
+  CAD: { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar', rateAgainstUSD: 1.42, flag: '🇨🇦' },
+  AUD: { code: 'AUD', symbol: 'A$', name: 'Australian Dollar', rateAgainstUSD: 1.56, flag: '🇦🇺' },
 };
 
 export function convertFromUSD(amountUSD: number, code: CurrencyCode): number {

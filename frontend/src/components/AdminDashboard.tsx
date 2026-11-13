@@ -80,6 +80,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [balanceAccountType, setBalanceAccountType] = useState<'DEMO' | 'REAL'>('REAL');
   const [adjustAmount, setAdjustAmount] = useState<number>(100);
   const [adjustReason, setAdjustReason] = useState<string>('Admin VIP Bonus');
+  const [adjustCurrency, setAdjustCurrency] = useState<string>('USD');
 
   // User Edit Modal State
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserAccount | null>(null);
@@ -136,9 +137,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle Balance Adjustment
+  // Handle Balance Adjustment & Currency Change
   const handleAdjustBalance = async () => {
-    if (!selectedUserForBalance || adjustAmount <= 0) return;
+    if (!selectedUserForBalance) return;
     try {
       const res = await fetch(apiUrl(`/api/admin/users/${selectedUserForBalance.id}/adjust-balance`), {
         method: 'POST',
@@ -147,6 +148,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           accountType: balanceAccountType,
           action: balanceAction,
           amount: adjustAmount,
+          currency: adjustCurrency,
           reason: adjustReason,
         }),
       });
@@ -429,7 +431,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
           <button
             onClick={() => {
-              localStorage.removeItem('quotex_current_user');
+              localStorage.removeItem('quotex_admin_user');
               window.history.pushState({}, '', '/admin');
               window.dispatchEvent(new PopStateEvent('popstate'));
             }}
@@ -830,7 +832,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       </td>
                       <td className="py-3.5 px-4 text-right space-x-2">
                         <button
-                          onClick={() => setSelectedUserForBalance(u)}
+                          onClick={() => {
+                            setSelectedUserForBalance(u);
+                            setAdjustCurrency(u.currency || 'USD');
+                            setAdjustAmount(100);
+                          }}
                           className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500 rounded-lg text-xs font-bold transition"
                         >
                           +/- Funds
@@ -1237,7 +1243,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
               <div>
                 <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                  Amount ({selectedUserForBalance.currency || 'USD'})
+                  Account Currency (Forex Grow Nov 2026 Rate)
+                </label>
+                <select
+                  value={adjustCurrency}
+                  onChange={(e) => setAdjustCurrency(e.target.value)}
+                  className={`w-full border rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none transition ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                  }`}
+                >
+                  <option value="INR">🇮🇳 INR - Indian Rupee (₹95.00 / USD)</option>
+                  <option value="USD">🇺🇸 USD - US Dollar ($1.00)</option>
+                  <option value="EUR">🇪🇺 EUR - Euro (€0.95 / USD)</option>
+                  <option value="GBP">🇬🇧 GBP - British Pound (£0.80 / USD)</option>
+                  <option value="BRL">🇧🇷 BRL - Brazilian Real (R$6.10 / USD)</option>
+                  <option value="AED">🇦🇪 AED - UAE Dirham (AED 3.67 / USD)</option>
+                  <option value="JPY">🇯🇵 JPY - Japanese Yen (¥158.00 / USD)</option>
+                  <option value="IDR">🇮🇩 IDR - Indonesian Rupiah (Rp 16,500 / USD)</option>
+                  <option value="CAD">🇨🇦 CAD - Canadian Dollar (C$1.42 / USD)</option>
+                  <option value="AUD">🇦🇺 AUD - Australian Dollar (A$1.56 / USD)</option>
+                  <option value="TRY">🇹🇷 TRY - Turkish Lira (₺36.50 / USD)</option>
+                  <option value="NGN">🇳🇬 NGN - Nigerian Naira (₦1,750 / USD)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  Amount ({adjustCurrency || selectedUserForBalance.currency || 'USD'})
                 </label>
                 <input
                   type="number"

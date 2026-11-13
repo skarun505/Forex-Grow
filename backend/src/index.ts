@@ -12,7 +12,8 @@ import { SupabaseDb } from './db/supabase.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Initialize Supabase connection
 SupabaseDb.init();
@@ -171,11 +172,11 @@ app.post('/api/payment/deposit-proof', (req, res) => {
 
   const refCode = `FG-DEP-${Math.floor(100000 + Math.random() * 900000)}`;
   const txn = adminManager.addTransaction({
-    userId: user ? user.id : 'usr_guest',
-    userName: user ? user.name : 'Trader',
+    userId: user ? user.id : (userId || 'usr_guest'),
+    userName: user ? user.name : (req.body.userName || 'Trader'),
     type: 'DEPOSIT',
     amount: numUSD,
-    currency: user ? user.currency : 'INR',
+    currency: currency || (user ? user.currency : 'INR'),
     method: `UPI Instant QR (foregrowx@naviaxis)`,
     promoCode: promoCode || undefined,
     status: 'PENDING',
@@ -386,21 +387,32 @@ app.post('/api/admin/users/create', (req, res) => {
 
 app.post('/api/admin/users/:userId/adjust-balance', (req, res) => {
   const { userId } = req.params;
-  const { accountType, action, amount, reason } = req.body;
-  const result = adminManager.adjustUserBalance({
-    userId,
-    accountType,
-    action,
-    amount: Number(amount),
-    reason,
-  });
+  const { accountType, action, amount, reason, currency } = req.body;
+
+  if (currency) {
+    adminManager.updateUser(userId, { currency });
+  }
+
+  let result;
+  if (Number(amount) > 0) {
+    result = adminManager.adjustUserBalance({
+      userId,
+      accountType: accountType || 'REAL',
+      action: action || 'ADD',
+      amount: Number(amount),
+      reason,
+    });
+  } else {
+    const updated = adminManager.getUser(userId);
+    result = { success: true, user: updated ? { ...updated } : undefined };
+  }
 
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
 
-  // If primary/active user, notify client over WebSocket
-  if (result.user && (userId === settlementEngine.getAccount().id || userId === 'usr_quotex_vip_99')) {
+  // Notify client over WebSocket of updated balance & currency
+  if (result.user) {
     broadcast({
       type: 'BALANCE_UPDATE',
       demoBalance: result.user.demoBalance,
@@ -433,7 +445,7 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
   }
 
   const user = adminManager.getUser(result.transaction!.userId);
-  if (user && (user.id === settlementEngine.getAccount().id || user.id === 'usr_quotex_vip_99')) {
+  if (user) {
     broadcast({
       type: 'BALANCE_UPDATE',
       demoBalance: user.demoBalance,

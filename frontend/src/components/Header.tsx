@@ -70,6 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
   const initials = account.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
   const handleLogout = () => {
+    localStorage.removeItem('quotex_trader_user');
     localStorage.removeItem('quotex_current_user');
     window.history.pushState({}, '', '/login');
     window.dispatchEvent(new PopStateEvent('popstate'));

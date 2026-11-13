@@ -386,7 +386,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
           <button
             onClick={() => {
-              localStorage.removeItem('quotex_current_user');
+              localStorage.removeItem('quotex_manager_user');
               window.history.pushState({}, '', '/manager');
               window.dispatchEvent(new PopStateEvent('popstate'));
             }}

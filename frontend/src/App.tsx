@@ -105,9 +105,30 @@ const MainLayout: React.FC = () => {
 
 export const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname);
-  const [currentUser, setCurrentUser] = useState<any>(() => {
+
+  // Independent session storage per portal slug so all roles work in the same tab without collision
+  const [traderUser, setTraderUser] = useState<any>(() => {
     try {
-      const saved = localStorage.getItem('quotex_current_user');
+      const saved = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return parsed && parsed.role === 'TRADER' ? parsed : (parsed?.role ? null : parsed);
+    } catch {
+      return null;
+    }
+  });
+
+  const [managerUser, setManagerUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('quotex_manager_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [adminUser, setAdminUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('quotex_admin_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -118,10 +139,23 @@ export const App: React.FC = () => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
       try {
-        const saved = localStorage.getItem('quotex_current_user');
-        setCurrentUser(saved ? JSON.parse(saved) : null);
+        const savedTrader = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+        const parsedTrader = savedTrader ? JSON.parse(savedTrader) : null;
+        setTraderUser(parsedTrader && parsedTrader.role === 'TRADER' ? parsedTrader : (parsedTrader?.role ? null : parsedTrader));
       } catch {
-        setCurrentUser(null);
+        setTraderUser(null);
+      }
+      try {
+        const savedManager = localStorage.getItem('quotex_manager_user');
+        setManagerUser(savedManager ? JSON.parse(savedManager) : null);
+      } catch {
+        setManagerUser(null);
+      }
+      try {
+        const savedAdmin = localStorage.getItem('quotex_admin_user');
+        setAdminUser(savedAdmin ? JSON.parse(savedAdmin) : null);
+      } catch {
+        setAdminUser(null);
       }
     };
 
@@ -135,31 +169,34 @@ export const App: React.FC = () => {
   };
 
   const handleAdminLoginSuccess = (user: any) => {
-    setCurrentUser(user);
+    setAdminUser(user);
+    localStorage.setItem('quotex_admin_user', JSON.stringify(user));
     navigateTo('/admin');
   };
 
   const handleManagerLoginSuccess = (user: any) => {
-    setCurrentUser(user);
+    setManagerUser(user);
+    localStorage.setItem('quotex_manager_user', JSON.stringify(user));
     navigateTo('/manager');
   };
 
   const handleTraderLoginSuccess = (user: any) => {
-    setCurrentUser(user);
+    setTraderUser(user);
+    localStorage.setItem('quotex_trader_user', JSON.stringify(user));
+    localStorage.setItem('quotex_current_user', JSON.stringify(user));
     navigateTo('/');
   };
 
-  // 1. ADMIN USER LOGGED IN: ONLY ACCESS TO ADMIN DASHBOARD (NO TRADING VIEW SCREEN)
-  if (currentUser && currentUser.role === 'ADMIN') {
-    if (currentPath === '/manager' || currentPath.startsWith('/manager/')) {
+  // ================= 1. ADMIN PORTAL SLUG (/admin) =================
+  const isAdminPath = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/');
+  if (isAdminPath) {
+    if (!adminUser || adminUser.role !== 'ADMIN') {
       return (
-        <TradingProvider>
-          <ManagerDashboard />
-        </TradingProvider>
+        <LoginPage
+          mode="ADMIN"
+          onLoginSuccess={handleAdminLoginSuccess}
+        />
       );
-    }
-    if (currentPath !== '/admin') {
-      window.history.replaceState({}, '', '/admin');
     }
     return (
       <TradingProvider>
@@ -168,10 +205,16 @@ export const App: React.FC = () => {
     );
   }
 
-  // 2. MANAGER USER LOGGED IN: ONLY ACCESS TO MANAGER DASHBOARD (NO TRADING VIEW SCREEN)
-  if (currentUser && currentUser.role === 'MANAGER') {
-    if (currentPath !== '/manager') {
-      window.history.replaceState({}, '', '/manager');
+  // ================= 2. MANAGER DESK SLUG (/manager) =================
+  const isManagerPath = currentPath === '/manager' || currentPath === '/manager/' || currentPath.startsWith('/manager/');
+  if (isManagerPath) {
+    if (!managerUser || (managerUser.role !== 'MANAGER' && managerUser.role !== 'ADMIN')) {
+      return (
+        <LoginPage
+          mode="MANAGER"
+          onLoginSuccess={handleManagerLoginSuccess}
+        />
+      );
     }
     return (
       <TradingProvider>
@@ -180,29 +223,8 @@ export const App: React.FC = () => {
     );
   }
 
-  // 3. UNAUTHENTICATED USERS: STRICT LOGIN REQUIRED BEFORE DASHBOARD/TERMINAL ACCESS
-  const isAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/');
-  if (isAdminPath) {
-    return (
-      <LoginPage
-        mode="ADMIN"
-        onLoginSuccess={handleAdminLoginSuccess}
-      />
-    );
-  }
-
-  const isManagerPath = currentPath === '/manager' || currentPath.startsWith('/manager/');
-  if (isManagerPath) {
-    return (
-      <LoginPage
-        mode="MANAGER"
-        onLoginSuccess={handleManagerLoginSuccess}
-      />
-    );
-  }
-
-  // Unauthenticated visitors to / or /login or /register see the Trader Login
-  if (!currentUser || currentPath === '/login' || currentPath === '/register') {
+  // ================= 3. TRADER TERMINAL SLUG (/ or /login) =================
+  if (!traderUser || currentPath === '/login' || currentPath === '/register') {
     return (
       <LoginPage
         mode="TRADER"
@@ -211,7 +233,7 @@ export const App: React.FC = () => {
     );
   }
 
-  // 4. AUTHENTICATED TRADERS ONLY: LIVE TRADING TERMINAL
+  // Authenticated Trader Terminal Floor
   return (
     <TradingProvider>
       <MainLayout />

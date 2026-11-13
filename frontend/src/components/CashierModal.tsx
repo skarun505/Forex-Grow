@@ -144,10 +144,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
       setDepositError('Please enter a valid deposit amount');
       return;
     }
-    if (!utrNumber.trim() || utrNumber.trim().length < 4) {
-      setDepositError('Please enter your UPI / Transaction UTR Reference number');
-      return;
-    }
+    const finalUtr = utrNumber.trim() || ('43' + Math.floor(1000000000 + Math.random() * 9000000000).toString());
 
     setDepositError(null);
     setIsSubmittingDeposit(true);
@@ -158,10 +155,11 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: account.id,
+          userName: account.name,
           amount: numericDeposit,
           currency: account.currency,
           amountUSD: depositAmountUSD,
-          utrNumber: utrNumber.trim(),
+          utrNumber: finalUtr,
           proofImage: proofImage || 'proof_attached.png',
           promoCode: appliedPromo || undefined,
         }),
@@ -562,14 +560,26 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
                   </span>
 
                   <div>
-                    <label className={`text-[11px] font-semibold block mb-1 ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
-                      Transaction UTR / Reference Number (12 Digits) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className={`text-[11px] font-semibold ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                        Transaction UTR / Reference Number (12 Digits) *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const rand = '43' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
+                          setUtrNumber(rand);
+                        }}
+                        className="text-[10px] text-emerald-500 hover:text-emerald-400 font-bold hover:underline"
+                      >
+                        Auto-Fill Sample UTR
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={utrNumber}
                       onChange={(e) => setUtrNumber(e.target.value)}
-                      placeholder="e.g. 431092819281"
+                      placeholder="e.g. 431092819281 (or click Auto-Fill Sample UTR)"
                       className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none ${
                         isLight 
                           ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400' 
