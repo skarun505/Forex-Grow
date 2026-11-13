@@ -192,6 +192,93 @@ app.post('/api/payment/deposit-proof', (req, res) => {
   });
 });
 
+app.post('/api/payment/deposit-instant', (req, res) => {
+  const { userId, amount, currency, amountUSD, promoCode, method } = req.body;
+  const currentAcc = settlementEngine.getAccount();
+  const targetUserId = userId || currentAcc?.id;
+  const allUsers = adminManager.getUsers();
+  const user = (targetUserId ? adminManager.getUser(targetUserId) : null) || 
+               adminManager.getUser(currentAcc?.id) || 
+               (allUsers.length > 0 ? allUsers[0] : null);
+
+  const numUSD = Number(amountUSD) || Number(amount) || 100;
+  if (numUSD <= 0) return res.status(400).json({ error: 'Invalid deposit amount' });
+  if (!user) return res.status(404).json({ error: 'User account not found' });
+
+  let creditedUSD = numUSD;
+  if (promoCode) {
+    const cpnRes = adminManager.validateCoupon(promoCode, numUSD);
+    if (cpnRes.valid) {
+      creditedUSD += cpnRes.bonus;
+    }
+  }
+
+  user.realBalance = Number((user.realBalance + creditedUSD).toFixed(2));
+  user.totalDepositedUSD = Number((user.totalDepositedUSD + numUSD).toFixed(2));
+
+  const refCode = `FG-DEP-${Math.floor(100000 + Math.random() * 900000)}`;
+  const txn = adminManager.addTransaction({
+    userId: user.id,
+    userName: user.name,
+    type: 'DEPOSIT',
+    amount: numUSD,
+    currency: currency || user.currency || 'INR',
+    method: method || 'Instant UPI Fast-Track',
+    promoCode: promoCode || undefined,
+    status: 'APPROVED',
+    utrNumber: `INSTANT-${Date.now().toString().slice(-8)}`,
+  });
+
+  adminManager.emit('user_updated', user);
+  adminManager.emit('transaction_updated', txn);
+  SupabaseDb.saveUser(user);
+
+  settlementEngine.setCurrentUserId(user.id);
+  broadcast({
+    type: 'BALANCE_UPDATE',
+    demoBalance: user.demoBalance,
+    realBalance: user.realBalance,
+    activeAccountType: 'REAL',
+    currency: user.currency,
+  });
+
+  res.json({
+    success: true,
+    reference: refCode,
+    transactionId: txn.id,
+    newBalance: user.realBalance,
+    message: `Deposit of ${user.currency} ${(numUSD * (user.currency === 'INR' ? 95 : 1)).toFixed(2)} was credited successfully to your Real Live Account!`,
+  });
+});
+
+app.post('/api/payment/transactions/:id/fast-track', (req, res) => {
+  const result = adminManager.approveTransaction(String(req.params.id), {
+    id: 'sys_instant',
+    name: 'Fast-Track Instant Gateway',
+    role: 'ADMIN',
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+
+  const user = adminManager.getUser(result.transaction!.userId);
+  if (user) {
+    settlementEngine.setCurrentUserId(user.id);
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      demoBalance: user.demoBalance,
+      realBalance: user.realBalance,
+      activeAccountType: 'REAL',
+      currency: user.currency,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Deposit has been verified and credited to your Real Account!',
+    transaction: result.transaction,
+    newBalance: user?.realBalance,
+  });
+});
+
 app.post('/api/payment/withdraw-request', (req, res) => {
   const { userId, amount, amountUSD, payoutMethod, bankDetails } = req.body;
   const currentAcc = settlementEngine.getAccount();
