@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { UserAccount, Transaction, PromoCoupon, AdminOverview, AuditLog, UserRole } from '../types.js';
+import { UserAccount, Transaction, PromoCoupon, AdminOverview, AuditLog, UserRole, DepositPaymentSettings } from '../types.js';
 import { SupabaseDb } from '../db/supabase.js';
 
 export class AdminManager extends EventEmitter {
@@ -9,6 +9,20 @@ export class AdminManager extends EventEmitter {
   private coupons: PromoCoupon[] = [];
   private auditLogs: AuditLog[] = [];
   private totalVolumeUSD = 124800.00;
+  private paymentSettings: DepositPaymentSettings = {
+    upiId: 'forexgrow@icici',
+    upiName: 'Forex Grow Official Desk',
+    bankName: 'HDFC Bank',
+    accountHolderName: 'Forex Grow Institutional Operations',
+    accountNumber: '50200084729104',
+    ifscCode: 'HDFC0000240',
+    accountType: 'Current Account',
+    branchName: 'Nariman Point, Mumbai',
+    instructions: 'Transfer funds via IMPS, NEFT, RTGS or UPI. Upload clear screenshot showing complete 12-digit UTR/Reference number for verification.',
+    minDepositINR: 500,
+    updatedAt: Date.now(),
+    updatedBy: 'System Initializer',
+  };
 
   constructor() {
     super();
@@ -710,6 +724,37 @@ export class AdminManager extends EventEmitter {
       bonus: Number(calculatedBonus.toFixed(2)),
       message: `+${coupon.bonusPercentage}% bonus ($${calculatedBonus.toFixed(2)}) applied!`,
     };
+  }
+
+  public getPaymentSettings(): DepositPaymentSettings {
+    return { ...this.paymentSettings };
+  }
+
+  public updatePaymentSettings(
+    newSettings: Partial<DepositPaymentSettings>,
+    actor?: { id: string; name: string; role: UserRole }
+  ): DepositPaymentSettings {
+    this.paymentSettings = {
+      ...this.paymentSettings,
+      ...newSettings,
+      updatedAt: Date.now(),
+      updatedBy: actor ? `${actor.name} (${actor.role})` : 'System Administrator',
+    };
+
+    if (actor) {
+      this.auditLogs.unshift({
+        id: `aud_${uuidv4().slice(0, 8)}`,
+        actorId: actor.id,
+        actorName: actor.name,
+        actorRole: actor.role,
+        action: 'UPDATE_PAYMENT_SETTINGS',
+        details: `Updated Bank: ${this.paymentSettings.bankName} | A/C: ${this.paymentSettings.accountNumber} | IFSC: ${this.paymentSettings.ifscCode} | UPI: ${this.paymentSettings.upiId}`,
+        timestamp: Date.now(),
+      });
+    }
+
+    this.emit('payment_settings_updated', this.paymentSettings);
+    return { ...this.paymentSettings };
   }
 }
 

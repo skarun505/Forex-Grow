@@ -155,8 +155,15 @@ app.post('/api/auth/register', (_req, res) => {
 });
 
 // ================= FOREX GROW PAYMENT GATEWAY & PROOF ENDPOINTS =================
+app.get('/api/payment/settings', (_req, res) => {
+  res.json({
+    success: true,
+    settings: adminManager.getPaymentSettings(),
+  });
+});
+
 app.post('/api/payment/deposit-proof', (req, res) => {
-  const { userId, amount, currency, amountUSD, utrNumber, proofImage, promoCode } = req.body;
+  const { userId, amount, currency, amountUSD, utrNumber, proofImage, promoCode, paymentRail, bankDetails } = req.body;
   const currentAcc = settlementEngine.getAccount();
   const targetUserId = userId || currentAcc?.id;
   const allUsers = adminManager.getUsers();
@@ -167,8 +174,14 @@ app.post('/api/payment/deposit-proof', (req, res) => {
   const numUSD = Number(amountUSD) || Number(amount) || 100;
   if (numUSD <= 0) return res.status(400).json({ error: 'Invalid deposit amount' });
   if (!utrNumber || utrNumber.trim().length < 4) {
-    return res.status(400).json({ error: 'Please enter a valid UPI/Bank Transaction UTR Reference number' });
+    return res.status(400).json({ error: 'Please enter a valid 12-digit UPI / Bank Transaction UTR Reference number' });
   }
+
+  const activeSettings = adminManager.getPaymentSettings();
+  const isBank = paymentRail === 'BANK';
+  const methodLabel = isBank 
+    ? `Bank Transfer (${activeSettings.bankName} - A/C ${activeSettings.accountNumber})`
+    : `UPI Transfer (${activeSettings.upiId})`;
 
   const refCode = `FG-DEP-${Math.floor(100000 + Math.random() * 900000)}`;
   const txn = adminManager.addTransaction({
@@ -177,18 +190,32 @@ app.post('/api/payment/deposit-proof', (req, res) => {
     type: 'DEPOSIT',
     amount: numUSD,
     currency: currency || (user ? user.currency : 'INR'),
-    method: `UPI Instant QR (foregrowx@naviaxis)`,
+    method: methodLabel,
+    paymentRail: isBank ? 'BANK' : 'UPI',
     promoCode: promoCode || undefined,
     status: 'PENDING',
     utrNumber: utrNumber.trim(),
     proofImage: proofImage || undefined,
+    bankDetails: isBank ? {
+      bankName: activeSettings.bankName,
+      holderName: activeSettings.accountHolderName,
+      accountNumber: activeSettings.accountNumber,
+      ifscCode: activeSettings.ifscCode,
+      accountType: activeSettings.accountType,
+      branchName: activeSettings.branchName,
+      ...bankDetails,
+    } : {
+      upiId: activeSettings.upiId,
+      holderName: activeSettings.upiName,
+      ...bankDetails,
+    },
   });
 
   res.json({
     success: true,
     reference: refCode,
     transactionId: txn.id,
-    message: 'Your payment proof has been submitted successfully! Within 8 working hours, your deposit will reflect in your account after verification.',
+    message: 'Your payment proof has been submitted successfully! Within 5-15 minutes, your deposit will reflect in your account after verification.',
   });
 });
 
@@ -588,6 +615,17 @@ app.delete('/api/admin/coupons/:id', (req, res) => {
   res.json({ success });
 });
 
+// Admin Bank & UPI Payment Receiving Settings
+app.post('/api/admin/payment/settings', (req: express.Request, res: express.Response) => {
+  const { actorName, actorId, ...settings } = req.body;
+  const updated = adminManager.updatePaymentSettings(settings, {
+    id: actorId || 'admin_01',
+    name: actorName || 'Administrator',
+    role: 'ADMIN',
+  });
+  res.json({ success: true, settings: updated });
+});
+
 // ================= MANAGER DESK ENDPOINTS =================
 app.get('/api/manager/overview', (req: express.Request, res: express.Response) => {
   res.json(adminManager.getManagerOverview());
@@ -715,6 +753,16 @@ app.get('/api/manager/trades', (req: express.Request, res: express.Response) => 
 
 app.get('/api/manager/audit-logs', (req: express.Request, res: express.Response) => {
   res.json(adminManager.getAuditLogs());
+});
+
+app.post('/api/manager/payment/settings', (req: express.Request, res: express.Response) => {
+  const { actorName, actorId, ...settings } = req.body;
+  const updated = adminManager.updatePaymentSettings(settings, {
+    id: actorId || 'mgr_01',
+    name: actorName || 'Operations Manager',
+    role: 'MANAGER',
+  });
+  res.json({ success: true, settings: updated });
 });
 
 app.post('/api/admin/assets/:id/payout', (req, res) => {

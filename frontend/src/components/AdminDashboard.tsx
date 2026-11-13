@@ -8,6 +8,7 @@ import {
   Transaction,
   PromoCoupon,
   Trade,
+  DepositPaymentSettings,
 } from '../types';
 import {
   Users,
@@ -33,7 +34,11 @@ import {
   Check,
   Copy,
   LogOut,
-  X
+  X,
+  Building2,
+  Smartphone,
+  Edit3,
+  Save
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -98,6 +103,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [newMinDeposit, setNewMinDeposit] = useState<number>(25);
   const [newMaxUsage, setNewMaxUsage] = useState<number>(500);
 
+  // Dynamic Payment Settings State
+  const [paymentSettings, setPaymentSettings] = useState<DepositPaymentSettings | null>(null);
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
+  const [isSavingPaymentSettings, setIsSavingPaymentSettings] = useState(false);
+  const [editBankName, setEditBankName] = useState('');
+  const [editAccountHolderName, setEditAccountHolderName] = useState('');
+  const [editAccountNumber, setEditAccountNumber] = useState('');
+  const [editIfscCode, setEditIfscCode] = useState('');
+  const [editAccountType, setEditAccountType] = useState('Current Account');
+  const [editBranchName, setEditBranchName] = useState('');
+  const [editUpiId, setEditUpiId] = useState('');
+  const [editUpiName, setEditUpiName] = useState('');
+  const [editInstructions, setEditInstructions] = useState('');
+  const [adminNotification, setAdminNotification] = useState<string | null>(null);
+
+  const showAdminToast = (msg: string) => {
+    setAdminNotification(msg);
+    setTimeout(() => setAdminNotification(null), 3500);
+  };
+
+  const openEditPaymentModal = () => {
+    if (paymentSettings) {
+      setEditBankName(paymentSettings.bankName || '');
+      setEditAccountHolderName(paymentSettings.accountHolderName || '');
+      setEditAccountNumber(paymentSettings.accountNumber || '');
+      setEditIfscCode(paymentSettings.ifscCode || '');
+      setEditAccountType(paymentSettings.accountType || 'Current Account');
+      setEditBranchName(paymentSettings.branchName || '');
+      setEditUpiId(paymentSettings.upiId || '');
+      setEditUpiName(paymentSettings.upiName || '');
+      setEditInstructions(paymentSettings.instructions || '');
+    }
+    setIsEditPaymentModalOpen(true);
+  };
+
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingPaymentSettings(true);
+    try {
+      const res = await fetch(apiUrl('/api/admin/payment/settings'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bankName: editBankName.trim(),
+          accountHolderName: editAccountHolderName.trim(),
+          accountNumber: editAccountNumber.trim(),
+          ifscCode: editIfscCode.trim().toUpperCase(),
+          accountType: editAccountType.trim(),
+          branchName: editBranchName.trim(),
+          upiId: editUpiId.trim(),
+          upiName: editUpiName.trim(),
+          instructions: editInstructions.trim(),
+          actorName: 'Super Administrator',
+          actorId: 'usr_admin_001',
+        }),
+      });
+      const data = await res.json();
+      if (data?.settings) {
+        setPaymentSettings(data.settings);
+        setIsEditPaymentModalOpen(false);
+        showAdminToast('✅ Bank Account & UPI Details updated live for all clients!');
+      }
+    } catch (err) {
+      console.error('Failed to save payment settings:', err);
+    } finally {
+      setIsSavingPaymentSettings(false);
+    }
+  };
+
   // Payout Adjustments State
   const [payoutEdits, setPayoutEdits] = useState<Record<string, number>>({});
 
@@ -108,16 +182,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const fetchAdminData = async () => {
     setIsLoading(true);
     try {
-      const [ovRes, uRes, txRes, cpnRes] = await Promise.all([
+      const [ovRes, uRes, txRes, cpnRes, psRes] = await Promise.all([
         fetch(apiUrl('/api/admin/overview')).then((r) => r.json()),
         fetch(apiUrl('/api/admin/users')).then((r) => r.json()),
         fetch(apiUrl('/api/admin/transactions')).then((r) => r.json()),
         fetch(apiUrl('/api/admin/coupons')).then((r) => r.json()),
+        fetch(apiUrl('/api/payment/settings')).then((r) => r.json()).catch(() => null),
       ]);
       setOverview(ovRes);
       setUsers(uRes);
       setTransactions(txRes);
       setCoupons(cpnRes);
+      if (psRes?.settings) {
+        setPaymentSettings(psRes.settings);
+      }
 
       const payoutsMap: Record<string, number> = {};
       assets.forEach((a) => {
@@ -865,6 +943,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         {/* ================= TAB 3: PAYMENTS & CASHIER ================= */}
         {activeTab === 'PAYMENTS' && (
           <div className="space-y-4">
+            {/* Active Bank & UPI Account Settings Card */}
+            <div className={`p-4 sm:p-5 rounded-3xl border transition shadow-lg ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-sky-500/20">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        Active Client Deposit Receiving Accounts
+                      </h3>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        ● LIVE ON CASHIER
+                      </span>
+                    </div>
+                    <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Dynamic Bank Account & UPI ID displayed to all traders in Cashier Deposit.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openEditPaymentModal}
+                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-400 hover:to-indigo-400 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 self-start sm:self-auto"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Bank & UPI Details</span>
+                </button>
+              </div>
+
+              {paymentSettings && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'}`}>
+                    <span className="text-[10px] font-bold text-gray-400 block uppercase">Bank Name</span>
+                    <span className={`font-black mt-0.5 block truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      {paymentSettings.bankName}
+                    </span>
+                  </div>
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'}`}>
+                    <span className="text-[10px] font-bold text-gray-400 block uppercase">Account Number</span>
+                    <span className="font-mono font-black text-emerald-400 mt-0.5 block truncate">
+                      {paymentSettings.accountNumber}
+                    </span>
+                  </div>
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'}`}>
+                    <span className="text-[10px] font-bold text-gray-400 block uppercase">IFSC Code</span>
+                    <span className="font-mono font-black text-sky-400 mt-0.5 block truncate">
+                      {paymentSettings.ifscCode}
+                    </span>
+                  </div>
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'}`}>
+                    <span className="text-[10px] font-bold text-gray-400 block uppercase">Official UPI ID</span>
+                    <span className="font-mono font-bold text-amber-400 mt-0.5 block truncate">
+                      {paymentSettings.upiId}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between">
               <div className="flex space-x-2">
                 {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((filter) => (
@@ -1985,6 +2127,218 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: EDIT RECEIVING BANK & UPI SETTINGS ================= */}
+      {isEditPaymentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
+          <div className={`w-full max-w-xl border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              isLight ? 'border-slate-200' : 'border-[#2e354b]'
+            }`}>
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-md">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`font-black text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    Edit Client Deposit Receiving Accounts
+                  </h3>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Changes update live immediately in the Trader Cashier modal.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditPaymentModalOpen(false)}
+                className={`p-1.5 rounded-xl transition ${
+                  isLight ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePaymentSettings} className="space-y-4 overflow-y-auto pr-1">
+              {/* Bank Transfer Details Section */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
+              }`}>
+                <div className="flex items-center space-x-2 text-xs font-black uppercase text-sky-400">
+                  <Building2 className="w-4 h-4" />
+                  <span>1. Bank Account Details (IMPS / NEFT)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">Bank Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editBankName}
+                      onChange={(e) => setEditBankName(e.target.value)}
+                      placeholder="e.g. HDFC Bank, ICICI Bank"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
+                        isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#182030] border-[#2e354b] text-white'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">Beneficiary / Holder Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editAccountHolderName}
+                      onChange={(e) => setEditAccountHolderName(e.target.value)}
+                      placeholder="e.g. Forex Grow Institutional Desk"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
+                        isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#182030] border-[#2e354b] text-white'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">Bank Account Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editAccountNumber}
+                      onChange={(e) => setEditAccountNumber(e.target.value.replace(/\s+/g, ''))}
+                      placeholder="e.g. 50200084729104"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold focus:outline-none text-emerald-400 ${
+                        isLight ? 'bg-white border-slate-300' : 'bg-[#182030] border-[#2e354b]'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">IFSC Code *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editIfscCode}
+                      onChange={(e) => setEditIfscCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                      placeholder="e.g. HDFC0000240"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold uppercase focus:outline-none text-sky-400 ${
+                        isLight ? 'bg-white border-slate-300' : 'bg-[#182030] border-[#2e354b]'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">Account Type</label>
+                    <input
+                      type="text"
+                      value={editAccountType}
+                      onChange={(e) => setEditAccountType(e.target.value)}
+                      placeholder="Current Account / Savings Account"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
+                        isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#182030] border-[#2e354b] text-white'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">Branch Name</label>
+                    <input
+                      type="text"
+                      value={editBranchName}
+                      onChange={(e) => setEditBranchName(e.target.value)}
+                      placeholder="e.g. Nariman Point, Mumbai"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
+                        isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#182030] border-[#2e354b] text-white'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* UPI Details Section */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
+              }`}>
+                <div className="flex items-center space-x-2 text-xs font-black uppercase text-emerald-400">
+                  <Smartphone className="w-4 h-4" />
+                  <span>2. Official UPI Receiving Details</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">UPI ID (VPA) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editUpiId}
+                      onChange={(e) => setEditUpiId(e.target.value.toLowerCase().trim())}
+                      placeholder="e.g. forexgrow@icici"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold focus:outline-none text-amber-400 ${
+                        isLight ? 'bg-white border-slate-300' : 'bg-[#182030] border-[#2e354b]'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">UPI Payee Display Name</label>
+                    <input
+                      type="text"
+                      value={editUpiName}
+                      onChange={(e) => setEditUpiName(e.target.value)}
+                      placeholder="e.g. Forex Grow Official Desk"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
+                        isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#182030] border-[#2e354b] text-white'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Instructions Section */}
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 mb-1">Client Payment Instructions</label>
+                <textarea
+                  rows={2}
+                  value={editInstructions}
+                  onChange={(e) => setEditInstructions(e.target.value)}
+                  placeholder="Instructions displayed to clients on payment page..."
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none ${
+                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#182030] border-[#2e354b] text-white'
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setIsEditPaymentModalOpen(false)}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-gray-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPaymentSettings}
+                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center space-x-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingPaymentSettings ? 'Updating System...' : 'Save & Publish Live'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Admin Toast Notification */}
+      {adminNotification && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#1e2333]/95 border border-emerald-500/40 text-emerald-400 text-xs font-black px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-bounce flex items-center space-x-2">
+          <span>{adminNotification}</span>
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useTrading } from '../context/TradingContext';
 import { CURRENCY_CONFIGS, formatCurrency } from '../utils/currency';
 import { apiUrl } from '../utils/api';
+import { DepositPaymentSettings } from '../types';
 import { 
   X, 
   Check, 
@@ -17,7 +18,8 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Building2, 
-  Smartphone
+  Smartphone,
+  Info
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -31,6 +33,26 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const isLight = theme === 'light';
 
   const [activeTab, setActiveTab] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
+
+  // Dynamic Bank and UPI Settings fetched from Server
+  const [paymentSettings, setPaymentSettings] = useState<DepositPaymentSettings>({
+    upiId: 'forexgrow@icici',
+    upiName: 'Forex Grow Official Desk',
+    bankName: 'HDFC Bank',
+    accountHolderName: 'Forex Grow Institutional Operations',
+    accountNumber: '50200084729104',
+    ifscCode: 'HDFC0000240',
+    accountType: 'Current Account',
+    branchName: 'Nariman Point, Mumbai',
+    instructions: 'Transfer funds via IMPS, NEFT, RTGS or UPI. Upload clear screenshot showing complete 12-digit UTR/Reference number for verification.',
+    minDepositINR: 500,
+  });
+
+  // Deposit Rail: UPI vs Direct Bank Account Transfer
+  const [depositRail, setDepositRail] = useState<'UPI' | 'BANK'>('UPI');
+  const [copiedBankAcc, setCopiedBankAcc] = useState(false);
+  const [copiedIfsc, setCopiedIfsc] = useState(false);
+  const [copiedAllBank, setCopiedAllBank] = useState(false);
 
   // Deposit Form State
   const curr = CURRENCY_CONFIGS[account.currency] || CURRENCY_CONFIGS.USD;
@@ -47,8 +69,21 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const [isFastTracking, setIsFastTracking] = useState(false);
   const [depositMethod, setDepositMethod] = useState<'INSTANT' | 'PROOF'>('INSTANT');
   const [depositError, setDepositError] = useState<string | null>(null);
-  const [depositSuccessData, setDepositSuccessData] = useState<{ reference: string; amount: number; transactionId?: string; isInstant?: boolean } | null>(null);
+  const [depositSuccessData, setDepositSuccessData] = useState<{ reference: string; amount: number; transactionId?: string; isInstant?: boolean; rail?: string } | null>(null);
   const [realQrDataUrl, setRealQrDataUrl] = useState<string>('');
+
+  // Fetch live payment settings whenever modal is opened
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch(apiUrl('/api/payment/settings'))
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings) {
+          setPaymentSettings(data.settings);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch payment settings:', err));
+  }, [isOpen]);
 
   // Withdrawal Form State
   const [withdrawAmountInput, setWithdrawAmountInput] = useState<string>(Math.round(20 * curr.rateAgainstUSD).toString());
@@ -62,7 +97,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccessData, setWithdrawSuccessData] = useState<{ reference: string; amount: number } | null>(null);
 
-  const upiId = 'foregrowx@naviaxis';
+  const activeUpiId = paymentSettings.upiId || 'forexgrow@icici';
   const numericDeposit = Number(depositAmountInput) || 0;
   const depositAmountUSD = numericDeposit / curr.rateAgainstUSD;
 
@@ -94,7 +129,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   // MUST run before any conditional returns to obey React Rules of Hooks
   useEffect(() => {
     if (!isOpen) return;
-    const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('Forex Grow')}&am=${numericDeposit > 0 ? numericDeposit.toFixed(2) : '100.00'}&cu=INR&tn=${encodeURIComponent('ForexGrow Deposit')}`;
+    const upiUri = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(paymentSettings.upiName || 'Forex Grow')}&am=${numericDeposit > 0 ? numericDeposit.toFixed(2) : '100.00'}&cu=INR&tn=${encodeURIComponent('ForexGrow Deposit')}`;
     QRCode.toDataURL(upiUri, {
       width: 280,
       margin: 1,
@@ -106,7 +141,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
     })
       .then((url) => setRealQrDataUrl(url))
       .catch((err) => console.error('QR generation error:', err));
-  }, [isOpen, upiId, numericDeposit]);
+  }, [isOpen, activeUpiId, paymentSettings.upiName, numericDeposit]);
 
   if (!isOpen) return null;
 
@@ -126,9 +161,36 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   };
 
   const handleCopyUpi = () => {
-    navigator.clipboard.writeText(upiId);
+    navigator.clipboard.writeText(activeUpiId);
     setCopiedUpi(true);
     setTimeout(() => setCopiedUpi(false), 2000);
+  };
+
+  const handleCopyBankAcc = () => {
+    navigator.clipboard.writeText(paymentSettings.accountNumber);
+    setCopiedBankAcc(true);
+    setTimeout(() => setCopiedBankAcc(false), 2000);
+  };
+
+  const handleCopyIfsc = () => {
+    navigator.clipboard.writeText(paymentSettings.ifscCode);
+    setCopiedIfsc(true);
+    setTimeout(() => setCopiedIfsc(false), 2000);
+  };
+
+  const handleCopyAllBankDetails = () => {
+    const text = `FOREX GROW OFFICIAL BANK DETAILS:
+Bank Name: ${paymentSettings.bankName}
+Account Holder: ${paymentSettings.accountHolderName}
+Account Number: ${paymentSettings.accountNumber}
+IFSC Code: ${paymentSettings.ifscCode}
+Account Type: ${paymentSettings.accountType}
+Branch: ${paymentSettings.branchName}
+Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.currency})`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedAllBank(true);
+    setTimeout(() => setCopiedAllBank(false), 2500);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,7 +223,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
           currency: account.currency,
           amountUSD: depositAmountUSD,
           promoCode: appliedPromo || undefined,
-          method: 'Instant UPI Fast-Track',
+          method: depositRail === 'BANK' ? `Instant Bank Transfer (${paymentSettings.bankName})` : 'Instant UPI Fast-Track',
         }),
       });
 
@@ -172,6 +234,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
           amount: numericDeposit,
           transactionId: data.transactionId,
           isInstant: true,
+          rail: depositRail,
         });
         confetti({
           particleCount: 120,
@@ -187,6 +250,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
         reference: 'FG-DEP-' + Math.floor(100000 + Math.random() * 900000),
         amount: numericDeposit,
         isInstant: true,
+        rail: depositRail,
       });
       confetti({
         particleCount: 120,
@@ -245,6 +309,18 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
           utrNumber: finalUtr,
           proofImage: proofImage || 'proof_attached.png',
           promoCode: appliedPromo || undefined,
+          paymentRail: depositRail,
+          bankDetails: depositRail === 'BANK' ? {
+            bankName: paymentSettings.bankName,
+            holderName: paymentSettings.accountHolderName,
+            accountNumber: paymentSettings.accountNumber,
+            ifscCode: paymentSettings.ifscCode,
+            accountType: paymentSettings.accountType,
+            branchName: paymentSettings.branchName,
+          } : {
+            upiId: activeUpiId,
+            holderName: paymentSettings.upiName,
+          },
         }),
       });
 
@@ -255,6 +331,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
           amount: numericDeposit,
           transactionId: data.transactionId,
           isInstant: false,
+          rail: depositRail,
         });
         confetti({
           particleCount: 100,
@@ -262,14 +339,19 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
           origin: { y: 0.6 },
         });
       } else {
-        setDepositError(data.error || 'Failed to submit payment proof');
+        setDepositError(data.error || 'Failed to submit deposit proof');
       }
     } catch (e) {
-      // Offline fallback simulation
       setDepositSuccessData({
         reference: 'FG-DEP-' + Math.floor(100000 + Math.random() * 900000),
         amount: numericDeposit,
         isInstant: false,
+        rail: depositRail,
+      });
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
       });
     } finally {
       setIsSubmittingDeposit(false);
@@ -620,70 +702,241 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
                   )}
                 </div>
 
-                {/* Step 3: Proper QR Code & UPI ID */}
-                <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 ${
-                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10141f] border-[#293246]'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 ${
-                      isLight ? 'text-slate-800' : 'text-gray-200'
-                    }`}>
-                      <QrCode className="w-4 h-4 text-emerald-500" />
-                      <span>2. Scan QR or Pay to Official Forex Grow UPI</span>
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500">
-                      Instant 0% Fee
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-center gap-4">
-                    {/* Dynamic Real Scannable UPI QR Code */}
-                    <div className="w-36 h-36 bg-white rounded-2xl p-2 shadow-lg flex flex-col items-center justify-center shrink-0 border border-slate-300">
-                      {realQrDataUrl ? (
-                        <img
-                          src={realQrDataUrl}
-                          alt="Forex Grow UPI QR"
-                          className="w-full h-full object-contain rounded-lg"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                          Loading QR...
-                        </div>
-                      )}
-                      <span className="text-[9px] font-black text-slate-700 tracking-wider mt-0.5">GPay • PhonePe • Paytm</span>
-                    </div>
-
-                    <div className="flex-1 space-y-2 text-center sm:text-left">
-                      <div className={`text-xs ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
-                        Payable: <strong className="text-emerald-500 font-mono text-base">{curr.symbol}{numericDeposit.toLocaleString()}</strong>
+                {/* Step 2: Payment Method Rail (UPI vs Bank Account) */}
+                <div className="space-y-2">
+                  <label className={`text-xs font-bold block ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                    2. Select Payment Transfer Rail
+                  </label>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setDepositRail('UPI')}
+                      className={`p-3 rounded-2xl border text-xs font-black transition flex items-center space-x-2.5 text-left ${
+                        depositRail === 'UPI'
+                          ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-emerald-500 text-emerald-400 shadow-lg shadow-emerald-500/10'
+                          : isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          : 'bg-[#10141f] border-[#293246] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 text-emerald-400">
+                        <Smartphone className="w-4 h-4" />
                       </div>
-
                       <div>
-                        <span className={`text-[11px] font-semibold block mb-1 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                          Official Forex Grow UPI ID:
-                        </span>
-                        <div className={`flex items-center justify-between border rounded-xl px-3 py-2 font-mono text-xs font-bold ${
-                          isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-[#182030] border-[#293246] text-emerald-400'
-                        }`}>
-                          <span className="truncate mr-2">{upiId}</span>
-                          <button
-                            type="button"
-                            onClick={handleCopyUpi}
-                            className={`p-1.5 rounded-lg transition ${
-                              isLight ? 'hover:bg-slate-100 text-slate-600' : 'hover:bg-white/10 text-gray-300'
-                            }`}
-                          >
-                            {copiedUpi ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                          </button>
-                        </div>
+                        <div className="font-bold">UPI Instant QR</div>
+                        <div className="text-[10px] font-normal opacity-75">GPay • PhonePe • Paytm</div>
                       </div>
+                    </button>
 
-                      <p className={`text-[10px] leading-relaxed ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                        Scan the QR from any UPI App (Google Pay, PhonePe, Paytm, BHIM, Navi, Axis) or copy the UPI ID directly.
-                      </p>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDepositRail('BANK')}
+                      className={`p-3 rounded-2xl border text-xs font-black transition flex items-center space-x-2.5 text-left ${
+                        depositRail === 'BANK'
+                          ? 'bg-gradient-to-r from-sky-500/20 to-indigo-500/20 border-sky-500 text-sky-400 shadow-lg shadow-sky-500/10'
+                          : isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          : 'bg-[#10141f] border-[#293246] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center shrink-0 text-sky-400">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold">Direct Bank Account</div>
+                        <div className="text-[10px] font-normal opacity-75">IMPS • NEFT • RTGS</div>
+                      </div>
+                    </button>
                   </div>
                 </div>
+
+                {/* Step 3A: UPI Instant QR View */}
+                {depositRail === 'UPI' && (
+                  <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 animate-in fade-in duration-150 ${
+                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10141f] border-[#293246]'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 ${
+                        isLight ? 'text-slate-800' : 'text-gray-200'
+                      }`}>
+                        <QrCode className="w-4 h-4 text-emerald-500" />
+                        <span>3. Scan QR or Pay to Official UPI</span>
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500">
+                        Zero Processing Fee
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      {/* Dynamic Real Scannable UPI QR Code */}
+                      <div className="w-36 h-36 bg-white rounded-2xl p-2 shadow-lg flex flex-col items-center justify-center shrink-0 border border-slate-300">
+                        {realQrDataUrl ? (
+                          <img
+                            src={realQrDataUrl}
+                            alt="Forex Grow UPI QR"
+                            className="w-full h-full object-contain rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                            Generating QR...
+                          </div>
+                        )}
+                        <span className="text-[9px] font-black text-slate-700 tracking-wider mt-0.5">GPay • PhonePe • Paytm</span>
+                      </div>
+
+                      <div className="flex-1 space-y-2 text-center sm:text-left w-full">
+                        <div className={`text-xs ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                          Payable Amount: <strong className="text-emerald-500 font-mono text-base">{curr.symbol}{numericDeposit.toLocaleString()}</strong>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[11px] font-semibold ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                              Official Forex Grow UPI ID:
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {paymentSettings.upiName}
+                            </span>
+                          </div>
+                          <div className={`flex items-center justify-between border rounded-xl px-3 py-2 font-mono text-xs font-bold ${
+                            isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-[#182030] border-[#293246] text-emerald-400'
+                          }`}>
+                            <span className="truncate mr-2">{activeUpiId}</span>
+                            <button
+                              type="button"
+                              onClick={handleCopyUpi}
+                              className={`p-1.5 rounded-lg transition ${
+                                isLight ? 'hover:bg-slate-100 text-slate-600' : 'hover:bg-white/10 text-gray-300'
+                              }`}
+                              title="Copy UPI ID"
+                            >
+                              {copiedUpi ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className={`text-[10px] leading-relaxed ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                          Scan the dynamic QR from any UPI App or transfer directly to the UPI ID above.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3B: Dynamic Bank Account Transfer View */}
+                {depositRail === 'BANK' && (
+                  <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 animate-in fade-in duration-150 ${
+                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10141f] border-[#293246]'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 ${
+                        isLight ? 'text-slate-800' : 'text-gray-200'
+                      }`}>
+                        <Building2 className="w-4 h-4 text-sky-400" />
+                        <span>3. Official Forex Grow Bank Account Details</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyAllBankDetails}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-400 hover:bg-sky-500/25 transition flex items-center space-x-1"
+                      >
+                        {copiedAllBank ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedAllBank ? 'Copied Full Details!' : 'Copy All Details'}</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      {/* Bank Name */}
+                      <div className={`p-3 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#182030] border-[#293246]'}`}>
+                        <span className={`text-[10px] font-semibold uppercase block ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>
+                          Bank Name
+                        </span>
+                        <span className={`font-black text-sm block mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          {paymentSettings.bankName}
+                        </span>
+                      </div>
+
+                      {/* Account Holder */}
+                      <div className={`p-3 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#182030] border-[#293246]'}`}>
+                        <span className={`text-[10px] font-semibold uppercase block ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>
+                          Beneficiary / Account Holder
+                        </span>
+                        <span className={`font-bold text-xs block mt-0.5 truncate ${isLight ? 'text-slate-900' : 'text-white'}`} title={paymentSettings.accountHolderName}>
+                          {paymentSettings.accountHolderName}
+                        </span>
+                      </div>
+
+                      {/* Account Number with 1-Click Copy */}
+                      <div className={`p-3 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#182030] border-[#293246]'}`}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className={`text-[10px] font-semibold uppercase ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>
+                            Account Number
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopyBankAcc}
+                            className={`p-1 rounded hover:bg-black/10 transition ${copiedBankAcc ? 'text-emerald-400' : 'text-sky-400'}`}
+                            title="Copy Account Number"
+                          >
+                            {copiedBankAcc ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        <span className="font-mono font-black text-base tracking-wider text-emerald-400 block select-all">
+                          {paymentSettings.accountNumber}
+                        </span>
+                      </div>
+
+                      {/* IFSC Code with 1-Click Copy */}
+                      <div className={`p-3 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#182030] border-[#293246]'}`}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className={`text-[10px] font-semibold uppercase ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>
+                            IFSC Code
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopyIfsc}
+                            className={`p-1 rounded hover:bg-black/10 transition ${copiedIfsc ? 'text-emerald-400' : 'text-sky-400'}`}
+                            title="Copy IFSC Code"
+                          >
+                            {copiedIfsc ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        <span className="font-mono font-black text-base tracking-wider text-sky-400 block select-all">
+                          {paymentSettings.ifscCode}
+                        </span>
+                      </div>
+
+                      {/* Account Type */}
+                      <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#182030] border-[#293246]'}`}>
+                        <span className={`text-[10px] font-semibold uppercase block ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>
+                          Account Type
+                        </span>
+                        <span className={`font-semibold text-xs block mt-0.5 ${isLight ? 'text-slate-700' : 'text-gray-200'}`}>
+                          {paymentSettings.accountType || 'Current Account'}
+                        </span>
+                      </div>
+
+                      {/* Branch Name */}
+                      <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#182030] border-[#293246]'}`}>
+                        <span className={`text-[10px] font-semibold uppercase block ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>
+                          Branch Location
+                        </span>
+                        <span className={`font-semibold text-xs block mt-0.5 truncate ${isLight ? 'text-slate-700' : 'text-gray-200'}`}>
+                          {paymentSettings.branchName || 'Corporate Banking'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {paymentSettings.instructions && (
+                      <div className={`p-3 rounded-xl border flex items-start space-x-2 text-[11px] leading-relaxed ${
+                        isLight ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-sky-500/10 border-sky-500/20 text-sky-300'
+                      }`}>
+                        <Info className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
+                        <span>{paymentSettings.instructions}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Step 4: Enter UTR Number & Attach Screenshot Proof */}
                 <div className={`p-4 sm:p-5 rounded-2xl border space-y-3 ${
@@ -692,7 +945,7 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
                   <span className={`text-xs font-black uppercase tracking-wider block ${
                     isLight ? 'text-slate-800' : 'text-gray-200'
                   }`}>
-                    3. Submit Payment Verification Proof
+                    4. Attach Transfer Screenshot & Enter UTR Reference
                   </span>
 
                   <div>

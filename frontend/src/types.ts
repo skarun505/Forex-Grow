@@ -120,6 +120,21 @@ export interface UserAccount {
   createdBy?: string;
 }
 
+export interface DepositPaymentSettings {
+  upiId: string;
+  upiName: string;
+  bankName: string;
+  accountHolderName: string;
+  accountNumber: string;
+  ifscCode: string;
+  accountType: string;
+  branchName: string;
+  instructions?: string;
+  minDepositINR?: number;
+  updatedAt?: number;
+  updatedBy?: string;
+}
+
 export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL';
 export type TransactionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -131,6 +146,7 @@ export interface Transaction {
   amount: number;
   currency: CurrencyCode;
   method: string;
+  paymentRail?: 'UPI' | 'BANK';
   address?: string;
   promoCode?: string;
   status: TransactionStatus;
@@ -146,6 +162,8 @@ export interface Transaction {
     ifscCode?: string;
     bankName?: string;
     upiId?: string;
+    accountType?: string;
+    branchName?: string;
   };
 }
 
