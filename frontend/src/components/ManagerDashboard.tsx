@@ -45,10 +45,10 @@ interface ManagerOverview {
 }
 
 interface ManagerDashboardProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
-export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onClose }) => {
+export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const { theme } = useTrading();
   const isLight = theme === 'light';
 
@@ -382,14 +382,6 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
             }`}
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-sky-400' : ''}`} />
-          </button>
-
-          <button
-            onClick={onClose}
-            className="flex items-center space-x-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl shadow-lg shadow-emerald-500/20 transition active:scale-95"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Trading Terminal</span>
           </button>
 
           <button

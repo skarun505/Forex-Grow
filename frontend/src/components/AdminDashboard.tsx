@@ -19,7 +19,6 @@ import {
   AlertCircle,
   CheckCircle,
   ShieldAlert,
-  ArrowLeft,
   Search,
   Plus,
   RefreshCw,
@@ -38,10 +37,10 @@ import {
 } from 'lucide-react';
 
 interface AdminDashboardProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const { assets, theme, toggleTheme } = useTrading();
   const isLight = theme === 'light';
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'USERS' | 'PAYMENTS' | 'COUPONS' | 'MARKETS'>('OVERVIEW');
@@ -379,35 +378,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       <header className={`h-16 border-b px-6 flex items-center justify-between transition-colors ${
         isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
       }`}>
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={onClose}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition border ${
-              isLight
-                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                : 'bg-[#222838] hover:bg-[#2c3347] text-white border-[#2e354b]'
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Trading Terminal</span>
-          </button>
-          <div className={`h-6 w-[1px] ${isLight ? 'bg-slate-200' : 'bg-white/10'}`} />
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center text-black font-black">
-              <ShieldAlert className="w-5 h-5 text-black" />
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center text-black font-black shadow-lg shadow-amber-500/20">
+            <ShieldAlert className="w-5 h-5 text-black" />
+          </div>
+          <div>
+            <div className={`text-sm font-black tracking-wide flex items-center space-x-2 ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>
+              <span>FOREX GROW BROKER ADMIN CENTER</span>
+              <span className="text-[9px] font-black uppercase bg-amber-500/20 text-amber-500 px-1.5 py-0.2 rounded border border-amber-500/30">
+                ROOT ACCESS
+              </span>
             </div>
-            <div>
-              <div className={`text-sm font-black tracking-wide flex items-center space-x-2 ${
-                isLight ? 'text-slate-900' : 'text-white'
-              }`}>
-                <span>FOREX GROW BROKER ADMIN CENTER</span>
-                <span className="text-[9px] font-black uppercase bg-amber-500/20 text-amber-500 px-1.5 py-0.2 rounded border border-amber-500/30">
-                  ROOT ACCESS
-                </span>
-              </div>
-              <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                Forex Grow Master Backoffice, User Management & Payout Controller
-              </div>
+            <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+              Forex Grow Master Backoffice, User Management & Payout Controller
             </div>
           </div>
         </div>

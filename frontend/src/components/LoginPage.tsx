@@ -156,7 +156,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
       <header className={`w-full max-w-7xl mx-auto px-4 sm:px-8 py-4 sm:py-5 flex items-center justify-between z-10 border-b ${
         isLight ? 'border-slate-200' : 'border-white/5'
       }`}>
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigateTo('/')}>
+        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigateTo(mode === 'ADMIN' ? '/admin' : mode === 'MANAGER' ? '/manager' : '/')}>
           <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg font-black text-sm text-slate-950 ${
             mode === 'ADMIN' 
               ? 'bg-gradient-to-tr from-purple-500 to-indigo-400 shadow-purple-500/25' 
@@ -192,15 +192,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Portal Switchers */}
-          {mode !== 'TRADER' && (
+          {/* Desk Switcher for Internal Staff */}
+          {mode === 'ADMIN' && (
             <button
-              onClick={() => navigateTo('/')}
+              onClick={() => navigateTo('/manager')}
               className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
                 isLight ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-white/5 border-white/10 text-gray-300 hover:text-white'
               }`}
             >
-              Trader Floor →
+              Manager Desk →
+            </button>
+          )}
+
+          {mode === 'MANAGER' && (
+            <button
+              onClick={() => navigateTo('/admin')}
+              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
+                isLight ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-white/5 border-white/10 text-gray-300 hover:text-white'
+              }`}
+            >
+              Admin Portal →
             </button>
           )}
 

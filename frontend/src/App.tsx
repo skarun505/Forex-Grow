@@ -149,47 +149,59 @@ export const App: React.FC = () => {
     navigateTo('/');
   };
 
-  const handleCloseAdmin = () => {
-    navigateTo('/');
-  };
+  // 1. ADMIN USER LOGGED IN: ONLY ACCESS TO ADMIN DASHBOARD (NO TRADING VIEW SCREEN)
+  if (currentUser && currentUser.role === 'ADMIN') {
+    if (currentPath === '/manager' || currentPath.startsWith('/manager/')) {
+      return (
+        <TradingProvider>
+          <ManagerDashboard />
+        </TradingProvider>
+      );
+    }
+    if (currentPath !== '/admin') {
+      window.history.replaceState({}, '', '/admin');
+    }
+    return (
+      <TradingProvider>
+        <AdminDashboard />
+      </TradingProvider>
+    );
+  }
 
-  // Route: /admin (Super Admin Backoffice)
-  const isAdminPath = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/');
+  // 2. MANAGER USER LOGGED IN: ONLY ACCESS TO MANAGER DASHBOARD (NO TRADING VIEW SCREEN)
+  if (currentUser && currentUser.role === 'MANAGER') {
+    if (currentPath !== '/manager') {
+      window.history.replaceState({}, '', '/manager');
+    }
+    return (
+      <TradingProvider>
+        <ManagerDashboard />
+      </TradingProvider>
+    );
+  }
+
+  // 3. UNAUTHENTICATED USERS: STRICT LOGIN REQUIRED BEFORE DASHBOARD/TERMINAL ACCESS
+  const isAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/');
   if (isAdminPath) {
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      return (
-        <LoginPage
-          mode="ADMIN"
-          onLoginSuccess={handleAdminLoginSuccess}
-        />
-      );
-    }
     return (
-      <TradingProvider>
-        <AdminDashboard onClose={handleCloseAdmin} />
-      </TradingProvider>
+      <LoginPage
+        mode="ADMIN"
+        onLoginSuccess={handleAdminLoginSuccess}
+      />
     );
   }
 
-  // Route: /manager (Operations Manager Desk)
-  const isManagerPath = currentPath === '/manager' || currentPath === '/manager/' || currentPath.startsWith('/manager/');
+  const isManagerPath = currentPath === '/manager' || currentPath.startsWith('/manager/');
   if (isManagerPath) {
-    if (!currentUser || (currentUser.role !== 'MANAGER' && currentUser.role !== 'ADMIN')) {
-      return (
-        <LoginPage
-          mode="MANAGER"
-          onLoginSuccess={handleManagerLoginSuccess}
-        />
-      );
-    }
     return (
-      <TradingProvider>
-        <ManagerDashboard onClose={handleCloseAdmin} />
-      </TradingProvider>
+      <LoginPage
+        mode="MANAGER"
+        onLoginSuccess={handleManagerLoginSuccess}
+      />
     );
   }
 
-  // Route: / or /login or /register (Trader Floor)
+  // Unauthenticated visitors to / or /login or /register see the Trader Login
   if (!currentUser || currentPath === '/login' || currentPath === '/register') {
     return (
       <LoginPage
@@ -199,6 +211,7 @@ export const App: React.FC = () => {
     );
   }
 
+  // 4. AUTHENTICATED TRADERS ONLY: LIVE TRADING TERMINAL
   return (
     <TradingProvider>
       <MainLayout />
