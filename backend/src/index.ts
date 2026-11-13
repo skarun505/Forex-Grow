@@ -477,6 +477,113 @@ app.delete('/api/admin/coupons/:id', (req, res) => {
   res.json({ success });
 });
 
+// ================= MANAGER DESK ENDPOINTS =================
+app.get('/api/manager/overview', (req: express.Request, res: express.Response) => {
+  res.json(adminManager.getManagerOverview());
+});
+
+app.get('/api/manager/users', (req: express.Request, res: express.Response) => {
+  res.json(adminManager.getUsers());
+});
+
+app.post('/api/manager/users/:id/kyc', (req: express.Request, res: express.Response) => {
+  const { isVerified, actorName, actorId } = req.body;
+  const result = adminManager.setUserKyc(String(req.params.id), Boolean(isVerified), {
+    id: actorId || 'mgr_01',
+    name: actorName || 'Operations Manager',
+    role: 'MANAGER',
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/manager/users/:id/status', (req: express.Request, res: express.Response) => {
+  const { status, actorName, actorId } = req.body;
+  const result = adminManager.setUserStatus(String(req.params.id), status, {
+    id: actorId || 'mgr_01',
+    name: actorName || 'Operations Manager',
+    role: 'MANAGER',
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/manager/users/:id/reset-demo', (req: express.Request, res: express.Response) => {
+  const { actorName, actorId } = req.body;
+  const result = adminManager.resetUserDemo(String(req.params.id), {
+    id: actorId || 'mgr_01',
+    name: actorName || 'Operations Manager',
+    role: 'MANAGER',
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.get('/api/manager/transactions', (req: express.Request, res: express.Response) => {
+  res.json(adminManager.getTransactions());
+});
+
+app.post('/api/manager/transactions/:id/approve', (req: express.Request, res: express.Response) => {
+  const { actorName, actorId } = req.body;
+  const result = adminManager.approveTransaction(String(req.params.id), {
+    id: actorId || 'mgr_01',
+    name: actorName || 'Operations Manager',
+    role: 'MANAGER',
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+
+  const user = adminManager.getUser(result.transaction!.userId);
+  if (user) {
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      demoBalance: user.demoBalance,
+      realBalance: user.realBalance,
+      activeAccountType: user.activeAccountType,
+      currency: user.currency,
+    });
+  }
+  res.json(result);
+});
+
+app.post('/api/manager/transactions/:id/reject', (req: express.Request, res: express.Response) => {
+  const { reason, actorName, actorId } = req.body;
+  const result = adminManager.rejectTransaction(String(req.params.id), reason, {
+    id: actorId || 'mgr_01',
+    name: actorName || 'Operations Manager',
+    role: 'MANAGER',
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+
+  const user = adminManager.getUser(result.transaction!.userId);
+  if (user) {
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      demoBalance: user.demoBalance,
+      realBalance: user.realBalance,
+      activeAccountType: user.activeAccountType,
+      currency: user.currency,
+    });
+  }
+  res.json(result);
+});
+
+app.get('/api/manager/trades', (req: express.Request, res: express.Response) => {
+  const allUsers = adminManager.getUsers();
+  const allTrades: any[] = [];
+  for (const u of allUsers) {
+    const userTrades = settlementEngine.getTradesForUser(u.id);
+    if (userTrades) {
+      allTrades.push(...(userTrades.activeTrades || []), ...(userTrades.tradeHistory || []));
+    }
+  }
+  allTrades.sort((a, b) => b.openTime - a.openTime);
+  res.json(allTrades.slice(0, 100));
+});
+
+app.get('/api/manager/audit-logs', (req: express.Request, res: express.Response) => {
+  res.json(adminManager.getAuditLogs());
+});
+
 app.post('/api/admin/assets/:id/payout', (req, res) => {
   const { payout } = req.body;
   const success = marketEngine.setAssetPayout(req.params.id, Number(payout));

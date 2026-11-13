@@ -1,12 +1,13 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { UserAccount, Transaction, PromoCoupon, AdminOverview } from '../types.js';
+import { UserAccount, Transaction, PromoCoupon, AdminOverview, AuditLog, UserRole } from '../types.js';
 import { SupabaseDb } from '../db/supabase.js';
 
 export class AdminManager extends EventEmitter {
   private users: Map<string, UserAccount> = new Map();
   private transactions: Transaction[] = [];
   private coupons: PromoCoupon[] = [];
+  private auditLogs: AuditLog[] = [];
   private totalVolumeUSD = 124800.00;
 
   constructor() {
@@ -43,11 +44,12 @@ export class AdminManager extends EventEmitter {
   }
 
   private seedInitialData() {
-    // Primary User
+    // Primary User (Super Admin)
     const primaryUser: UserAccount = {
       id: 'usr_quotex_vip_99',
       name: 'Alex Rivera',
       email: 'alex.rivera@quotex.pro',
+      role: 'ADMIN',
       demoBalance: 10000.00,
       realBalance: 500.00,
       activeAccountType: 'DEMO',
@@ -59,6 +61,24 @@ export class AdminManager extends EventEmitter {
       totalDepositedUSD: 1250.00,
     };
     this.users.set(primaryUser.id, primaryUser);
+
+    // Operations Manager
+    const opsManager: UserAccount = {
+      id: 'usr_manager_ops_01',
+      name: 'Sarah Connor',
+      email: 'manager@forexgrow.com',
+      role: 'MANAGER',
+      demoBalance: 10000.00,
+      realBalance: 0.00,
+      activeAccountType: 'DEMO',
+      currency: 'USD',
+      vipLevel: 'PRO',
+      isKycVerified: true,
+      status: 'ACTIVE',
+      totalTrades: 0,
+      totalDepositedUSD: 0,
+    };
+    this.users.set(opsManager.id, opsManager);
 
     // Additional mock platform traders
     const mockUsers: UserAccount[] = [
@@ -354,7 +374,40 @@ export class AdminManager extends EventEmitter {
     return newTx;
   }
 
-  public approveTransaction(txId: string): { success: boolean; transaction?: Transaction; error?: string } {
+  public addAuditLog(
+    actorId: string,
+    actorName: string,
+    actorRole: UserRole,
+    action: string,
+    targetId?: string,
+    targetName?: string,
+    details?: string
+  ): AuditLog {
+    const log: AuditLog = {
+      id: `log_${uuidv4().slice(0, 8)}`,
+      actorId,
+      actorName,
+      actorRole,
+      action,
+      targetId,
+      targetName,
+      details,
+      timestamp: Date.now(),
+    };
+    this.auditLogs.unshift(log);
+    if (this.auditLogs.length > 250) this.auditLogs.pop();
+    this.emit('audit_log_added', log);
+    return log;
+  }
+
+  public getAuditLogs(): AuditLog[] {
+    return [...this.auditLogs];
+  }
+
+  public approveTransaction(
+    txId: string,
+    actor?: { id: string; name: string; role: UserRole }
+  ): { success: boolean; transaction?: Transaction; error?: string } {
     const tx = this.transactions.find((t) => t.id === txId);
     if (!tx) return { success: false, error: 'Transaction not found' };
     if (tx.status !== 'PENDING') return { success: false, error: 'Transaction already resolved' };
@@ -376,12 +429,26 @@ export class AdminManager extends EventEmitter {
       SupabaseDb.saveUser(user);
     }
 
+    this.addAuditLog(
+      actor?.id || 'admin_sys',
+      actor?.name || 'Operations Desk',
+      actor?.role || 'MANAGER',
+      `APPROVED_${tx.type}`,
+      tx.id,
+      user?.name || tx.userName,
+      `Amount: $${tx.amount} (${tx.currency}) via ${tx.method}`
+    );
+
     this.emit('transaction_updated', tx);
     SupabaseDb.saveTransaction(tx);
     return { success: true, transaction: { ...tx } };
   }
 
-  public rejectTransaction(txId: string, reason: string): { success: boolean; transaction?: Transaction; error?: string } {
+  public rejectTransaction(
+    txId: string,
+    reason: string,
+    actor?: { id: string; name: string; role: UserRole }
+  ): { success: boolean; transaction?: Transaction; error?: string } {
     const tx = this.transactions.find((t) => t.id === txId);
     if (!tx) return { success: false, error: 'Transaction not found' };
     if (tx.status !== 'PENDING') return { success: false, error: 'Transaction already resolved' };
@@ -397,9 +464,122 @@ export class AdminManager extends EventEmitter {
       SupabaseDb.saveUser(user);
     }
 
+    this.addAuditLog(
+      actor?.id || 'admin_sys',
+      actor?.name || 'Operations Desk',
+      actor?.role || 'MANAGER',
+      `REJECTED_${tx.type}`,
+      tx.id,
+      user?.name || tx.userName,
+      `Reason: ${tx.rejectReason}`
+    );
+
     this.emit('transaction_updated', tx);
     SupabaseDb.saveTransaction(tx);
     return { success: true, transaction: { ...tx } };
+  }
+
+  public setUserKyc(
+    userId: string,
+    isVerified: boolean,
+    actor?: { id: string; name: string; role: UserRole }
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+    user.isKycVerified = isVerified;
+    this.addAuditLog(
+      actor?.id || 'mgr_sys',
+      actor?.name || 'Operations Desk',
+      actor?.role || 'MANAGER',
+      isVerified ? 'VERIFIED_KYC' : 'REVOKED_KYC',
+      user.id,
+      user.name,
+      `KYC status changed to ${isVerified ? 'VERIFIED' : 'PENDING'}`
+    );
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+    return { success: true, user: { ...user } };
+  }
+
+  public setUserStatus(
+    userId: string,
+    status: 'ACTIVE' | 'FROZEN',
+    actor?: { id: string; name: string; role: UserRole }
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+    user.status = status;
+    this.addAuditLog(
+      actor?.id || 'mgr_sys',
+      actor?.name || 'Operations Desk',
+      actor?.role || 'MANAGER',
+      status === 'FROZEN' ? 'FROZE_USER' : 'UNFROZE_USER',
+      user.id,
+      user.name,
+      `User account status set to ${status}`
+    );
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+    return { success: true, user: { ...user } };
+  }
+
+  public resetUserDemo(
+    userId: string,
+    actor?: { id: string; name: string; role: UserRole }
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+    user.demoBalance = 10000.00;
+    this.addAuditLog(
+      actor?.id || 'mgr_sys',
+      actor?.name || 'Operations Desk',
+      actor?.role || 'MANAGER',
+      'RESET_DEMO_BALANCE',
+      user.id,
+      user.name,
+      'Demo balance reset to $10,000.00'
+    );
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+    return { success: true, user: { ...user } };
+  }
+
+  public getManagerOverview(): {
+    pendingDeposits: number;
+    pendingWithdrawals: number;
+    totalActiveUsers: number;
+    verifiedUsersCount: number;
+    totalApprovedDepositsUSD: number;
+    totalPendingAmountUSD: number;
+  } {
+    let pendingDeposits = 0;
+    let pendingWithdrawals = 0;
+    let totalApprovedDepositsUSD = 0;
+    let totalPendingAmountUSD = 0;
+
+    for (const tx of this.transactions) {
+      if (tx.status === 'PENDING') {
+        if (tx.type === 'DEPOSIT') pendingDeposits++;
+        if (tx.type === 'WITHDRAWAL') pendingWithdrawals++;
+        totalPendingAmountUSD += tx.amount;
+      }
+      if (tx.status === 'APPROVED' && tx.type === 'DEPOSIT') {
+        totalApprovedDepositsUSD += tx.amount;
+      }
+    }
+
+    const usersArr = Array.from(this.users.values());
+    const totalActiveUsers = usersArr.filter((u) => u.status === 'ACTIVE').length;
+    const verifiedUsersCount = usersArr.filter((u) => u.isKycVerified).length;
+
+    return {
+      pendingDeposits,
+      pendingWithdrawals,
+      totalActiveUsers,
+      verifiedUsersCount,
+      totalApprovedDepositsUSD: Number(totalApprovedDepositsUSD.toFixed(2)),
+      totalPendingAmountUSD: Number(totalPendingAmountUSD.toFixed(2)),
+    };
   }
 
   public getCoupons(): PromoCoupon[] {

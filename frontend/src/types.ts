@@ -86,11 +86,25 @@ export interface Trade {
 }
 
 export type VipLevel = 'STANDARD' | 'PRO' | 'VIP';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'TRADER';
+
+export interface AuditLog {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRole: UserRole;
+  action: string;
+  targetId?: string;
+  targetName?: string;
+  details?: string;
+  timestamp: number;
+}
 
 export interface UserAccount {
   id: string;
   name: string;
   email: string;
+  role?: UserRole;
   demoBalance: number;
   realBalance: number;
   activeAccountType: 'DEMO' | 'REAL';

@@ -187,6 +187,50 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               <div className="space-y-1">
+                {(account.role === 'MANAGER' || account.role === 'ADMIN') && (
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      window.history.pushState({}, '', '/manager');
+                      window.dispatchEvent(new PopStateEvent('popstate'));
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-sky-400 hover:bg-sky-500/10 transition flex items-center space-x-2"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Open Manager Desk</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    toggleTheme();
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between md:hidden ${
+                    isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-sky-400" />}
+                    <span>Theme: {theme === 'dark' ? 'Dark' : 'Light'}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 uppercase">Switch</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    toggleMute();
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between md:hidden ${
+                    isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-500" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    <span>Sound Effects</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400">{isMuted ? 'MUTED' : 'ON'}</span>
+                </button>
+
                 <button
                   onClick={() => {
                     setShowUserMenu(false);
@@ -247,7 +291,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={toggleTheme}
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className={`hidden xs:flex p-2 sm:p-2.5 border rounded-2xl transition ${
+          className={`hidden md:flex p-2 sm:p-2.5 border rounded-2xl transition ${
             isLight 
               ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-600' 
               : 'bg-[#1c2333] hover:bg-[#252e42] border-[#293246] text-gray-400 hover:text-white'
@@ -264,7 +308,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={toggleMute}
           title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-          className={`hidden xs:flex p-2 sm:p-2.5 border rounded-2xl transition ${
+          className={`hidden md:flex p-2 sm:p-2.5 border rounded-2xl transition ${
             isLight 
               ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-600' 
               : 'bg-[#1c2333] hover:bg-[#252e42] border-[#293246] text-gray-400 hover:text-white'

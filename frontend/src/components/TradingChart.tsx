@@ -10,7 +10,7 @@ import {
 } from 'lightweight-charts';
 import { useTrading } from '../context/TradingContext';
 import { formatCurrency } from '../utils/currency';
-import { TimeframeInterval, TIMEFRAME_SECONDS } from '../types';
+import { TimeframeInterval, TIMEFRAME_SECONDS, Candle } from '../types';
 import {
   CandlestickChart,
   LineChart,
@@ -79,15 +79,22 @@ export const TradingChart: React.FC = () => {
     return () => clearInterval(timer);
   }, [timeframe]);
 
+  const hasFittedRef = useRef(false);
+
   // Initialize Chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
+    const initialWidth = chartContainerRef.current.clientWidth || window.innerWidth || 320;
+    const initialHeight = chartContainerRef.current.clientHeight || 400;
+
     const chart = createChart(chartContainerRef.current, {
+      width: initialWidth,
+      height: initialHeight,
       layout: {
         background: { type: ColorType.Solid, color: '#131722' },
         textColor: '#94a3b8',
-        fontSize: 12,
+        fontSize: 11,
         fontFamily: "'JetBrains Mono', monospace",
       },
       grid: {
@@ -106,11 +113,15 @@ export const TradingChart: React.FC = () => {
           style: 2,
         },
       },
+      leftPriceScale: {
+        visible: false,
+      },
       rightPriceScale: {
+        visible: true,
         borderColor: 'rgba(255, 255, 255, 0.08)',
         scaleMargins: {
-          top: 0.15,
-          bottom: 0.15,
+          top: 0.12,
+          bottom: 0.12,
         },
       },
       timeScale: {
@@ -177,10 +188,11 @@ export const TradingChart: React.FC = () => {
 
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
-        });
+        const w = chartContainerRef.current.clientWidth;
+        const h = chartContainerRef.current.clientHeight;
+        if (w > 0 && h > 0) {
+          chartRef.current.applyOptions({ width: w, height: h });
+        }
       }
     };
 
@@ -266,9 +278,10 @@ export const TradingChart: React.FC = () => {
       },
     });
 
+    hasFittedRef.current = false;
     setTimeout(() => {
       chartRef.current?.timeScale().fitContent();
-    }, 50);
+    }, 60);
   }, [selectedAsset?.id]);
 
   // Adjust chart view whenever candle timeframe changes
@@ -297,9 +310,19 @@ export const TradingChart: React.FC = () => {
 
   // Update Chart Data & Technical Indicators
   useEffect(() => {
-    if (candles.length === 0) return;
+    if (!candles || candles.length === 0) return;
 
-    const formattedCandles: CandlestickData[] = candles.map((c) => ({
+    // Strict deduplication & chronological ascending sort by unix timestamp (seconds)
+    const timeMap = new Map<number, Candle>();
+    for (const c of candles) {
+      if (c && typeof c.time === 'number' && !isNaN(c.close) && !isNaN(c.open) && !isNaN(c.high) && !isNaN(c.low)) {
+        timeMap.set(c.time, c);
+      }
+    }
+    const sortedCandles = Array.from(timeMap.values()).sort((a, b) => a.time - b.time);
+    if (sortedCandles.length === 0) return;
+
+    const formattedCandles: CandlestickData[] = sortedCandles.map((c) => ({
       time: c.time as any,
       open: c.open,
       high: c.high,
@@ -307,26 +330,39 @@ export const TradingChart: React.FC = () => {
       close: c.close,
     }));
 
-    const formattedArea: LineData[] = candles.map((c) => ({
+    const formattedArea: LineData[] = sortedCandles.map((c) => ({
       time: c.time as any,
       value: c.close,
     }));
 
-    if (candleSeriesRef.current) candleSeriesRef.current.setData(formattedCandles);
-    if (areaSeriesRef.current) areaSeriesRef.current.setData(formattedArea);
+    try {
+      if (candleSeriesRef.current) candleSeriesRef.current.setData(formattedCandles);
+      if (areaSeriesRef.current) areaSeriesRef.current.setData(formattedArea);
+    } catch (err) {
+      console.warn('Lightweight charts setData error:', err);
+    }
+
+    if (!hasFittedRef.current && sortedCandles.length > 0) {
+      hasFittedRef.current = true;
+      requestAnimationFrame(() => {
+        chartRef.current?.timeScale().fitContent();
+      });
+    }
 
     // Calculate SMA 9
     if (indicators.sma && smaSeriesRef.current) {
       const period = 9;
       const smaData: LineData[] = [];
-      for (let i = period - 1; i < candles.length; i++) {
+      for (let i = period - 1; i < sortedCandles.length; i++) {
         let sum = 0;
         for (let j = 0; j < period; j++) {
-          sum += candles[i - j].close;
+          sum += sortedCandles[i - j].close;
         }
-        smaData.push({ time: candles[i].time as any, value: sum / period });
+        smaData.push({ time: sortedCandles[i].time as any, value: sum / period });
       }
-      smaSeriesRef.current.setData(smaData);
+      try {
+        smaSeriesRef.current.setData(smaData);
+      } catch (e) {}
     }
 
     // Calculate EMA 21
@@ -334,14 +370,16 @@ export const TradingChart: React.FC = () => {
       const period = 21;
       const k = 2 / (period + 1);
       const emaData: LineData[] = [];
-      let ema = candles[0].close;
-      for (let i = 0; i < candles.length; i++) {
-        ema = candles[i].close * k + ema * (1 - k);
+      let ema = sortedCandles[0].close;
+      for (let i = 0; i < sortedCandles.length; i++) {
+        ema = sortedCandles[i].close * k + ema * (1 - k);
         if (i >= period - 1) {
-          emaData.push({ time: candles[i].time as any, value: ema });
+          emaData.push({ time: sortedCandles[i].time as any, value: ema });
         }
       }
-      emaSeriesRef.current.setData(emaData);
+      try {
+        emaSeriesRef.current.setData(emaData);
+      } catch (e) {}
     }
 
     // Calculate Bollinger Bands (period 20, multiplier 2)
@@ -351,21 +389,23 @@ export const TradingChart: React.FC = () => {
       const upperData: LineData[] = [];
       const lowerData: LineData[] = [];
 
-      for (let i = period - 1; i < candles.length; i++) {
+      for (let i = period - 1; i < sortedCandles.length; i++) {
         let sum = 0;
-        for (let j = 0; j < period; j++) sum += candles[i - j].close;
+        for (let j = 0; j < period; j++) sum += sortedCandles[i - j].close;
         const mean = sum / period;
 
         let variance = 0;
-        for (let j = 0; j < period; j++) variance += Math.pow(candles[i - j].close - mean, 2);
+        for (let j = 0; j < period; j++) variance += Math.pow(sortedCandles[i - j].close - mean, 2);
         const stdDev = Math.sqrt(variance / period);
 
-        upperData.push({ time: candles[i].time as any, value: mean + mult * stdDev });
-        lowerData.push({ time: candles[i].time as any, value: mean - mult * stdDev });
+        upperData.push({ time: sortedCandles[i].time as any, value: mean + mult * stdDev });
+        lowerData.push({ time: sortedCandles[i].time as any, value: mean - mult * stdDev });
       }
 
-      bbUpperSeriesRef.current.setData(upperData);
-      bbLowerSeriesRef.current.setData(lowerData);
+      try {
+        bbUpperSeriesRef.current.setData(upperData);
+        bbLowerSeriesRef.current.setData(lowerData);
+      } catch (e) {}
     }
   }, [candles, indicators]);
 
@@ -712,7 +752,7 @@ export const TradingChart: React.FC = () => {
       </div>
 
       {/* Main Chart Canvas */}
-      <div ref={chartContainerRef} className="flex-1 w-full h-full" />
+      <div ref={chartContainerRef} className="absolute inset-0 w-full h-full" />
     </div>
   );
 };

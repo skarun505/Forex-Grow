@@ -11,6 +11,7 @@ import { CurrencySwitcherModal } from './components/CurrencySwitcherModal';
 import { TradeResultModal } from './components/TradeResultModal';
 import { MobileNavBar } from './components/MobileNavBar';
 import { AdminDashboard } from './components/AdminDashboard';
+import { ManagerDashboard } from './components/ManagerDashboard';
 import { LoginPage } from './components/LoginPage';
 
 const MainLayout: React.FC = () => {
@@ -144,6 +145,8 @@ export const App: React.FC = () => {
     <TradingProvider>
       {currentPath === '/admin' || currentPath === '/admin/' ? (
         <AdminDashboard onClose={handleCloseAdmin} />
+      ) : currentPath === '/manager' || currentPath === '/manager/' ? (
+        <ManagerDashboard onClose={handleCloseAdmin} />
       ) : (
         <MainLayout />
       )}
