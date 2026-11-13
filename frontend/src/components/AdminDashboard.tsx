@@ -33,6 +33,7 @@ import {
   Image as ImageIcon,
   Check,
   Copy,
+  LogOut,
   X
 } from 'lucide-react';
 
@@ -440,6 +441,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>System Active</span>
           </div>
+
+          <button
+            onClick={() => {
+              localStorage.removeItem('quotex_current_user');
+              window.history.pushState({}, '', '/admin');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            title="Log Out of Admin Portal"
+            className="flex items-center space-x-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl text-xs font-bold transition"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
+          </button>
         </div>
       </header>
 

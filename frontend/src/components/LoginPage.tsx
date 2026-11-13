@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Theme } from '../types';
 import { apiUrl } from '../utils/api';
 import { 
@@ -19,15 +19,17 @@ import {
   HelpCircle,
   X,
   Copy,
-  Check
+  Check,
+  UserCheck
 } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess: (user: any) => void;
   onContinueAsGuest?: () => void;
+  mode?: 'TRADER' | 'MANAGER' | 'ADMIN';
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TRADER' }) => {
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('quotex_theme') as Theme) || 'dark');
   const isLight = theme === 'light';
 
@@ -37,11 +39,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     localStorage.setItem('quotex_theme', next);
   };
 
-  // Login form state
-  const [identifier, setIdentifier] = useState('alex.rivera@quotex.pro');
-  const [password, setPassword] = useState('forexgrow123');
+  // Determine initial credentials based on mode
+  const getDefaultIdentifier = () => {
+    if (mode === 'ADMIN') return 'admin@forexgrow.com';
+    if (mode === 'MANAGER') return 'manager@forexgrow.com';
+    return 'alex.rivera@quotex.pro';
+  };
+
+  const getDefaultPassword = () => {
+    if (mode === 'ADMIN') return 'admin123';
+    if (mode === 'MANAGER') return 'manager123';
+    return 'forexgrow123';
+  };
+
+  const [identifier, setIdentifier] = useState(getDefaultIdentifier);
+  const [password, setPassword] = useState(getDefaultPassword);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+
+  // Re-sync credentials if mode changes
+  useEffect(() => {
+    setIdentifier(getDefaultIdentifier());
+    setPassword(getDefaultPassword());
+    setErrorMsg(null);
+  }, [mode]);
 
   // Status state
   const [isLoading, setIsLoading] = useState(false);
@@ -62,7 +83,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       return;
     }
     if (!password) {
-      setErrorMsg('Please enter your account password');
+      setErrorMsg('Please enter your password');
       return;
     }
 
@@ -77,6 +98,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       const data = await response.json();
       if (response.ok && data.success && data.user) {
+        // Enforce role-based access for portal routes
+        if (mode === 'ADMIN' && data.user.role !== 'ADMIN') {
+          setErrorMsg('Access Denied: Super Administrator privileges are required to access this portal.');
+          setIsLoading(false);
+          return;
+        }
+
+        if (mode === 'MANAGER' && data.user.role !== 'MANAGER' && data.user.role !== 'ADMIN') {
+          setErrorMsg('Access Denied: Operations Manager privileges are required to access this desk.');
+          setIsLoading(false);
+          return;
+        }
+
         localStorage.setItem('quotex_current_user', JSON.stringify(data.user));
         onLoginSuccess(data.user);
       } else {
@@ -101,21 +135,35 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setTimeout(() => setCopiedType(null), 2000);
   };
 
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   return (
     <div className={`min-h-screen w-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-white relative overflow-x-hidden font-sans transition-colors duration-200 ${
       isLight ? 'bg-[#f4f7fb] text-slate-800' : 'bg-[#0a0d14] text-gray-100'
     }`}>
       {/* Background Ambient Glows */}
-      <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute -bottom-32 left-1/3 w-96 h-96 bg-sky-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className={`absolute -top-32 -left-32 w-96 h-96 rounded-full blur-[120px] pointer-events-none ${
+        mode === 'ADMIN' ? 'bg-purple-500/15' : mode === 'MANAGER' ? 'bg-sky-500/15' : 'bg-emerald-500/10'
+      }`} />
+      <div className={`absolute top-1/3 -right-32 w-96 h-96 rounded-full blur-[120px] pointer-events-none ${
+        mode === 'ADMIN' ? 'bg-pink-500/10' : mode === 'MANAGER' ? 'bg-emerald-500/10' : 'bg-teal-500/10'
+      }`} />
 
       {/* Top Navbar */}
       <header className={`w-full max-w-7xl mx-auto px-4 sm:px-8 py-4 sm:py-5 flex items-center justify-between z-10 border-b ${
         isLight ? 'border-slate-200' : 'border-white/5'
       }`}>
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25 text-slate-950 font-black text-sm">
+        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigateTo('/')}>
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg font-black text-sm text-slate-950 ${
+            mode === 'ADMIN' 
+              ? 'bg-gradient-to-tr from-purple-500 to-indigo-400 shadow-purple-500/25' 
+              : mode === 'MANAGER' 
+              ? 'bg-gradient-to-tr from-sky-400 to-emerald-400 shadow-sky-500/25' 
+              : 'bg-gradient-to-tr from-emerald-500 via-teal-400 to-emerald-600 shadow-emerald-500/25'
+          }`}>
             FG
           </div>
           <div>
@@ -123,17 +171,53 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               isLight ? 'text-slate-900' : 'text-white'
             }`}>
               <span>FOREX GROW</span>
-              <span className="text-emerald-500 text-[10px] sm:text-xs px-1.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 rounded-lg font-bold">
-                PRO TERMINAL
+              <span className={`text-[10px] sm:text-xs px-1.5 py-0.5 rounded-lg font-bold border ${
+                mode === 'ADMIN' 
+                  ? 'bg-purple-500/15 border-purple-500/30 text-purple-400' 
+                  : mode === 'MANAGER' 
+                  ? 'bg-sky-500/15 border-sky-500/30 text-sky-400' 
+                  : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
+              }`}>
+                {mode === 'ADMIN' ? 'MASTER ADMIN' : mode === 'MANAGER' ? 'OPERATIONS DESK' : 'PRO TERMINAL'}
               </span>
             </div>
             <p className={`text-[10px] tracking-wider uppercase font-semibold hidden sm:block ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-              Institutional Binary Options & Multi-Asset Execution
+              {mode === 'ADMIN' 
+                ? 'Liquidity Controller & Master Administration' 
+                : mode === 'MANAGER' 
+                ? 'Cashier Settlements & Operations Desk' 
+                : 'Institutional Binary Options & Multi-Asset Execution'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Portal Switchers */}
+          {mode !== 'TRADER' && (
+            <button
+              onClick={() => navigateTo('/')}
+              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
+                isLight ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-white/5 border-white/10 text-gray-300 hover:text-white'
+              }`}
+            >
+              Trader Floor →
+            </button>
+          )}
+
+          {mode === 'TRADER' && (
+            <button
+              onClick={() => setIsContactModalOpen(true)}
+              className={`text-xs font-bold px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl border transition flex items-center space-x-1.5 ${
+                isLight
+                  ? 'bg-white border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 shadow-sm'
+                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+              }`}
+            >
+              <HelpCircle className="w-4 h-4" />
+              <span>Need an Account?</span>
+            </button>
+          )}
+
           {/* Theme Switcher */}
           <button
             onClick={toggleTheme}
@@ -145,19 +229,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             title="Toggle Light / Dark mode"
           >
             {isLight ? <Moon className="w-4 h-4 text-sky-500" /> : <Sun className="w-4 h-4 text-amber-400" />}
-          </button>
-
-          {/* Need Account? / Contact Desk */}
-          <button
-            onClick={() => setIsContactModalOpen(true)}
-            className={`text-xs font-bold px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl border transition flex items-center space-x-1.5 ${
-              isLight
-                ? 'bg-white border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 shadow-sm'
-                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-            }`}
-          >
-            <HelpCircle className="w-4 h-4" />
-            <span>Need an Account?</span>
           </button>
         </div>
       </header>
@@ -174,15 +245,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <div className={`p-6 pb-4 border-b text-center ${
               isLight ? 'bg-slate-50/70 border-slate-100' : 'bg-[#0f131c]/60 border-[#222a3d]/50'
             }`}>
-              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold mb-2">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Authorized Client Login</span>
+              <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold mb-2 border ${
+                mode === 'ADMIN'
+                  ? 'bg-purple-500/15 border-purple-500/30 text-purple-400'
+                  : mode === 'MANAGER'
+                  ? 'bg-sky-500/15 border-sky-500/30 text-sky-400'
+                  : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+              }`}>
+                {mode === 'ADMIN' ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Master Admin Portal</span>
+                  </>
+                ) : mode === 'MANAGER' ? (
+                  <>
+                    <UserCheck className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Operations Desk Authentication</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Authorized Client Login</span>
+                  </>
+                )}
               </div>
+
               <h1 className={`text-xl sm:text-2xl font-black tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                Sign In to Your Account
+                {mode === 'ADMIN' 
+                  ? 'Master Administrator Sign In' 
+                  : mode === 'MANAGER' 
+                  ? 'Operations Desk Sign In' 
+                  : 'Sign In to Your Account'}
               </h1>
               <p className={`text-xs mt-1 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                Enter your Email ID or Registered Mobile Number and Password
+                {mode === 'ADMIN'
+                  ? 'Enter administrator credentials for liquidity & platform management'
+                  : mode === 'MANAGER'
+                  ? 'Enter manager credentials for cashier settlements & client servicing'
+                  : 'Enter your Email ID or Registered Mobile Number and Password'}
               </p>
             </div>
 
@@ -199,7 +299,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 {/* Email or Phone Input */}
                 <div>
                   <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                    Email ID or Phone Number
+                    {mode === 'TRADER' ? 'Email ID or Mobile Number' : 'Administrator / Manager Email'}
                   </label>
                   <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
                     isLight 
@@ -217,7 +317,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       autoFocus
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="e.g. trader@forexgrow.com or +919876543210"
+                      placeholder={
+                        mode === 'ADMIN' 
+                          ? 'admin@forexgrow.com' 
+                          : mode === 'MANAGER' 
+                          ? 'manager@forexgrow.com' 
+                          : 'trader@forexgrow.com or +91 98765 43210'
+                      }
                       className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
                         isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
                       }`}
@@ -233,7 +339,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     )}
                   </div>
                   <span className={`text-[10px] block mt-1 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>
-                    {isPhoneIdentifier ? 'Mobile Number detected (no OTP required)' : 'Email address or international mobile number'}
+                    {isPhoneIdentifier 
+                      ? 'Mobile Number detected (direct login • no OTP required)' 
+                      : mode === 'TRADER' 
+                      ? 'Email address or international mobile number' 
+                      : 'Official desk administrator email'}
                   </span>
                 </div>
 
@@ -243,13 +353,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
                       Password
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setIsContactModalOpen(true)}
-                      className="text-[11px] text-emerald-500 hover:underline font-semibold"
-                    >
-                      Forgot Password?
-                    </button>
+                    {mode === 'TRADER' && (
+                      <button
+                        type="button"
+                        onClick={() => setIsContactModalOpen(true)}
+                        className="text-[11px] text-emerald-500 hover:underline font-semibold"
+                      >
+                        Forgot Password?
+                      </button>
+                    )}
                   </div>
                   <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
                     isLight 
@@ -262,7 +374,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter account password"
+                      placeholder="Enter password"
                       className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
                         isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
                       }`}
@@ -286,7 +398,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
                     />
-                    <span className={isLight ? 'text-slate-600' : 'text-gray-300'}>Keep me signed in</span>
+                    <span className={isLight ? 'text-slate-600' : 'text-gray-300'}>Remember session</span>
                   </label>
                   <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                     Direct Login • No OTP
@@ -297,7 +409,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-[#00c679] hover:bg-[#00e089] disabled:opacity-50 text-slate-950 font-black py-4 px-6 rounded-2xl shadow-xl shadow-emerald-500/25 transition transform active:scale-[0.99] flex items-center justify-center space-x-2"
+                  className={`w-full disabled:opacity-50 text-slate-950 font-black py-4 px-6 rounded-2xl shadow-xl transition transform active:scale-[0.99] flex items-center justify-center space-x-2 ${
+                    mode === 'ADMIN'
+                      ? 'bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-500 hover:from-purple-300 hover:to-indigo-300 shadow-purple-500/25'
+                      : mode === 'MANAGER'
+                      ? 'bg-gradient-to-r from-sky-400 via-teal-400 to-emerald-400 hover:from-sky-300 hover:to-teal-300 shadow-sky-500/25'
+                      : 'bg-[#00c679] hover:bg-[#00e089] shadow-emerald-500/25'
+                  }`}
                 >
                   {isLoading ? (
                     <span className="flex items-center space-x-2">
@@ -306,97 +424,147 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     </span>
                   ) : (
                     <>
-                      <span>Enter Trading Floor</span>
+                      <span>
+                        {mode === 'ADMIN' 
+                          ? 'Enter Super Admin Dashboard' 
+                          : mode === 'MANAGER' 
+                          ? 'Enter Manager Desk' 
+                          : 'Enter Trading Floor'}
+                      </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
               </form>
 
-              {/* Private Brokerage Policy Notice */}
-              <div className={`p-3.5 rounded-2xl border text-xs leading-relaxed ${
-                isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-[#0f1420]/80 border-[#222a3d] text-gray-400'
-              }`}>
-                <div className="flex items-center space-x-2 font-bold text-gray-200 mb-1">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className={isLight ? 'text-slate-800' : 'text-white'}>Managed Client Accounts Only</span>
+              {/* Mode-specific Notices */}
+              {mode === 'TRADER' ? (
+                <div className={`p-3.5 rounded-2xl border text-xs leading-relaxed ${
+                  isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-[#0f1420]/80 border-[#222a3d] text-gray-400'
+                }`}>
+                  <div className="flex items-center space-x-2 font-bold text-gray-200 mb-1">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className={isLight ? 'text-slate-800' : 'text-white'}>Managed Client Accounts Only</span>
+                  </div>
+                  <p className="text-[11px]">
+                    Client trading accounts are issued exclusively through authorized Forex Grow Account Managers and Desk Administrators. If you need credentials, contact your account manager.
+                  </p>
                 </div>
-                <p className="text-[11px]">
-                  Trading accounts are strictly created and issued by Forex Grow Account Managers and Desk Administrators. If you do not have credentials yet, please contact your account manager to receive your trading ID and password.
-                </p>
-              </div>
+              ) : (
+                <div className={`p-3.5 rounded-2xl border text-xs leading-relaxed ${
+                  isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-[#0f1420]/80 border-[#222a3d] text-gray-400'
+                }`}>
+                  <div className="flex items-center space-x-2 font-bold text-gray-200 mb-1">
+                    <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span className={isLight ? 'text-slate-800' : 'text-white'}>Restricted Desk Terminal</span>
+                  </div>
+                  <p className="text-[11px]">
+                    {mode === 'ADMIN'
+                      ? 'This portal provides global platform controls, asset payout tuning, and full database audit authority.'
+                      : 'This portal provides cashier settlement approvals, KYC verification, and direct client account creation.'}
+                  </p>
+                </div>
+              )}
 
               {/* Quick Trial Credentials for Testing/Evaluation */}
               <div className={`pt-2 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-[#222a3d]'}`}>
                 <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                  <span>Quick Test Logins</span>
-                  <span className="text-emerald-400">1-Tap Auto-fill</span>
+                  <span>{mode === 'ADMIN' ? 'Admin Portal Fill' : mode === 'MANAGER' ? 'Manager Desk Fill' : 'Quick Test Logins'}</span>
+                  <span className="text-emerald-400">1-Tap Fill</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fillQuickCredentials('alex.rivera@quotex.pro', 'forexgrow123')}
-                    className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                      isLight 
-                        ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' 
-                        : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
-                    }`}
-                  >
-                    <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <div className="overflow-hidden leading-tight">
-                      <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Trader (Email)</div>
-                      <div className="text-[9px] text-gray-400">alex.rivera@quotex.pro</div>
-                    </div>
-                  </button>
+                  {mode === 'ADMIN' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fillQuickCredentials('admin@forexgrow.com', 'admin123')}
+                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                          isLight ? 'bg-purple-50 border-purple-200' : 'bg-purple-950/20 border-purple-500/30'
+                        }`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <div className="overflow-hidden leading-tight">
+                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Super Admin</div>
+                          <div className="text-[9px] text-gray-400">admin@forexgrow.com</div>
+                        </div>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => fillQuickCredentials('+15559876543', 'forexgrow123')}
-                    className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                      isLight 
-                        ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' 
-                        : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
-                    }`}
-                  >
-                    <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <div className="overflow-hidden leading-tight">
-                      <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Trader (Phone)</div>
-                      <div className="text-[9px] text-gray-400">+15559876543</div>
-                    </div>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => navigateTo('/manager')}
+                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182030] border-[#29364f]'
+                        }`}
+                      >
+                        <TrendingUp className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <div className="overflow-hidden leading-tight">
+                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Manager Desk</div>
+                          <div className="text-[9px] text-gray-400">Switch to /manager</div>
+                        </div>
+                      </button>
+                    </>
+                  ) : mode === 'MANAGER' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fillQuickCredentials('manager@forexgrow.com', 'manager123')}
+                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                          isLight ? 'bg-sky-50 border-sky-200' : 'bg-sky-950/20 border-sky-500/30'
+                        }`}
+                      >
+                        <TrendingUp className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <div className="overflow-hidden leading-tight">
+                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Manager Desk</div>
+                          <div className="text-[9px] text-gray-400">manager@forexgrow.com</div>
+                        </div>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => fillQuickCredentials('manager@forexgrow.com', 'manager123')}
-                    className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                      isLight 
-                        ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' 
-                        : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
-                    }`}
-                  >
-                    <TrendingUp className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                    <div className="overflow-hidden leading-tight">
-                      <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Manager Desk</div>
-                      <div className="text-[9px] text-gray-400">manager@forexgrow.com</div>
-                    </div>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => navigateTo('/admin')}
+                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182030] border-[#29364f]'
+                        }`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <div className="overflow-hidden leading-tight">
+                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Admin Portal</div>
+                          <div className="text-[9px] text-gray-400">Switch to /admin</div>
+                        </div>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fillQuickCredentials('alex.rivera@quotex.pro', 'forexgrow123')}
+                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                          isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
+                        }`}
+                      >
+                        <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <div className="overflow-hidden leading-tight">
+                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Trader (Email)</div>
+                          <div className="text-[9px] text-gray-400">alex.rivera@quotex.pro</div>
+                        </div>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => fillQuickCredentials('admin@forexgrow.com', 'admin123')}
-                    className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                      isLight 
-                        ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' 
-                        : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
-                    }`}
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <div className="overflow-hidden leading-tight">
-                      <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Super Admin</div>
-                      <div className="text-[9px] text-gray-400">admin@forexgrow.com</div>
-                    </div>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => fillQuickCredentials('+15559876543', 'forexgrow123')}
+                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                          isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
+                        }`}
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <div className="overflow-hidden leading-tight">
+                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Trader (Phone)</div>
+                          <div className="text-[9px] text-gray-400">+15559876543</div>
+                        </div>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

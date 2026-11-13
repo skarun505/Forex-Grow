@@ -187,6 +187,20 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               <div className="space-y-1">
+                {account.role === 'ADMIN' && (
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      window.history.pushState({}, '', '/admin');
+                      window.dispatchEvent(new PopStateEvent('popstate'));
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-amber-400 hover:bg-amber-500/10 transition flex items-center space-x-2"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Open Master Admin Portal</span>
+                  </button>
+                )}
+
                 {(account.role === 'MANAGER' || account.role === 'ADMIN') && (
                   <button
                     onClick={() => {

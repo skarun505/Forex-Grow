@@ -388,8 +388,21 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
             onClick={onClose}
             className="flex items-center space-x-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl shadow-lg shadow-emerald-500/20 transition active:scale-95"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <Activity className="w-3.5 h-3.5" />
             <span>Trading Terminal</span>
+          </button>
+
+          <button
+            onClick={() => {
+              localStorage.removeItem('quotex_current_user');
+              window.history.pushState({}, '', '/manager');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            title="Log Out of Manager Desk"
+            className="flex items-center space-x-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl text-xs font-bold transition"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
           </button>
         </div>
       </header>

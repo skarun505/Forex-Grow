@@ -129,36 +129,79 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const handleCloseAdmin = () => {
-    window.history.pushState({}, '', '/');
-    setCurrentPath('/');
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
   };
 
-  const handleLoginSuccess = (user: any) => {
+  const handleAdminLoginSuccess = (user: any) => {
     setCurrentUser(user);
-    window.history.pushState({}, '', '/');
-    setCurrentPath('/');
-    window.location.reload();
+    navigateTo('/admin');
   };
 
-  // Only after login can traders see their account
+  const handleManagerLoginSuccess = (user: any) => {
+    setCurrentUser(user);
+    navigateTo('/manager');
+  };
+
+  const handleTraderLoginSuccess = (user: any) => {
+    setCurrentUser(user);
+    navigateTo('/');
+  };
+
+  const handleCloseAdmin = () => {
+    navigateTo('/');
+  };
+
+  // Route: /admin (Super Admin Backoffice)
+  const isAdminPath = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/');
+  if (isAdminPath) {
+    if (!currentUser || currentUser.role !== 'ADMIN') {
+      return (
+        <LoginPage
+          mode="ADMIN"
+          onLoginSuccess={handleAdminLoginSuccess}
+        />
+      );
+    }
+    return (
+      <TradingProvider>
+        <AdminDashboard onClose={handleCloseAdmin} />
+      </TradingProvider>
+    );
+  }
+
+  // Route: /manager (Operations Manager Desk)
+  const isManagerPath = currentPath === '/manager' || currentPath === '/manager/' || currentPath.startsWith('/manager/');
+  if (isManagerPath) {
+    if (!currentUser || (currentUser.role !== 'MANAGER' && currentUser.role !== 'ADMIN')) {
+      return (
+        <LoginPage
+          mode="MANAGER"
+          onLoginSuccess={handleManagerLoginSuccess}
+        />
+      );
+    }
+    return (
+      <TradingProvider>
+        <ManagerDashboard onClose={handleCloseAdmin} />
+      </TradingProvider>
+    );
+  }
+
+  // Route: / or /login or /register (Trader Floor)
   if (!currentUser || currentPath === '/login' || currentPath === '/register') {
     return (
       <LoginPage
-        onLoginSuccess={handleLoginSuccess}
+        mode="TRADER"
+        onLoginSuccess={handleTraderLoginSuccess}
       />
     );
   }
 
   return (
     <TradingProvider>
-      {currentPath === '/admin' || currentPath === '/admin/' ? (
-        <AdminDashboard onClose={handleCloseAdmin} />
-      ) : currentPath === '/manager' || currentPath === '/manager/' ? (
-        <ManagerDashboard onClose={handleCloseAdmin} />
-      ) : (
-        <MainLayout />
-      )}
+      <MainLayout />
     </TradingProvider>
   );
 };
