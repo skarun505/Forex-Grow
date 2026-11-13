@@ -100,6 +100,8 @@ export interface UserAccount {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  password?: string;
   role?: UserRole;
   demoBalance: number;
   realBalance: number;
@@ -110,6 +112,8 @@ export interface UserAccount {
   status: 'ACTIVE' | 'FROZEN';
   totalTrades: number;
   totalDepositedUSD: number;
+  createdAt?: number;
+  createdBy?: string;
 }
 
 export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL';

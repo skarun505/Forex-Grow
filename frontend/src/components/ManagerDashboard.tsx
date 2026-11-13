@@ -7,6 +7,8 @@ import {
   Transaction,
   Trade,
   AuditLog,
+  CurrencyCode,
+  VipLevel,
 } from '../types';
 import {
   ShieldCheck,
@@ -24,7 +26,12 @@ import {
   Lock,
   Unlock,
   Eye,
-  FileText
+  FileText,
+  UserPlus,
+  Sparkles,
+  Key,
+  X,
+  Phone
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -59,6 +66,22 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onClose }) =
   const [userSearch, setUserSearch] = useState('');
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [selectedProofImg, setSelectedProofImg] = useState<string | null>(null);
+
+  // Client Creation States
+  const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientPassword, setNewClientPassword] = useState('Trader@2026');
+  const [newClientCurrency, setNewClientCurrency] = useState<CurrencyCode>('INR');
+  const [newClientDemoBal, setNewClientDemoBal] = useState('10000');
+  const [newClientRealBal, setNewClientRealBal] = useState('0');
+  const [newClientVip, setNewClientVip] = useState<VipLevel>('STANDARD');
+  const [newClientKyc, setNewClientKyc] = useState(false);
+  const [createdClientSlip, setCreatedClientSlip] = useState<any | null>(null);
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [createClientError, setCreateClientError] = useState<string | null>(null);
+  const [slipCopied, setSlipCopied] = useState(false);
 
   // Current logged in manager profile
   const managerProfile = {
@@ -195,6 +218,89 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onClose }) =
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$';
+    let res = '';
+    for (let i = 0; i < 9; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewClientPassword(`Fg@${res}`);
+  };
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateClientError(null);
+    if (!newClientName.trim() || !newClientEmail.trim()) {
+      setCreateClientError('Full Name and Email address are required.');
+      return;
+    }
+
+    setIsCreatingClient(true);
+    try {
+      const res = await fetch(apiUrl('/api/manager/users/create'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newClientName.trim(),
+          email: newClientEmail.trim(),
+          phone: newClientPhone.trim() || undefined,
+          password: newClientPassword.trim(),
+          currency: newClientCurrency,
+          demoBalance: Number(newClientDemoBal) || 10000,
+          realBalance: Number(newClientRealBal) || 0,
+          vipLevel: newClientVip,
+          isKycVerified: newClientKyc,
+          actorId: managerProfile.id,
+          actorName: managerProfile.name,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setCreateClientError(data.error || 'Failed to create client account');
+        return;
+      }
+
+      confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
+      setCreatedClientSlip({
+        name: data.user.name,
+        id: data.user.id,
+        email: data.user.email,
+        phone: data.user.phone || 'N/A',
+        password: newClientPassword.trim(),
+        currency: data.user.currency,
+        demoBalance: data.user.demoBalance,
+        realBalance: data.user.realBalance,
+        url: window.location.origin,
+      });
+
+      fetchManagerData();
+    } catch (err) {
+      setCreateClientError('Failed to connect to backend server');
+    } finally {
+      setIsCreatingClient(false);
+    }
+  };
+
+  const copyCredentialsSlip = () => {
+    if (!createdClientSlip) return;
+    const text = `🌟 FOREX GROW TRADING ACCOUNT CREDENTIALS 🌟
+-----------------------------------------
+Client Name: ${createdClientSlip.name}
+Login (Email): ${createdClientSlip.email}
+Login (Mobile): ${createdClientSlip.phone}
+Password: ${createdClientSlip.password}
+Account Currency: ${createdClientSlip.currency}
+Demo Balance: $${createdClientSlip.demoBalance.toLocaleString()}
+Live Real Balance: $${createdClientSlip.realBalance.toLocaleString()}
+Terminal URL: ${createdClientSlip.url}
+-----------------------------------------
+Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobile Number.`;
+    navigator.clipboard.writeText(text);
+    setSlipCopied(true);
+    setTimeout(() => setSlipCopied(false), 2500);
   };
 
   // Filtered lists
@@ -586,22 +692,41 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onClose }) =
         {/* ================= TAB 2: TRADERS & KYC ================= */}
         {activeTab === 'TRADERS' && (
           <div className="space-y-4">
-            {/* Search Input */}
-            <div className="flex items-center justify-between gap-3">
+            {/* Search Input & Create Client Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Search trader by name, email or ID..."
+                  placeholder="Search trader by name, email, phone or ID..."
                   className={`w-full pl-9 pr-3 py-2 rounded-xl text-xs border focus:outline-none transition ${
                     isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#181c2b] border-[#252c40] text-white focus:border-sky-500'
                   }`}
                 />
               </div>
-              <div className="text-xs text-gray-400">
-                Total Registered: <span className="font-bold text-white">{filteredUsers.length}</span>
+
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => {
+                    setCreatedClientSlip(null);
+                    setCreateClientError(null);
+                    setNewClientName('');
+                    setNewClientEmail('');
+                    setNewClientPhone('');
+                    generatePassword();
+                    setIsCreateClientModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-[#00c679] hover:bg-[#00e089] text-slate-950 font-black text-xs flex items-center space-x-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>➕ Create Client Account</span>
+                </button>
+
+                <div className="text-xs text-gray-400 hidden sm:block">
+                  Total: <span className="font-bold text-white">{filteredUsers.length}</span>
+                </div>
               </div>
             </div>
 
@@ -637,6 +762,12 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onClose }) =
                           <div className={`text-xs truncate ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
                             {u.email}
                           </div>
+                          {u.phone && (
+                            <div className="text-[11px] text-emerald-400 font-mono mt-0.5 flex items-center space-x-1">
+                              <Phone className="w-3 h-3 shrink-0" />
+                              <span>{u.phone}</span>
+                            </div>
+                          )}
                           <div className="text-[10px] font-mono text-gray-500 mt-0.5">
                             ID: {u.id}
                           </div>
@@ -903,6 +1034,275 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onClose }) =
                 Close Proof
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Client Account Modal */}
+      {isCreateClientModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className={`w-full max-w-lg rounded-3xl p-6 border shadow-2xl relative max-h-[90vh] overflow-y-auto ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#141926] border-[#252c40] text-white'
+          }`}>
+            <button
+              onClick={() => {
+                setIsCreateClientModalOpen(false);
+                setCreatedClientSlip(null);
+              }}
+              className="absolute top-5 right-5 p-1 rounded-xl text-gray-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {createdClientSlip ? (
+              /* Success Slip Card */
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-emerald-400">Client Account Issued!</h3>
+                    <p className="text-xs text-gray-400">Share these trading credentials with the client</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-black/40 border border-emerald-500/30 space-y-2.5 font-mono text-xs">
+                  <div className="flex justify-between border-b border-white/10 pb-2 font-sans font-bold">
+                    <span className="text-gray-400">Client Name:</span>
+                    <span className="text-white">{createdClientSlip.name}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-gray-400 font-sans">Email ID:</span>
+                    <span className="text-emerald-400">{createdClientSlip.email}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-gray-400 font-sans">Phone Number:</span>
+                    <span className="text-emerald-400">{createdClientSlip.phone}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-gray-400 font-sans">Password:</span>
+                    <span className="text-amber-400 font-black">{createdClientSlip.password}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-gray-400 font-sans">Currency:</span>
+                    <span className="text-white">{createdClientSlip.currency}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-gray-400 font-sans">Demo Balance:</span>
+                    <span className="text-white">${createdClientSlip.demoBalance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-gray-400 font-sans">Live Real Balance:</span>
+                    <span className="text-emerald-400">${createdClientSlip.realBalance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between pt-1">
+                    <span className="text-gray-400 font-sans">Terminal URL:</span>
+                    <span className="text-sky-400 truncate max-w-[220px]">{createdClientSlip.url}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    onClick={copyCredentialsSlip}
+                    className="w-full py-3.5 rounded-2xl bg-[#00c679] hover:bg-[#00e089] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition"
+                  >
+                    {slipCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <span>{slipCopied ? 'Credentials Copied to Clipboard!' : '📋 Copy Credentials for Client (WhatsApp/Telegram)'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setCreatedClientSlip(null);
+                      setNewClientName('');
+                      setNewClientEmail('');
+                      setNewClientPhone('');
+                      generatePassword();
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold transition text-gray-300"
+                  >
+                    Create Another Client Account
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Create Client Form */
+              <form onSubmit={handleCreateClient} className="space-y-4">
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black">Issue Client Trading Account</h3>
+                    <p className="text-xs text-gray-400">Generate credentials for clients without public registration</p>
+                  </div>
+                </div>
+
+                {createClientError && (
+                  <div className="bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs p-3 rounded-xl flex items-center space-x-2">
+                    <X className="w-4 h-4 shrink-0" />
+                    <span>{createClientError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-gray-300">Client Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      placeholder="e.g. Ramesh Patel"
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none ${
+                        isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-white focus:border-emerald-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold block mb-1 text-gray-300">Email Address *</label>
+                      <input
+                        type="email"
+                        required
+                        value={newClientEmail}
+                        onChange={(e) => setNewClientEmail(e.target.value)}
+                        placeholder="client@gmail.com"
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none ${
+                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-white focus:border-emerald-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold block mb-1 text-gray-300">Phone Number (Login Enabled)</label>
+                      <input
+                        type="text"
+                        value={newClientPhone}
+                        onChange={(e) => setNewClientPhone(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none ${
+                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-white focus:border-emerald-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-gray-300">Initial Password *</label>
+                      <button
+                        type="button"
+                        onClick={generatePassword}
+                        className="text-[10px] text-emerald-400 hover:underline flex items-center space-x-1"
+                      >
+                        <Key className="w-3 h-3" />
+                        <span>Generate Random</span>
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={newClientPassword}
+                      onChange={(e) => setNewClientPassword(e.target.value)}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold border focus:outline-none ${
+                        isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-amber-400 focus:border-emerald-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[11px] font-bold block mb-1 text-gray-300">Currency</label>
+                      <select
+                        value={newClientCurrency}
+                        onChange={(e) => setNewClientCurrency(e.target.value as CurrencyCode)}
+                        className={`w-full px-2 py-2 rounded-xl text-xs font-bold border focus:outline-none ${
+                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-white'
+                        }`}
+                      >
+                        <option value="INR">🇮🇳 INR</option>
+                        <option value="USD">🇺🇸 USD</option>
+                        <option value="EUR">🇪🇺 EUR</option>
+                        <option value="BRL">🇧🇷 BRL</option>
+                        <option value="IDR">🇮🇩 IDR</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold block mb-1 text-gray-300">Demo Bal</label>
+                      <input
+                        type="number"
+                        value={newClientDemoBal}
+                        onChange={(e) => setNewClientDemoBal(e.target.value)}
+                        className={`w-full px-2.5 py-2 rounded-xl text-xs font-mono border focus:outline-none ${
+                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-white'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold block mb-1 text-gray-300">Real Bal</label>
+                      <input
+                        type="number"
+                        value={newClientRealBal}
+                        onChange={(e) => setNewClientRealBal(e.target.value)}
+                        className={`w-full px-2.5 py-2 rounded-xl text-xs font-mono border focus:outline-none ${
+                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-emerald-400'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="text-[11px] font-bold block mb-1 text-gray-300">VIP Tier</label>
+                      <select
+                        value={newClientVip}
+                        onChange={(e) => setNewClientVip(e.target.value as VipLevel)}
+                        className={`w-full px-2 py-2 rounded-xl text-xs font-bold border focus:outline-none ${
+                          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-white'
+                        }`}
+                      >
+                        <option value="STANDARD">STANDARD</option>
+                        <option value="PRO">PRO</option>
+                        <option value="VIP">VIP</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center pt-5 pl-2">
+                      <label className="flex items-center space-x-2 text-xs font-bold text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newClientKyc}
+                          onChange={(e) => setNewClientKyc(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-500 focus:ring-0"
+                        />
+                        <span>Pre-Verify KYC</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={isCreatingClient}
+                    className="w-full py-3.5 rounded-2xl bg-[#00c679] hover:bg-[#00e089] disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-xl shadow-emerald-500/20 active:scale-95 transition"
+                  >
+                    {isCreatingClient ? (
+                      <span>Creating Client Account...</span>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Issue Client Account & Get Credentials</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

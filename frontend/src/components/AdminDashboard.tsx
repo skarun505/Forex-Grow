@@ -63,6 +63,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('Trader@2026');
+  const [createdSlip, setCreatedSlip] = useState<any | null>(null);
   const [newUserCurrency, setNewUserCurrency] = useState<string>('USD');
   const [newUserAccountType, setNewUserAccountType] = useState<'DEMO' | 'REAL'>('DEMO');
   const [newUserDemoBal, setNewUserDemoBal] = useState<number>(10000);
@@ -322,6 +325,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         body: JSON.stringify({
           name: newUserName.trim(),
           email: newUserEmail.trim(),
+          phone: newUserPhone.trim() || undefined,
+          password: newUserPassword.trim() || 'Trader@2026',
           currency: newUserCurrency,
           activeAccountType: newUserAccountType,
           demoBalance: Number(newUserDemoBal),
@@ -336,11 +341,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         alert(data.error || 'Failed to create user');
         return;
       }
-      setIsCreateUserModalOpen(false);
-      setNewUserName('');
-      setNewUserEmail('');
+      setCreatedSlip({
+        name: data.user.name,
+        id: data.user.id,
+        email: data.user.email,
+        phone: data.user.phone || 'N/A',
+        password: newUserPassword.trim() || 'Trader@2026',
+        currency: data.user.currency,
+        demoBalance: data.user.demoBalance,
+        realBalance: data.user.realBalance,
+        url: window.location.origin,
+      });
       fetchAdminData();
-      alert(`Trader account created successfully for ${data.user.name} (${data.user.id})!`);
     } catch (err) {
       console.error(err);
       alert('Failed to connect to backend server');
@@ -1484,7 +1496,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               </div>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-4">
+            {createdSlip ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono space-y-2">
+                  <div className="font-sans font-bold text-emerald-400 text-sm">✅ Trader Account Created & Activated!</div>
+                  <div><strong>Name:</strong> {createdSlip.name}</div>
+                  <div><strong>Email:</strong> {createdSlip.email}</div>
+                  <div><strong>Phone:</strong> {createdSlip.phone}</div>
+                  <div><strong>Password:</strong> {createdSlip.password}</div>
+                  <div><strong>Currency:</strong> {createdSlip.currency}</div>
+                  <div><strong>Demo:</strong> ${createdSlip.demoBalance.toLocaleString()}</div>
+                  <div><strong>Real:</strong> ${createdSlip.realBalance.toLocaleString()}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `🌟 FOREX GROW TRADING CREDENTIALS 🌟\nName: ${createdSlip.name}\nEmail: ${createdSlip.email}\nPhone: ${createdSlip.phone}\nPassword: ${createdSlip.password}\nCurrency: ${createdSlip.currency}\nTerminal: ${createdSlip.url}`;
+                    navigator.clipboard.writeText(text);
+                    alert('Credentials copied to clipboard!');
+                  }}
+                  className="w-full py-3 bg-[#00c679] hover:bg-[#00e089] text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>📋 Copy Credentials for Client</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatedSlip(null);
+                    setIsCreateUserModalOpen(false);
+                  }}
+                  className="w-full py-2 bg-white/10 text-xs font-bold rounded-xl"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateUser} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Full Name *</label>
@@ -1509,6 +1557,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     onChange={(e) => setNewUserEmail(e.target.value)}
                     className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none ${
                       isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Phone Number (Login Enabled)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. +91 98765 43210"
+                    value={newUserPhone}
+                    onChange={(e) => setNewUserPhone(e.target.value)}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Initial Password *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Trader@2026"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-amber-400'
                     }`}
                   />
                 </div>
@@ -1687,6 +1763,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}

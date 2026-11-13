@@ -105,10 +105,24 @@ const MainLayout: React.FC = () => {
 
 export const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('quotex_current_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
+      try {
+        const saved = localStorage.getItem('quotex_current_user');
+        setCurrentUser(saved ? JSON.parse(saved) : null);
+      } catch {
+        setCurrentUser(null);
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -120,23 +134,18 @@ export const App: React.FC = () => {
     setCurrentPath('/');
   };
 
-  const handleLoginSuccess = (_user: any) => {
+  const handleLoginSuccess = (user: any) => {
+    setCurrentUser(user);
     window.history.pushState({}, '', '/');
     setCurrentPath('/');
-    // Trigger fresh load to sync provider
     window.location.reload();
   };
 
-  const handleContinueAsGuest = () => {
-    window.history.pushState({}, '', '/');
-    setCurrentPath('/');
-  };
-
-  if (currentPath === '/login' || currentPath === '/register') {
+  // Only after login can traders see their account
+  if (!currentUser || currentPath === '/login' || currentPath === '/register') {
     return (
       <LoginPage
         onLoginSuccess={handleLoginSuccess}
-        onContinueAsGuest={handleContinueAsGuest}
       />
     );
   }

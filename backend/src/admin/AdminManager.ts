@@ -44,11 +44,34 @@ export class AdminManager extends EventEmitter {
   }
 
   private seedInitialData() {
-    // Primary User (Super Admin)
+    // Super Admin Account
+    const superAdmin: UserAccount = {
+      id: 'usr_admin_001',
+      name: 'Super Admin',
+      email: 'admin@forexgrow.com',
+      phone: '+15550001111',
+      password: 'admin123',
+      role: 'ADMIN',
+      demoBalance: 100000.00,
+      realBalance: 50000.00,
+      activeAccountType: 'REAL',
+      currency: 'USD',
+      vipLevel: 'VIP',
+      isKycVerified: true,
+      status: 'ACTIVE',
+      totalTrades: 500,
+      totalDepositedUSD: 50000.00,
+      createdAt: Date.now() - 365 * 86400000,
+    };
+    this.users.set(superAdmin.id, superAdmin);
+
+    // Primary Demo VIP Trader
     const primaryUser: UserAccount = {
       id: 'usr_quotex_vip_99',
       name: 'Alex Rivera',
       email: 'alex.rivera@quotex.pro',
+      phone: '+15559876543',
+      password: 'forexgrow123',
       role: 'ADMIN',
       demoBalance: 10000.00,
       realBalance: 500.00,
@@ -59,14 +82,17 @@ export class AdminManager extends EventEmitter {
       status: 'ACTIVE',
       totalTrades: 34,
       totalDepositedUSD: 1250.00,
+      createdAt: Date.now() - 30 * 86400000,
     };
     this.users.set(primaryUser.id, primaryUser);
 
-    // Operations Manager
+    // Operations Manager Account
     const opsManager: UserAccount = {
       id: 'usr_manager_ops_01',
       name: 'Sarah Connor',
       email: 'manager@forexgrow.com',
+      phone: '+15550002222',
+      password: 'manager123',
       role: 'MANAGER',
       demoBalance: 10000.00,
       realBalance: 0.00,
@@ -77,6 +103,7 @@ export class AdminManager extends EventEmitter {
       status: 'ACTIVE',
       totalTrades: 0,
       totalDepositedUSD: 0,
+      createdAt: Date.now() - 60 * 86400000,
     };
     this.users.set(opsManager.id, opsManager);
 
@@ -299,6 +326,9 @@ export class AdminManager extends EventEmitter {
   public createUser(params: {
     name: string;
     email: string;
+    phone?: string;
+    password?: string;
+    role?: UserRole;
     demoBalance?: number;
     realBalance?: number;
     activeAccountType?: 'DEMO' | 'REAL';
@@ -306,6 +336,7 @@ export class AdminManager extends EventEmitter {
     vipLevel?: any;
     isKycVerified?: boolean;
     status?: 'ACTIVE' | 'FROZEN';
+    actor?: { id: string; name: string; role: UserRole };
   }): { success: boolean; user?: UserAccount; error?: string } {
     if (!params.name || params.name.trim().length === 0) {
       return { success: false, error: 'Full name is required' };
@@ -314,16 +345,25 @@ export class AdminManager extends EventEmitter {
       return { success: false, error: 'Valid email address is required' };
     }
 
+    const cleanEmail = params.email.trim().toLowerCase();
+    const cleanPhone = params.phone ? params.phone.trim().replace(/[^\d+]/g, '') : undefined;
+
     for (const u of this.users.values()) {
-      if (u.email.toLowerCase() === params.email.trim().toLowerCase()) {
+      if (u.email && u.email.toLowerCase() === cleanEmail) {
         return { success: false, error: 'A trader with this email already exists' };
+      }
+      if (cleanPhone && u.phone && u.phone.replace(/[^\d+]/g, '') === cleanPhone) {
+        return { success: false, error: 'A trader with this phone number already exists' };
       }
     }
 
     const newUser: UserAccount = {
       id: `usr_${uuidv4().slice(0, 8)}`,
       name: params.name.trim(),
-      email: params.email.trim().toLowerCase(),
+      email: cleanEmail,
+      phone: params.phone?.trim() || undefined,
+      password: params.password?.trim() || 'Trader@2026',
+      role: params.role || 'TRADER',
       demoBalance: Number(params.demoBalance ?? 10000.00),
       realBalance: Number(params.realBalance ?? 0.00),
       activeAccountType: params.activeAccountType ?? 'DEMO',
@@ -333,11 +373,26 @@ export class AdminManager extends EventEmitter {
       status: params.status ?? 'ACTIVE',
       totalTrades: 0,
       totalDepositedUSD: Number(params.realBalance ?? 0.00),
+      createdAt: Date.now(),
+      createdBy: params.actor ? `${params.actor.name} (${params.actor.role})` : undefined,
     };
 
     this.users.set(newUser.id, newUser);
     this.emit('user_created', newUser);
     SupabaseDb.saveUser(newUser);
+
+    if (params.actor) {
+      this.addAuditLog(
+        params.actor.id,
+        params.actor.name,
+        params.actor.role,
+        'CREATE_CLIENT_ACCOUNT',
+        newUser.id,
+        newUser.name,
+        `Issued client credentials for ${newUser.name} (Email: ${newUser.email}, Phone: ${newUser.phone || 'N/A'}, Currency: ${newUser.currency}, Demo: ${newUser.demoBalance}, Real: ${newUser.realBalance})`
+      );
+    }
+
     return { success: true, user: { ...newUser } };
   }
 

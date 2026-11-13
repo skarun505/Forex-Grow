@@ -80,65 +80,77 @@ app.get('/api/account', (req, res) => {
 
 // ================= USER AUTHENTICATION ENDPOINTS =================
 app.post('/api/auth/login', (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+  const { identifier, email, phone, password } = req.body;
+  const rawId = (identifier || email || phone || '').toString().trim();
+  const rawPass = (password || '').toString();
+
+  if (!rawId) {
+    return res.status(400).json({ error: 'Please enter your Email address or Phone number' });
+  }
+  if (!rawPass) {
+    return res.status(400).json({ error: 'Please enter your password' });
   }
 
   const users = adminManager.getUsers();
-  const found = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+  const cleanId = rawId.toLowerCase();
+  const digitsOnly = rawId.replace(/\D/g, '');
 
-  if (found) {
-    settlementEngine.setCurrentUserId(found.id);
-    broadcast({
-      type: 'BALANCE_UPDATE',
-      demoBalance: found.demoBalance,
-      realBalance: found.realBalance,
-      activeAccountType: found.activeAccountType,
-      currency: found.currency,
-    });
-    return res.json({ success: true, user: found, token: `jwt_session_${found.id}` });
-  }
-
-  // If logging in with default demo account
-  const defaultUser = adminManager.getUser('usr_quotex_vip_99');
-  if (defaultUser) {
-    settlementEngine.setCurrentUserId(defaultUser.id);
-    return res.json({ success: true, user: defaultUser, token: `jwt_session_${defaultUser.id}` });
-  }
-
-  res.status(401).json({ error: 'User not found. Please register an account.' });
-});
-
-app.post('/api/auth/register', (req, res) => {
-  const { name, email, currency } = req.body;
-  if (!name || !email) {
-    return res.status(400).json({ error: 'Full name and email are required' });
-  }
-
-  const result = adminManager.createUser({
-    name,
-    email,
-    currency: currency || 'USD',
-    demoBalance: 10000.00,
-    realBalance: 0.00,
-    vipLevel: 'STANDARD',
+  const found = users.find(u => {
+    // Check Email match
+    if (u.email && u.email.toLowerCase() === cleanId) return true;
+    
+    // Check Phone match
+    if (u.phone && digitsOnly.length >= 7) {
+      const uDigits = u.phone.replace(/\D/g, '');
+      if (uDigits === digitsOnly || uDigits.endsWith(digitsOnly) || digitsOnly.endsWith(uDigits)) {
+        return true;
+      }
+    }
+    return false;
   });
 
-  if (!result.success || !result.user) {
-    return res.status(400).json({ error: result.error || 'Failed to create user account' });
+  if (!found) {
+    return res.status(401).json({
+      error: 'Account not found. Client accounts are exclusively issued by Forex Grow Account Managers. Please contact your manager to receive your credentials.'
+    });
   }
 
-  settlementEngine.setCurrentUserId(result.user.id);
+  if (found.status === 'FROZEN') {
+    return res.status(403).json({
+      error: 'This trading account has been suspended by administration. Please contact your account manager.'
+    });
+  }
+
+  const expectedPassword = found.password || 'forexgrow123';
+  if (rawPass !== expectedPassword) {
+    return res.status(401).json({
+      error: 'Incorrect password. Please verify your credentials or contact your manager.'
+    });
+  }
+
+  settlementEngine.setCurrentUserId(found.id);
   broadcast({
     type: 'BALANCE_UPDATE',
-    demoBalance: result.user.demoBalance,
-    realBalance: result.user.realBalance,
-    activeAccountType: result.user.activeAccountType,
-    currency: result.user.currency,
+    demoBalance: found.demoBalance,
+    realBalance: found.realBalance,
+    activeAccountType: found.activeAccountType,
+    currency: found.currency,
   });
 
-  res.json({ success: true, user: result.user, token: `jwt_session_${result.user.id}` });
+  const safeUser = { ...found };
+  delete safeUser.password;
+
+  return res.json({
+    success: true,
+    user: safeUser,
+    token: `jwt_session_${found.id}_${Date.now()}`
+  });
+});
+
+app.post('/api/auth/register', (_req, res) => {
+  return res.status(403).json({
+    error: 'Public registration is disabled. Client trading accounts are issued exclusively by Forex Grow Account Managers and Desk Administrators. Please contact support.'
+  });
 });
 
 // ================= FOREX GROW PAYMENT GATEWAY & PROOF ENDPOINTS =================
@@ -484,6 +496,28 @@ app.get('/api/manager/overview', (req: express.Request, res: express.Response) =
 
 app.get('/api/manager/users', (req: express.Request, res: express.Response) => {
   res.json(adminManager.getUsers());
+});
+
+app.post('/api/manager/users/create', (req: express.Request, res: express.Response) => {
+  const { name, email, phone, password, demoBalance, realBalance, currency, vipLevel, actorName, actorId } = req.body;
+  const result = adminManager.createUser({
+    name,
+    email,
+    phone,
+    password,
+    demoBalance,
+    realBalance,
+    currency,
+    vipLevel,
+    role: 'TRADER',
+    actor: {
+      id: actorId || 'mgr_01',
+      name: actorName || 'Operations Manager',
+      role: 'MANAGER',
+    },
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
 });
 
 app.post('/api/manager/users/:id/kyc', (req: express.Request, res: express.Response) => {
