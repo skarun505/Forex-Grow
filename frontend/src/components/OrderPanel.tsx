@@ -293,13 +293,13 @@ export const OrderPanel: React.FC = () => {
         isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#181c27] border-[#2e354b] text-white'
       }`}>
         {/* Quick Amount Chips on Mobile */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5 no-scrollbar scrollbar-none">
           {quickChips.map((chip) => (
             <button
               key={chip}
               type="button"
               onClick={() => handleSetQuickLocalAmount(chip)}
-              className={`px-2 py-1 text-[10px] font-bold rounded-lg whitespace-nowrap transition border ${
+              className={`px-2 py-1 text-[10px] font-bold rounded-lg whitespace-nowrap transition active:scale-95 border ${
                 Math.round(amountUSD * curr.rateAgainstUSD) === chip
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-black'
                   : isLight
@@ -316,7 +316,7 @@ export const OrderPanel: React.FC = () => {
                 key={pct}
                 type="button"
                 onClick={() => handlePercentOfBalance(pct)}
-                className={`px-1.5 py-1 text-[9px] font-extrabold rounded-lg whitespace-nowrap transition border ${
+                className={`px-1.5 py-1 text-[9px] font-extrabold rounded-lg whitespace-nowrap transition active:scale-95 border ${
                   isLight
                     ? 'bg-slate-200 text-slate-700 border-slate-300'
                     : 'bg-[#222838] text-gray-300 border-[#2e354b] hover:text-white'
@@ -338,7 +338,7 @@ export const OrderPanel: React.FC = () => {
               <button
                 key={p.seconds}
                 onClick={() => setDuration(p.seconds)}
-                className={`px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg transition ${
+                className={`px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg transition active:scale-95 ${
                   duration === p.seconds
                     ? (isLight ? 'bg-emerald-600 text-white shadow-sm' : 'bg-[#222838] text-emerald-400 border border-emerald-500/30')
                     : (isLight ? 'text-slate-600' : 'text-gray-400')
@@ -355,16 +355,16 @@ export const OrderPanel: React.FC = () => {
           }`}>
             <button
               onClick={() => handleAdjustAmount(-1)}
-              className={`p-1 ${isLight ? 'text-slate-500 hover:text-slate-900' : 'text-gray-400 hover:text-white'}`}
+              className={`p-1.5 rounded-lg active:scale-90 transition ${isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               <Minus className="w-3.5 h-3.5" />
             </button>
-            <span className={`text-xs font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
+            <span className={`text-xs sm:text-sm font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {formatCurrency(amountUSD, account.currency)}
             </span>
             <button
               onClick={() => handleAdjustAmount(1)}
-              className={`p-1 ${isLight ? 'text-slate-500 hover:text-slate-900' : 'text-gray-400 hover:text-white'}`}
+              className={`p-1.5 rounded-lg active:scale-90 transition ${isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -379,7 +379,7 @@ export const OrderPanel: React.FC = () => {
         {/* Warning if insufficient funds */}
         {isInsufficient && (
           <div className="text-[10px] text-center text-rose-500 font-bold bg-rose-500/10 py-1 rounded-lg border border-rose-500/20">
-            ⚠️ Insufficient funds for trade amount ({formatCurrency(currentBalance, account.currency)} available)
+            ⚠️ Insufficient funds ({formatCurrency(currentBalance, account.currency)} available)
           </div>
         )}
 
@@ -388,7 +388,7 @@ export const OrderPanel: React.FC = () => {
           <button
             disabled={isInsufficient}
             onClick={() => handleTrade('UP')}
-            className="bg-[#00c679] hover:bg-[#00e089] disabled:opacity-50 text-white font-black py-2.5 sm:py-3 px-3 rounded-xl flex items-center justify-between shadow-lg shadow-emerald-500/20 active:scale-95 transition"
+            className="bg-[#00c679] hover:bg-[#00e089] active:bg-[#00a866] disabled:opacity-50 text-white font-black py-2.5 sm:py-3 px-3 rounded-xl flex items-center justify-between shadow-lg shadow-emerald-500/20 active:scale-[0.97] transition touch-manipulation"
           >
             <div className="flex items-center space-x-1.5">
               <ArrowUp className="w-5 h-5 stroke-[3]" />
@@ -405,7 +405,7 @@ export const OrderPanel: React.FC = () => {
           <button
             disabled={isInsufficient}
             onClick={() => handleTrade('DOWN')}
-            className="bg-[#ff3d5a] hover:bg-[#ff546e] disabled:opacity-50 text-white font-black py-2.5 sm:py-3 px-3 rounded-xl flex items-center justify-between shadow-lg shadow-rose-500/20 active:scale-95 transition"
+            className="bg-[#ff3d5a] hover:bg-[#ff546e] active:bg-[#e62a47] disabled:opacity-50 text-white font-black py-2.5 sm:py-3 px-3 rounded-xl flex items-center justify-between shadow-lg shadow-rose-500/20 active:scale-[0.97] transition touch-manipulation"
           >
             <div className="flex items-center space-x-1.5">
               <ArrowDown className="w-5 h-5 stroke-[3]" />

@@ -55,25 +55,30 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
         isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#181c27] border-[#2e354b] text-white'
       } ${
         isMobileOpen
-          ? `fixed inset-x-0 bottom-14 z-40 h-[70vh] shadow-2xl rounded-t-3xl border-t-2 border-emerald-500/40 animate-in slide-in-from-bottom duration-200 ${isLight ? 'bg-white' : 'bg-[#181c27]'}`
+          ? `fixed inset-x-0 bottom-14 z-40 h-[72dvh] max-h-[72dvh] shadow-2xl rounded-t-3xl border-t-2 border-emerald-500/40 animate-in slide-in-from-bottom duration-200 ${isLight ? 'bg-white' : 'bg-[#181c27]'}`
           : `hidden lg:flex ${isCollapsed ? 'h-10' : 'h-52'}`
       }`}
     >
+      {/* Mobile Drag Handle */}
+      {isMobileOpen && (
+        <div className="w-10 h-1 bg-gray-500/40 rounded-full mx-auto mt-2 mb-1 flex-shrink-0" />
+      )}
+
       {/* Drawer Header Tabs */}
-      <div className={`flex items-center justify-between px-4 sm:px-6 pt-2.5 pb-2 border-b ${
+      <div className={`flex items-center justify-between px-3 sm:px-6 pt-2 pb-2 border-b ${
         isLight ? 'border-slate-200' : 'border-[#2e354b]/50'
       }`}>
-        <div className="flex items-center space-x-3 sm:space-x-5">
+        <div className="flex items-center space-x-2 sm:space-x-5">
           <button
             onClick={() => setActiveTab('OPEN')}
-            className={`pb-1 text-xs font-bold uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
+            className={`pb-1 text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5 border-b-2 transition ${
               activeTab === 'OPEN'
                 ? 'border-trade-green text-trade-green'
                 : (isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200')
             }`}
           >
-            <span>Active Trades</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+            <span>Active</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
               isLight ? 'bg-slate-100 text-slate-700' : 'bg-[#222838] text-gray-300'
             }`}>
               {filteredActiveTrades.length}
@@ -82,45 +87,50 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
 
           <button
             onClick={() => setActiveTab('CLOSED')}
-            className={`pb-1 text-xs font-bold uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
+            className={`pb-1 text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5 border-b-2 transition ${
               activeTab === 'CLOSED'
                 ? 'border-trade-green text-trade-green'
                 : (isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200')
             }`}
           >
             <span>
-              History ({filterMode === 'PAIR' && selectedAsset ? selectedAsset.name : 'All Pairs'} · {account.currency})
+              <span className="sm:hidden">History ({account.currency})</span>
+              <span className="hidden sm:inline">
+                History ({filterMode === 'PAIR' && selectedAsset ? selectedAsset.name : 'All Pairs'} · {account.currency})
+              </span>
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
               isLight ? 'bg-slate-100 text-slate-700' : 'bg-[#222838] text-gray-300'
             }`}>
               {filteredTradeHistory.length}
             </span>
           </button>
 
-          {/* Pair-wise vs All Pairs Filter Toggle */}
-          <div className="hidden sm:flex items-center p-0.5 rounded-xl border border-gray-700/40 bg-black/30 space-x-1">
+          {/* Pair-wise vs All Pairs Filter Toggle - Visible on mobile & desktop */}
+          <div className="flex items-center p-0.5 rounded-xl border border-gray-700/40 bg-black/30 space-x-1">
             <button
               onClick={() => setFilterMode('PAIR')}
-              className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black transition flex items-center space-x-1 ${
+              className={`px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-black transition flex items-center space-x-1 ${
                 filterMode === 'PAIR'
                   ? 'bg-emerald-500 text-white shadow-sm'
                   : 'text-gray-400 hover:text-white'
               }`}
               title={`Show only trades for ${selectedAsset?.name || 'this pair'}`}
             >
-              <span>{selectedAsset?.name || 'This Pair'}</span>
+              <span className="truncate max-w-[65px] sm:max-w-[120px]">
+                {selectedAsset?.name ? selectedAsset.name.split(' ')[0] : 'This Pair'}
+              </span>
             </button>
             <button
               onClick={() => setFilterMode('ALL')}
-              className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition ${
+              className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-black transition ${
                 filterMode === 'ALL'
                   ? 'bg-emerald-500 text-white shadow-sm'
                   : 'text-gray-400 hover:text-white'
               }`}
               title="Show trades across all assets"
             >
-              <span>All Pairs</span>
+              <span>All</span>
             </button>
           </div>
         </div>
@@ -130,7 +140,7 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
           {isMobileOpen ? (
             <button
               onClick={onCloseMobile}
-              className="p-1 text-xs font-bold text-emerald-500 hover:text-emerald-600"
+              className="px-2.5 py-1 text-xs font-bold text-slate-900 bg-emerald-400 hover:bg-emerald-300 rounded-lg shadow transition"
             >
               Done
             </button>
@@ -149,7 +159,7 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
 
       {/* Content (if not collapsed) */}
       {!isCollapsed && (
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 pb-16 sm:pb-3 safe-bottom">
           {activeTab === 'OPEN' ? (
             filteredActiveTrades.length === 0 ? (
               <div className={`h-full flex flex-col items-center justify-center text-xs py-6 ${

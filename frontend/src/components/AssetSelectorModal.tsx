@@ -48,8 +48,8 @@ export const AssetSelectorModal: React.FC<AssetSelectorModalProps> = ({ isOpen, 
     });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4">
-      <div className={`w-full max-w-xl border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] transition-colors duration-200 ${
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-2 sm:p-4">
+      <div className={`w-full max-w-xl border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88dvh] transition-colors duration-200 ${
         isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
       }`}>
         {/* Header */}

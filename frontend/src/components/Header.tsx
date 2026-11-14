@@ -118,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <div>
-              <div className="text-xs font-bold group-hover:text-emerald-500 transition flex items-center space-x-1 truncate max-w-[110px] sm:max-w-[160px]">
+              <div className="text-xs font-bold group-hover:text-emerald-500 transition flex items-center space-x-1 truncate max-w-[90px] xs:max-w-[130px] sm:max-w-[160px]">
                 <span className="truncate">{selectedAsset.name}</span>
                 {selectedAsset.isRealFeed && (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
@@ -173,7 +173,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* User Profile Dropdown Menu (NO ADMIN BUTTON - ONLY /admin URL) */}
           {showUserMenu && (
-            <div className={`absolute right-0 top-full mt-2 w-64 border rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100 ${
+            <div className={`absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100 ${
               isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a2130] border-[#293246] text-white'
             }`}>
               <div className={`p-2 border-b mb-2 ${isLight ? 'border-slate-200' : 'border-[#293246]'}`}>
@@ -358,7 +358,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Account Dropdown */}
           {showAccountDropdown && (
-            <div className={`absolute right-0 mt-2 w-72 border rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 ${
+            <div className={`absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 ${
               isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a2130] border-[#293246] text-white'
             }`}>
               {/* User Profile Info Inside Dropdown */}

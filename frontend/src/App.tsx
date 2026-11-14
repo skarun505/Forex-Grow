@@ -25,7 +25,7 @@ const MainLayout: React.FC = () => {
   const { notification, theme } = useTrading();
 
   return (
-    <div className={`flex flex-col h-screen w-screen overflow-hidden select-none transition-colors duration-200 ${
+    <div className={`flex flex-col h-[100dvh] w-screen overflow-hidden select-none transition-colors duration-200 safe-top ${
       theme === 'light' ? 'bg-[#f4f6f9] text-slate-800' : 'bg-[#121620] text-gray-100'
     }`}>
       {/* Toast Notification */}
@@ -58,12 +58,18 @@ const MainLayout: React.FC = () => {
         {/* Right / Bottom: Order Placement Ticket (Desktop sidebar + Mobile docked bar) */}
         <OrderPanel />
 
-        {/* Mobile Trades Bottom Sheet Drawer */}
+        {/* Mobile Trades Bottom Sheet Drawer with Touch Backdrop */}
         {isMobileTradesOpen && (
-          <TradesDrawer
-            isMobileOpen={true}
-            onCloseMobile={() => setIsMobileTradesOpen(false)}
-          />
+          <>
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden animate-in fade-in duration-200"
+              onClick={() => setIsMobileTradesOpen(false)}
+            />
+            <TradesDrawer
+              isMobileOpen={true}
+              onCloseMobile={() => setIsMobileTradesOpen(false)}
+            />
+          </>
         )}
       </div>
 
