@@ -338,4 +338,25 @@ export class MarketEngine extends EventEmitter {
     this.emit('payout_updated', { assetId, payout: state.asset.payout });
     return true;
   }
+
+  public setExactAssetPrice(assetId: string, exactPrice: number): number {
+    const state = this.assets.get(assetId);
+    if (!state) return exactPrice;
+
+    const dec = state.asset.decimalPlaces;
+    const formattedPrice = Number(exactPrice.toFixed(dec));
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    this.applyTick(state, formattedPrice, nowSeconds);
+
+    const tick: Tick = {
+      assetId: state.asset.id,
+      price: formattedPrice,
+      time: nowSeconds,
+    };
+
+    this.emit('tick', tick);
+    this.emit('candle_update', { assetId: state.asset.id, candle: { ...state.currentCandle } });
+    return formattedPrice;
+  }
 }

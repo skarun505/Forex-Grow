@@ -548,6 +548,27 @@ app.post('/api/admin/payment/settings', (req: express.Request, res: express.Resp
   res.json({ success: true, settings: updated });
 });
 
+// ================= RISK & WIN-RATE ENGINE ENDPOINTS (QUOTEX 20% WIN RATE) =================
+app.get('/api/admin/risk/settings', (_req: express.Request, res: express.Response) => {
+  res.json({ success: true, settings: adminManager.getRiskSettings() });
+});
+
+app.post('/api/admin/risk/settings', (req: express.Request, res: express.Response) => {
+  const { actorName, ...settings } = req.body;
+  const updated = adminManager.updateRiskSettings(settings, actorName || 'Administrator');
+  res.json({ success: true, settings: updated });
+});
+
+app.get('/api/manager/risk/settings', (_req: express.Request, res: express.Response) => {
+  res.json({ success: true, settings: adminManager.getRiskSettings() });
+});
+
+app.post('/api/manager/risk/settings', (req: express.Request, res: express.Response) => {
+  const { actorName, ...settings } = req.body;
+  const updated = adminManager.updateRiskSettings(settings, actorName || 'Operations Manager');
+  res.json({ success: true, settings: updated });
+});
+
 // ================= MANAGER DESK ENDPOINTS =================
 app.get('/api/manager/overview', (req: express.Request, res: express.Response) => {
   res.json(adminManager.getManagerOverview());

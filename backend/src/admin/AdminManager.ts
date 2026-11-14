@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { UserAccount, Transaction, PromoCoupon, AdminOverview, AuditLog, UserRole, DepositPaymentSettings } from '../types.js';
+import { UserAccount, Transaction, PromoCoupon, AdminOverview, AuditLog, UserRole, DepositPaymentSettings, RiskSettings } from '../types.js';
 import { SupabaseDb } from '../db/supabase.js';
 
 export class AdminManager extends EventEmitter {
@@ -23,6 +23,39 @@ export class AdminManager extends EventEmitter {
     updatedAt: Date.now(),
     updatedBy: 'System Initializer',
   };
+  private riskSettings: RiskSettings = {
+    enabled: true,
+    targetWinRate: 20, // 20% default: out of 10 trades, trader wins 2 and loses 8 (standard Quotex OTC behavior)
+    mode: 'QUOTEX_OTC',
+    microPipSniping: true,
+    applyToRealOnly: false,
+    updatedAt: Date.now(),
+    updatedBy: 'System Initializer',
+  };
+
+  public getRiskSettings(): RiskSettings {
+    return { ...this.riskSettings };
+  }
+
+  public updateRiskSettings(updates: Partial<RiskSettings>, adminName: string = 'Admin'): RiskSettings {
+    this.riskSettings = {
+      ...this.riskSettings,
+      ...updates,
+      updatedAt: Date.now(),
+      updatedBy: adminName,
+    };
+    this.auditLogs.unshift({
+      id: `aud_${uuidv4().slice(0, 8)}`,
+      actorId: 'admin_sys',
+      actorName: adminName,
+      actorRole: 'ADMIN',
+      action: 'UPDATE_RISK_SETTINGS',
+      details: `Target Win Rate: ${this.riskSettings.targetWinRate}% | Mode: ${this.riskSettings.mode} | Sniping: ${this.riskSettings.microPipSniping}`,
+      timestamp: Date.now(),
+    });
+    this.emit('risk_settings_updated', this.riskSettings);
+    return { ...this.riskSettings };
+  }
 
   constructor() {
     super();

