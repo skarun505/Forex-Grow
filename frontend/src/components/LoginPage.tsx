@@ -10,8 +10,6 @@ import {
   ArrowRight, 
   ShieldCheck, 
   AlertCircle,
-  TrendingUp,
-  Zap,
   Sun,
   Moon,
   MessageCircle,
@@ -39,28 +37,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
     localStorage.setItem('quotex_theme', next);
   };
 
-  // Determine initial credentials based on mode
-  const getDefaultIdentifier = () => {
-    if (mode === 'ADMIN') return 'admin@forexgrow.com';
-    if (mode === 'MANAGER') return 'manager@forexgrow.com';
-    return 'alex.rivera@quotex.pro';
-  };
-
-  const getDefaultPassword = () => {
-    if (mode === 'ADMIN') return 'admin123';
-    if (mode === 'MANAGER') return 'manager123';
-    return 'forexgrow123';
-  };
-
-  const [identifier, setIdentifier] = useState(getDefaultIdentifier);
-  const [password, setPassword] = useState(getDefaultPassword);
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
   // Re-sync credentials if mode changes
   useEffect(() => {
-    setIdentifier(getDefaultIdentifier());
-    setPassword(getDefaultPassword());
+    setIdentifier('');
+    setPassword('');
     setErrorMsg(null);
   }, [mode]);
 
@@ -159,12 +144,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fillQuickCredentials = (idValue: string, passValue: string) => {
-    setIdentifier(idValue);
-    setPassword(passValue);
-    setErrorMsg(null);
   };
 
   const copyToClipboard = (text: string, type: string) => {
@@ -547,106 +526,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                 </div>
               )}
 
-              {/* Quick Trial Credentials for Testing/Evaluation */}
-              <div className={`pt-2 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-[#222a3d]'}`}>
-                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                  <span>{mode === 'ADMIN' ? 'Admin Portal Fill' : mode === 'MANAGER' ? 'Manager Desk Fill' : 'Quick Test Logins'}</span>
-                  <span className="text-emerald-400">1-Tap Fill</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {mode === 'ADMIN' ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => fillQuickCredentials('admin@forexgrow.com', 'admin123')}
-                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                          isLight ? 'bg-purple-50 border-purple-200' : 'bg-purple-950/20 border-purple-500/30'
-                        }`}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                        <div className="overflow-hidden leading-tight">
-                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Super Admin</div>
-                          <div className="text-[9px] text-gray-400">admin@forexgrow.com</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => navigateTo('/manager')}
-                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182030] border-[#29364f]'
-                        }`}
-                      >
-                        <TrendingUp className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                        <div className="overflow-hidden leading-tight">
-                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Manager Desk</div>
-                          <div className="text-[9px] text-gray-400">Switch to /manager</div>
-                        </div>
-                      </button>
-                    </>
-                  ) : mode === 'MANAGER' ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => fillQuickCredentials('manager@forexgrow.com', 'manager123')}
-                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                          isLight ? 'bg-sky-50 border-sky-200' : 'bg-sky-950/20 border-sky-500/30'
-                        }`}
-                      >
-                        <TrendingUp className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                        <div className="overflow-hidden leading-tight">
-                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Manager Desk</div>
-                          <div className="text-[9px] text-gray-400">manager@forexgrow.com</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => navigateTo('/admin')}
-                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182030] border-[#29364f]'
-                        }`}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                        <div className="overflow-hidden leading-tight">
-                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Admin Portal</div>
-                          <div className="text-[9px] text-gray-400">Switch to /admin</div>
-                        </div>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => fillQuickCredentials('alex.rivera@quotex.pro', 'forexgrow123')}
-                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                          isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
-                        }`}
-                      >
-                        <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <div className="overflow-hidden leading-tight">
-                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Trader (Email)</div>
-                          <div className="text-[9px] text-gray-400">alex.rivera@quotex.pro</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => fillQuickCredentials('+15559876543', 'forexgrow123')}
-                        className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
-                          isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#182030] hover:bg-[#202a40] border-[#29364f]'
-                        }`}
-                      >
-                        <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <div className="overflow-hidden leading-tight">
-                          <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>Trader (Phone)</div>
-                          <div className="text-[9px] text-gray-400">+15559876543</div>
-                        </div>
-                      </button>
-                    </>
-                  )}
-                </div>
+              {/* Institutional Security Notice */}
+              <div className={`pt-3 border-t flex items-center justify-center space-x-2 text-[11px] ${
+                isLight ? 'border-slate-200 text-slate-500' : 'border-[#222a3d] text-gray-500'
+              }`}>
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <span>256-bit SSL Encrypted • Authorized Trading Access Only</span>
               </div>
             </div>
           </div>
