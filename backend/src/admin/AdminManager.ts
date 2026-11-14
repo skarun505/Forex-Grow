@@ -525,17 +525,30 @@ export class AdminManager extends EventEmitter {
 
     tx.status = 'APPROVED';
 
+    const USD_INR_RATE = 95.0;
     const user = this.users.get(tx.userId);
     if (user && tx.type === 'DEPOSIT') {
-      let credited = tx.amount;
+      let creditedInTxCurrency = tx.amount;
       if (tx.promoCode) {
-        const cpnRes = this.validateCoupon(tx.promoCode, tx.amount);
+        const usdEquiv = tx.amountUSD || (tx.currency === 'INR' ? tx.amount / USD_INR_RATE : tx.amount);
+        const cpnRes = this.validateCoupon(tx.promoCode, usdEquiv);
         if (cpnRes.valid) {
-          credited += cpnRes.bonus;
+          const bonusInTxCurrency = tx.currency === 'INR' ? cpnRes.bonus * USD_INR_RATE : cpnRes.bonus;
+          creditedInTxCurrency += bonusInTxCurrency;
         }
       }
-      user.realBalance = Number((user.realBalance + credited).toFixed(2));
-      user.totalDepositedUSD = Number((user.totalDepositedUSD + tx.amount).toFixed(2));
+
+      // Convert creditedInTxCurrency to match user's current wallet currency
+      let finalCredited = creditedInTxCurrency;
+      if (user.currency === 'INR' && tx.currency === 'USD') {
+        finalCredited = Number((creditedInTxCurrency * USD_INR_RATE).toFixed(2));
+      } else if (user.currency === 'USD' && tx.currency === 'INR') {
+        finalCredited = Number((creditedInTxCurrency / USD_INR_RATE).toFixed(2));
+      }
+
+      user.realBalance = Number((user.realBalance + finalCredited).toFixed(2));
+      const usdAdded = tx.amountUSD || (tx.currency === 'INR' ? tx.amount / USD_INR_RATE : tx.amount);
+      user.totalDepositedUSD = Number((user.totalDepositedUSD + usdAdded).toFixed(2));
       this.emit('user_updated', user);
       SupabaseDb.saveUser(user);
     }
@@ -547,7 +560,7 @@ export class AdminManager extends EventEmitter {
       `APPROVED_${tx.type}`,
       tx.id,
       user?.name || tx.userName,
-      `Amount: $${tx.amount} (${tx.currency}) via ${tx.method}`
+      `Amount: ${tx.currency} ${tx.amount} via ${tx.method}`
     );
 
     this.emit('transaction_updated', tx);
@@ -567,10 +580,17 @@ export class AdminManager extends EventEmitter {
     tx.status = 'REJECTED';
     tx.rejectReason = reason || 'Declined by Admin compliance';
 
+    const USD_INR_RATE = 95.0;
     // If it was a withdrawal that failed/rejected, refund the user
     const user = this.users.get(tx.userId);
     if (user && tx.type === 'WITHDRAWAL') {
-      user.realBalance = Number((user.realBalance + tx.amount).toFixed(2));
+      let refundAmount = tx.amount;
+      if (user.currency === 'INR' && tx.currency === 'USD') {
+        refundAmount = Number((tx.amount * USD_INR_RATE).toFixed(2));
+      } else if (user.currency === 'USD' && tx.currency === 'INR') {
+        refundAmount = Number((tx.amount / USD_INR_RATE).toFixed(2));
+      }
+      user.realBalance = Number((user.realBalance + refundAmount).toFixed(2));
       this.emit('user_updated', user);
       SupabaseDb.saveUser(user);
     }

@@ -177,8 +177,23 @@ app.post('/api/payment/deposit-proof', (req, res) => {
                adminManager.getUser(currentAcc?.id) || 
                (allUsers.length > 0 ? allUsers[0] : null);
 
-  const numUSD = Number(amountUSD) || Number(amount) || 100;
-  if (numUSD <= 0) return res.status(400).json({ error: 'Invalid deposit amount' });
+  const txnCurrency: 'INR' | 'USD' = (currency === 'USD' ? 'USD' : (user ? (user.currency === 'USD' ? 'USD' : 'INR') : 'INR'));
+  const USD_INR_RATE = 95.0;
+
+  // Accurately capture entered amount in the transaction's currency
+  const rawEntered = Number(amount) || 0;
+  const rawUSD = Number(amountUSD) || 0;
+  let finalAmount = rawEntered;
+  let finalUSD = rawUSD;
+
+  if (finalAmount <= 0 && finalUSD > 0) {
+    finalAmount = txnCurrency === 'INR' ? Number((finalUSD * USD_INR_RATE).toFixed(2)) : finalUSD;
+  }
+  if (finalUSD <= 0 && finalAmount > 0) {
+    finalUSD = txnCurrency === 'INR' ? Number((finalAmount / USD_INR_RATE).toFixed(2)) : finalAmount;
+  }
+
+  if (finalAmount <= 0) return res.status(400).json({ error: 'Invalid deposit amount' });
   if (!utrNumber || utrNumber.trim().length < 4) {
     return res.status(400).json({ error: 'Please enter a valid 12-digit UPI / Bank Transaction UTR Reference number' });
   }
@@ -194,8 +209,9 @@ app.post('/api/payment/deposit-proof', (req, res) => {
     userId: user ? user.id : (userId || 'usr_guest'),
     userName: user ? user.name : (req.body.userName || 'Trader'),
     type: 'DEPOSIT',
-    amount: numUSD,
-    currency: currency || (user ? user.currency : 'INR'),
+    amount: finalAmount,
+    amountUSD: finalUSD,
+    currency: txnCurrency,
     method: methodLabel,
     paymentRail: isBank ? 'BANK' : 'UPI',
     promoCode: promoCode || undefined,
@@ -234,23 +250,25 @@ app.post('/api/payment/withdraw-request', (req, res) => {
                adminManager.getUser(currentAcc?.id) || 
                (allUsers.length > 0 ? allUsers[0] : null);
 
-  const numUSD = Number(amountUSD) || Number(amount) || 0;
-  if (numUSD <= 0) return res.status(400).json({ error: 'Invalid withdrawal amount' });
   if (!user) {
     return res.status(404).json({ error: 'Trader account not found. Please log in again.' });
   }
+
+  const USD_INR_RATE = 95.0;
+  const enteredAmount = Number(amount) || 0;
+  const enteredUSD = Number(amountUSD) || (user.currency === 'INR' ? enteredAmount / USD_INR_RATE : enteredAmount);
+
+  if (enteredAmount <= 0) return res.status(400).json({ error: 'Invalid withdrawal amount' });
   
-  if (user.realBalance < numUSD) {
-    return res.status(400).json({ error: 'Insufficient real live balance for withdrawal. Only real funds can be withdrawn.' });
+  if (user.realBalance < enteredAmount) {
+    return res.status(400).json({ 
+      error: `Insufficient real live balance. You have ${user.currency} ${user.realBalance.toLocaleString()} available to withdraw. Only real funds can be withdrawn.` 
+    });
   }
 
-  // Deduct real balance immediately from live account
-  adminManager.adjustUserBalance({
-    userId: user.id,
-    accountType: 'REAL',
-    action: 'REMOVE',
-    amount: numUSD,
-  });
+  // Deduct exact entered amount in user's currency from live account
+  user.realBalance = Number((user.realBalance - enteredAmount).toFixed(2));
+  adminManager.updateUser(user.id, { realBalance: user.realBalance });
 
   const payoutRef = `FG-WDR-${Math.floor(100000 + Math.random() * 900000)}`;
   let methodDesc = 'Bank Transfer / UPI Payout';
@@ -264,7 +282,8 @@ app.post('/api/payment/withdraw-request', (req, res) => {
     userId: user.id,
     userName: user.name,
     type: 'WITHDRAWAL',
-    amount: numUSD,
+    amount: enteredAmount,
+    amountUSD: enteredUSD,
     currency: user.currency,
     method: methodDesc,
     address: bankDetails?.upiId || bankDetails?.accountNumber,
@@ -526,7 +545,8 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
     return res.status(400).json({ error: result.error });
   }
 
-  const user = adminManager.getUser(result.transaction!.userId);
+  const tx = result.transaction!;
+  const user = adminManager.getUser(tx.userId);
   if (user) {
     settlementEngine.setCurrentUserId(user.id);
     broadcast({
@@ -537,10 +557,16 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
       activeAccountType: user.activeAccountType,
       currency: user.currency,
     });
+
+    const isDeposit = tx.type === 'DEPOSIT';
+    const message = isDeposit
+      ? `Deposit of ${tx.currency} ${tx.amount.toLocaleString()} has been approved and credited to your live account!`
+      : `Withdrawal of ${tx.currency} ${tx.amount.toLocaleString()} has been approved and processed!`;
+
     broadcast({
       type: 'TRANSACTION_SUCCESS',
       userId: user.id,
-      message: `Deposit of ${user.currency} ${(result.transaction!.amount * (user.currency === 'INR' ? 95 : 1)).toFixed(2)} has been approved and credited to your live account!`,
+      message,
       demoBalance: user.demoBalance,
       realBalance: user.realBalance,
     });
@@ -557,9 +583,10 @@ app.post('/api/admin/transactions/:id/reject', (req, res) => {
   }
 
   const user = adminManager.getUser(result.transaction!.userId);
-  if (user && (user.id === settlementEngine.getAccount().id || user.id === 'usr_quotex_vip_99')) {
+  if (user) {
     broadcast({
       type: 'BALANCE_UPDATE',
+      userId: user.id,
       demoBalance: user.demoBalance,
       realBalance: user.realBalance,
       activeAccountType: user.activeAccountType,

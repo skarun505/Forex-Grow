@@ -158,6 +158,7 @@ export interface Transaction {
   userName: string;
   type: TransactionType;
   amount: number;
+  amountUSD?: number;
   currency: CurrencyCode;
   method: string;
   paymentRail?: 'UPI' | 'BANK';

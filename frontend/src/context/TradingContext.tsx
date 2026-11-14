@@ -382,6 +382,10 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             case 'BALANCE_UPDATE':
               setAccount((prev) => {
+                if (action.userId && prev.id && action.userId !== prev.id) {
+                  return prev;
+                }
+
                 let currentSessionCurrency = prev.currency;
                 try {
                   const sess = sessionStorage.getItem('quotex_session_currency') as CurrencyCode | null;
@@ -416,6 +420,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'TRANSACTION_SUCCESS':
+              if (action.userId && accountRef.current.id && action.userId !== accountRef.current.id) {
+                break;
+              }
               setAccount((prev) => {
                 const updated = {
                   ...prev,

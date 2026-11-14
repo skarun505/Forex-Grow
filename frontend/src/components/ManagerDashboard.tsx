@@ -852,11 +852,13 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                           <div className={`text-lg font-black mono-num ${
                             isDeposit ? 'text-emerald-400' : 'text-rose-400'
                           }`}>
-                            {isDeposit ? '+' : '-'}${tx.amount.toFixed(2)}
+                            {isDeposit ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}
                           </div>
-                          <div className="text-[10px] text-gray-400 font-mono">
-                            {formatCurrency(tx.amount, tx.currency)}
-                          </div>
+                          {tx.amountUSD && tx.currency !== 'USD' && (
+                            <div className="text-[10px] text-gray-400 font-mono">
+                              ≈ ${tx.amountUSD.toFixed(2)} USD
+                            </div>
+                          )}
                         </div>
 
                         {/* Approve & Reject Buttons */}

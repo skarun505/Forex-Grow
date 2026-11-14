@@ -1108,7 +1108,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                         </span>
                       </td>
                       <td className={`py-3.5 px-3 font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                        {formatCurrency(tx.amount, (tx.currency as any) || 'USD')}
+                        <div>{formatCurrency(tx.amount, (tx.currency as any) || 'USD')}</div>
+                        {tx.amountUSD && tx.currency !== 'USD' && (
+                          <div className="text-[10px] text-gray-400 font-mono font-normal">
+                            ≈ ${tx.amountUSD.toFixed(2)} USD
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-3">
                         <div className={`font-semibold ${isLight ? 'text-slate-800' : 'text-gray-200'}`}>{tx.method}</div>
