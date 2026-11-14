@@ -28,7 +28,7 @@ export const OrderPanel: React.FC = () => {
     setAmountUSD(primaryChip / curr.rateAgainstUSD);
   }, [account.currency]);
 
-  const payout = selectedAsset?.payout ?? 85;
+  const payout = selectedAsset?.payout ?? 65;
   const profitUSD = Number((amountUSD * (payout / 100)).toFixed(4));
   const totalReturnUSD = Number((amountUSD + profitUSD).toFixed(4));
 

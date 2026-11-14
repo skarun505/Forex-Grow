@@ -532,7 +532,130 @@ app.post('/api/admin/users/:userId/update', (req, res) => {
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
+
+  const u = result.user!;
+  broadcast({
+    type: 'BALANCE_UPDATE',
+    userId: u.id,
+    demoBalance: u.demoBalance,
+    realBalance: u.realBalance,
+    activeAccountType: u.activeAccountType,
+    currency: u.currency,
+  });
+
   res.json(result);
+});
+
+// ================= EASIEST DIRECT BALANCE EDIT (NO MENTAL MATH) =================
+app.post('/api/admin/users/:userId/set-balances', (req, res) => {
+  const { userId } = req.params;
+  const { realBalance, demoBalance, currency, activeAccountType, actorName } = req.body;
+  const user = adminManager.getUser(userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const prevReal = user.realBalance;
+  const prevDemo = user.demoBalance;
+
+  if (realBalance !== undefined && !isNaN(Number(realBalance))) {
+    user.realBalance = Math.max(0, Number(Number(realBalance).toFixed(2)));
+  }
+  if (demoBalance !== undefined && !isNaN(Number(demoBalance))) {
+    user.demoBalance = Math.max(0, Number(Number(demoBalance).toFixed(2)));
+  }
+  if (currency !== undefined) {
+    user.currency = currency === 'USD' ? 'USD' : 'INR';
+  }
+  if (activeAccountType !== undefined) {
+    user.activeAccountType = activeAccountType === 'REAL' ? 'REAL' : 'DEMO';
+  }
+
+  adminManager.updateUser(userId, {
+    realBalance: user.realBalance,
+    demoBalance: user.demoBalance,
+    currency: user.currency,
+    activeAccountType: user.activeAccountType,
+  });
+
+  adminManager.addAuditLog(
+    'admin_sys',
+    actorName || 'Desk Administrator',
+    'MANAGER',
+    'DIRECT_BALANCE_UPDATE',
+    user.id,
+    user.name,
+    `Directly set funds: Real ${user.currency} ${prevReal} -> ${user.realBalance}, Demo ${user.currency} ${prevDemo} -> ${user.demoBalance}`
+  );
+
+  broadcast({
+    type: 'BALANCE_UPDATE',
+    userId: user.id,
+    demoBalance: user.demoBalance,
+    realBalance: user.realBalance,
+    activeAccountType: user.activeAccountType,
+    currency: user.currency,
+  });
+
+  res.json({ success: true, user: { ...user } });
+});
+
+app.post('/api/manager/users/:userId/set-balances', (req, res) => {
+  const { userId } = req.params;
+  const { realBalance, demoBalance, currency, activeAccountType, actorName } = req.body;
+  const user = adminManager.getUser(userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const prevReal = user.realBalance;
+  const prevDemo = user.demoBalance;
+
+  if (realBalance !== undefined && !isNaN(Number(realBalance))) {
+    user.realBalance = Math.max(0, Number(Number(realBalance).toFixed(2)));
+  }
+  if (demoBalance !== undefined && !isNaN(Number(demoBalance))) {
+    user.demoBalance = Math.max(0, Number(Number(demoBalance).toFixed(2)));
+  }
+  if (currency !== undefined) {
+    user.currency = currency === 'USD' ? 'USD' : 'INR';
+  }
+  if (activeAccountType !== undefined) {
+    user.activeAccountType = activeAccountType === 'REAL' ? 'REAL' : 'DEMO';
+  }
+
+  adminManager.updateUser(userId, {
+    realBalance: user.realBalance,
+    demoBalance: user.demoBalance,
+    currency: user.currency,
+    activeAccountType: user.activeAccountType,
+  });
+
+  adminManager.addAuditLog(
+    'manager_desk',
+    actorName || 'Operations Manager',
+    'MANAGER',
+    'DIRECT_BALANCE_UPDATE',
+    user.id,
+    user.name,
+    `Manager directly set funds: Real ${user.currency} ${prevReal} -> ${user.realBalance}, Demo ${user.currency} ${prevDemo} -> ${user.demoBalance}`
+  );
+
+  broadcast({
+    type: 'BALANCE_UPDATE',
+    userId: user.id,
+    demoBalance: user.demoBalance,
+    realBalance: user.realBalance,
+    activeAccountType: user.activeAccountType,
+    currency: user.currency,
+  });
+
+  res.json({ success: true, user: { ...user } });
+});
+
+// Explicit security rule: Manager can NEVER delete transactions
+app.delete('/api/manager/transactions/:id', (_req, res) => {
+  return res.status(403).json({ error: 'Access Denied: Managers cannot delete deposit or withdrawal records.' });
 });
 
 app.get('/api/admin/transactions', (req, res) => {
@@ -810,6 +933,17 @@ app.post('/api/admin/assets/:id/payout', (req, res) => {
   res.json({ success, payout });
 });
 
+app.post('/api/manager/assets/:id/payout', (req, res) => {
+  const { payout } = req.body;
+  const success = marketEngine.setAssetPayout(req.params.id, Number(payout));
+  if (!success) {
+    return res.status(400).json({ error: 'Asset not found' });
+  }
+  const assets = marketEngine.getAssets();
+  broadcast({ type: 'ASSETS_UPDATE', assets });
+  res.json({ success, payout });
+});
+
 // Admin Trade Management Endpoints
 app.get('/api/admin/users/:userId/trades', (req: express.Request, res: express.Response) => {
   const userId = String(req.params.userId);
@@ -865,6 +999,11 @@ marketEngine.on('sentiment_update', (sentiment) => {
       session.ws.send(serialized);
     }
   }
+});
+
+marketEngine.on('payout_updated', () => {
+  const assets = marketEngine.getAssets();
+  broadcast({ type: 'ASSETS_UPDATE', assets });
 });
 
 // Settlement Event Listener

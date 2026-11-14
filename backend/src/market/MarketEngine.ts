@@ -57,36 +57,36 @@ export class MarketEngine extends EventEmitter {
       volatility: number;
       isRealFeed?: boolean;
     }> = [
-      // Major Crypto (Live Binance Stream)
-      { id: 'BTCUSDT', name: 'Bitcoin (BTC/USDT)', category: 'crypto', payout: 93, basePrice: 69500.00, decimalPlaces: 2, volatility: 22.0, isRealFeed: true },
-      { id: 'ETHUSDT', name: 'Ethereum (ETH/USDT)', category: 'crypto', payout: 90, basePrice: 2545.00, decimalPlaces: 2, volatility: 1.4, isRealFeed: true },
-      { id: 'SOLUSDT', name: 'Solana (SOL/USDT)', category: 'crypto', payout: 89, basePrice: 179.20, decimalPlaces: 2, volatility: 0.28, isRealFeed: true },
-      { id: 'BNBUSDT', name: 'BNB (BNB/USDT)', category: 'crypto', payout: 88, basePrice: 585.50, decimalPlaces: 2, volatility: 0.45, isRealFeed: true },
-      { id: 'DOGEUSDT', name: 'Dogecoin (DOGE/USDT)', category: 'crypto', payout: 87, basePrice: 0.1652, decimalPlaces: 4, volatility: 0.0008, isRealFeed: true },
-      { id: 'XRPUSDT', name: 'Ripple (XRP/USDT)', category: 'crypto', payout: 87, basePrice: 0.5280, decimalPlaces: 4, volatility: 0.0015, isRealFeed: true },
-      { id: 'ADAUSDT', name: 'Cardano (ADA/USDT)', category: 'crypto', payout: 86, basePrice: 0.3540, decimalPlaces: 4, volatility: 0.0012, isRealFeed: true },
-      { id: 'AVAXUSDT', name: 'Avalanche (AVAX/USDT)', category: 'crypto', payout: 86, basePrice: 26.80, decimalPlaces: 2, volatility: 0.08, isRealFeed: true },
+      // Major Crypto (Live Binance Stream) - Dynamic Returns 50% to 70%
+      { id: 'BTCUSDT', name: 'Bitcoin (BTC/USDT)', category: 'crypto', payout: 68, basePrice: 69500.00, decimalPlaces: 2, volatility: 22.0, isRealFeed: true },
+      { id: 'ETHUSDT', name: 'Ethereum (ETH/USDT)', category: 'crypto', payout: 65, basePrice: 2545.00, decimalPlaces: 2, volatility: 1.4, isRealFeed: true },
+      { id: 'SOLUSDT', name: 'Solana (SOL/USDT)', category: 'crypto', payout: 62, basePrice: 179.20, decimalPlaces: 2, volatility: 0.28, isRealFeed: true },
+      { id: 'BNBUSDT', name: 'BNB (BNB/USDT)', category: 'crypto', payout: 60, basePrice: 585.50, decimalPlaces: 2, volatility: 0.45, isRealFeed: true },
+      { id: 'DOGEUSDT', name: 'Dogecoin (DOGE/USDT)', category: 'crypto', payout: 57, basePrice: 0.1652, decimalPlaces: 4, volatility: 0.0008, isRealFeed: true },
+      { id: 'XRPUSDT', name: 'Ripple (XRP/USDT)', category: 'crypto', payout: 58, basePrice: 0.5280, decimalPlaces: 4, volatility: 0.0015, isRealFeed: true },
+      { id: 'ADAUSDT', name: 'Cardano (ADA/USDT)', category: 'crypto', payout: 54, basePrice: 0.3540, decimalPlaces: 4, volatility: 0.0012, isRealFeed: true },
+      { id: 'AVAXUSDT', name: 'Avalanche (AVAX/USDT)', category: 'crypto', payout: 56, basePrice: 26.80, decimalPlaces: 2, volatility: 0.08, isRealFeed: true },
 
-      // Forex OTC Pairs
-      { id: 'EURUSD_OTC', name: 'EUR/USD (OTC)', category: 'forex', payout: 94, basePrice: 1.08640, decimalPlaces: 5, volatility: 0.00015 },
-      { id: 'GBPUSD_OTC', name: 'GBP/USD (OTC)', category: 'forex', payout: 91, basePrice: 1.29820, decimalPlaces: 5, volatility: 0.00018 },
-      { id: 'USDJPY_OTC', name: 'USD/JPY (OTC)', category: 'forex', payout: 88, basePrice: 153.250, decimalPlaces: 3, volatility: 0.035 },
-      { id: 'AUDUSD_OTC', name: 'AUD/USD (OTC)', category: 'forex', payout: 87, basePrice: 0.65800, decimalPlaces: 5, volatility: 0.00014 },
-      { id: 'USDCAD_OTC', name: 'USD/CAD (OTC)', category: 'forex', payout: 86, basePrice: 1.39200, decimalPlaces: 5, volatility: 0.00016 },
-      { id: 'USDCHF_OTC', name: 'USD/CHF (OTC)', category: 'forex', payout: 85, basePrice: 0.86700, decimalPlaces: 5, volatility: 0.00013 },
-      { id: 'EURJPY_OTC', name: 'EUR/JPY (OTC)', category: 'forex', payout: 89, basePrice: 166.450, decimalPlaces: 3, volatility: 0.038 },
-      { id: 'GBPJPY_OTC', name: 'GBP/JPY (OTC)', category: 'forex', payout: 92, basePrice: 198.900, decimalPlaces: 3, volatility: 0.045 },
-      { id: 'NZDUSD_OTC', name: 'NZD/USD (OTC)', category: 'forex', payout: 84, basePrice: 0.59600, decimalPlaces: 5, volatility: 0.00015 },
+      // Forex OTC Currency Pairs - Random Returns strictly between 50% and 70%
+      { id: 'EURUSD_OTC', name: 'EUR/USD (OTC)', category: 'forex', payout: 68, basePrice: 1.08640, decimalPlaces: 5, volatility: 0.00015 },
+      { id: 'GBPUSD_OTC', name: 'GBP/USD (OTC)', category: 'forex', payout: 64, basePrice: 1.29820, decimalPlaces: 5, volatility: 0.00018 },
+      { id: 'USDJPY_OTC', name: 'USD/JPY (OTC)', category: 'forex', payout: 58, basePrice: 153.250, decimalPlaces: 3, volatility: 0.035 },
+      { id: 'AUDUSD_OTC', name: 'AUD/USD (OTC)', category: 'forex', payout: 55, basePrice: 0.65800, decimalPlaces: 5, volatility: 0.00014 },
+      { id: 'USDCAD_OTC', name: 'USD/CAD (OTC)', category: 'forex', payout: 62, basePrice: 1.39200, decimalPlaces: 5, volatility: 0.00016 },
+      { id: 'USDCHF_OTC', name: 'USD/CHF (OTC)', category: 'forex', payout: 52, basePrice: 0.86700, decimalPlaces: 5, volatility: 0.00013 },
+      { id: 'EURJPY_OTC', name: 'EUR/JPY (OTC)', category: 'forex', payout: 67, basePrice: 166.450, decimalPlaces: 3, volatility: 0.038 },
+      { id: 'GBPJPY_OTC', name: 'GBP/JPY (OTC)', category: 'forex', payout: 70, basePrice: 198.900, decimalPlaces: 3, volatility: 0.045 },
+      { id: 'NZDUSD_OTC', name: 'NZD/USD (OTC)', category: 'forex', payout: 54, basePrice: 0.59600, decimalPlaces: 5, volatility: 0.00015 },
 
-      // Commodities
-      { id: 'GOLD_OTC', name: 'Gold XAU/USD (OTC)', category: 'commodities', payout: 91, basePrice: 2748.80, decimalPlaces: 2, volatility: 0.65 },
-      { id: 'SILVER_OTC', name: 'Silver XAG/USD (OTC)', category: 'commodities', payout: 84, basePrice: 33.65, decimalPlaces: 2, volatility: 0.03 },
-      { id: 'BRENT_OTC', name: 'Crude Oil Brent (OTC)', category: 'commodities', payout: 85, basePrice: 73.20, decimalPlaces: 2, volatility: 0.06 },
+      // Commodities - Returns between 50% and 70%
+      { id: 'GOLD_OTC', name: 'Gold XAU/USD (OTC)', category: 'commodities', payout: 69, basePrice: 2748.80, decimalPlaces: 2, volatility: 0.65 },
+      { id: 'SILVER_OTC', name: 'Silver XAG/USD (OTC)', category: 'commodities', payout: 58, basePrice: 33.65, decimalPlaces: 2, volatility: 0.03 },
+      { id: 'BRENT_OTC', name: 'Crude Oil Brent (OTC)', category: 'commodities', payout: 59, basePrice: 73.20, decimalPlaces: 2, volatility: 0.06 },
 
-      // Stock Market Indices
-      { id: 'US30_OTC', name: 'Wall Street 30 / Dow (OTC)', category: 'indices', payout: 88, basePrice: 42150.0, decimalPlaces: 1, volatility: 8.5 },
-      { id: 'SPX500_OTC', name: 'US 500 / S&P 500 (OTC)', category: 'indices', payout: 87, basePrice: 5740.0, decimalPlaces: 1, volatility: 1.2 },
-      { id: 'NAS100_OTC', name: 'US Tech 100 / NASDAQ (OTC)', category: 'indices', payout: 89, basePrice: 20120.0, decimalPlaces: 1, volatility: 4.8 },
+      // Stock Market Indices - Returns between 50% and 70%
+      { id: 'US30_OTC', name: 'Wall Street 30 / Dow (OTC)', category: 'indices', payout: 63, basePrice: 42150.0, decimalPlaces: 1, volatility: 8.5 },
+      { id: 'SPX500_OTC', name: 'US 500 / S&P 500 (OTC)', category: 'indices', payout: 61, basePrice: 5740.0, decimalPlaces: 1, volatility: 1.2 },
+      { id: 'NAS100_OTC', name: 'US Tech 100 / NASDAQ (OTC)', category: 'indices', payout: 66, basePrice: 20120.0, decimalPlaces: 1, volatility: 4.8 },
     ];
 
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -246,6 +246,16 @@ export class MarketEngine extends EventEmitter {
       state.sentiment.bullPercent = newBull;
       state.sentiment.bearPercent = 100 - newBull;
       this.emit('sentiment_update', state.sentiment);
+
+      // Realistic market return fluctuation strictly between 50% and 70%
+      if (Math.random() < 0.12) {
+        const payoutShift = Math.random() < 0.5 ? -1 : 1;
+        const nextPayout = Math.max(50, Math.min(70, state.asset.payout + payoutShift));
+        if (nextPayout !== state.asset.payout) {
+          state.asset.payout = nextPayout;
+          this.emit('payout_updated', { assetId: state.asset.id, payout: nextPayout });
+        }
+      }
     }
   }
 
@@ -334,7 +344,7 @@ export class MarketEngine extends EventEmitter {
   public setAssetPayout(assetId: string, payout: number): boolean {
     const state = this.assets.get(assetId);
     if (!state) return false;
-    state.asset.payout = Math.max(10, Math.min(99, Math.round(payout)));
+    state.asset.payout = Math.max(50, Math.min(70, Math.round(payout)));
     this.emit('payout_updated', { assetId, payout: state.asset.payout });
     return true;
   }

@@ -42,6 +42,13 @@ import {
   Save,
   ShieldCheck,
   Zap,
+  BarChart3,
+  Calendar,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Download,
+  Filter,
+  Wallet,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -51,7 +58,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const { assets, theme, toggleTheme } = useTrading();
   const isLight = theme === 'light';
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'USERS' | 'PAYMENTS' | 'RISK' | 'COUPONS' | 'MARKETS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'USERS' | 'CASHFLOW' | 'PAYMENTS' | 'RISK' | 'COUPONS' | 'MARKETS'>('OVERVIEW');
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({
     enabled: true,
     targetWinRate: 20,
@@ -91,14 +98,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [newUserKyc, setNewUserKyc] = useState<boolean>(true);
   const [newUserStatus, setNewUserStatus] = useState<'ACTIVE' | 'FROZEN'>('ACTIVE');
 
-  // User Balance Adjustment Modal State
+  // User Balance Adjustment Modal State (Easiest Direct Balance Edit)
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<UserAccount | null>(null);
-  const [balanceAction, setBalanceAction] = useState<'ADD' | 'REMOVE'>('ADD');
-  const [balanceAccountType, setBalanceAccountType] = useState<'DEMO' | 'REAL'>('REAL');
-  const [adjustAmount, setAdjustAmount] = useState<number>(1000);
-  const [adjustReason, setAdjustReason] = useState<string>('Admin VIP Bonus');
-  const [adjustInputCurrency, setAdjustInputCurrency] = useState<'INR' | 'USD'>('INR');
-  const [targetAccountCurrency, setTargetAccountCurrency] = useState<'INR' | 'USD'>('INR');
+  const [directRealBalance, setDirectRealBalance] = useState<number>(0);
+  const [directDemoBalance, setDirectDemoBalance] = useState<number>(10000);
+  const [directCurrency, setDirectCurrency] = useState<'INR' | 'USD'>('INR');
+  const [directAccountType, setDirectAccountType] = useState<'DEMO' | 'REAL'>('REAL');
+  const [directNote, setDirectNote] = useState<string>('Admin VIP Balance Update');
+  const [isSavingBalance, setIsSavingBalance] = useState<boolean>(false);
+
+  // Cashflow & Custom Date Analytics State
+  const [cashflowFromDate, setCashflowFromDate] = useState<string>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [cashflowToDate, setCashflowToDate] = useState<string>(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
+  const [cashflowUserFilter, setCashflowUserFilter] = useState<string>('ALL');
+  const [cashflowTypeFilter, setCashflowTypeFilter] = useState<'ALL' | 'DEPOSIT' | 'WITHDRAWAL'>('ALL');
+  const [cashflowStatusFilter, setCashflowStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
 
   // User Edit Modal State
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserAccount | null>(null);
@@ -255,29 +274,110 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle Balance Adjustment & Currency Change
-  const handleAdjustBalance = async () => {
+  // Handle Easiest Direct Balance Edit
+  const openDirectBalanceModal = (u: UserAccount) => {
+    setSelectedUserForBalance(u);
+    setDirectRealBalance(u.realBalance ?? 0);
+    setDirectDemoBalance(u.demoBalance ?? 10000);
+    setDirectCurrency((u.currency as 'INR' | 'USD') || 'INR');
+    setDirectAccountType(u.activeAccountType || 'REAL');
+    setDirectNote('Admin Funds Adjustment');
+  };
+
+  const handleSaveDirectBalances = async () => {
     if (!selectedUserForBalance) return;
+    setIsSavingBalance(true);
     try {
-      const res = await fetch(apiUrl(`/api/admin/users/${selectedUserForBalance.id}/adjust-balance`), {
+      const res = await fetch(apiUrl(`/api/admin/users/${selectedUserForBalance.id}/set-balances`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accountType: balanceAccountType,
-          action: balanceAction,
-          amount: adjustAmount,
-          inputCurrency: adjustInputCurrency,
-          currency: targetAccountCurrency,
-          reason: adjustReason,
+          realBalance: Number(directRealBalance),
+          demoBalance: Number(directDemoBalance),
+          currency: directCurrency,
+          activeAccountType: directAccountType,
+          actorName: 'Desk Administrator',
+          note: directNote,
         }),
       });
       if (res.ok) {
+        showAdminToast(`✅ Balances updated for ${selectedUserForBalance.name}!`);
         setSelectedUserForBalance(null);
         fetchAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update balances');
       }
     } catch (e) {
       console.error(e);
+      alert('Error updating balances');
+    } finally {
+      setIsSavingBalance(false);
     }
+  };
+
+  // Cashflow Date Presets Handler
+  const applyDatePreset = (preset: 'TODAY' | 'YESTERDAY' | 'LAST7' | 'THIS_MONTH' | 'ALL_TIME') => {
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const toYMD = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    if (preset === 'TODAY') {
+      const ymd = toYMD(today);
+      setCashflowFromDate(ymd);
+      setCashflowToDate(ymd);
+    } else if (preset === 'YESTERDAY') {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      const ymd = toYMD(y);
+      setCashflowFromDate(ymd);
+      setCashflowToDate(ymd);
+    } else if (preset === 'LAST7') {
+      const past = new Date(today);
+      past.setDate(past.getDate() - 7);
+      setCashflowFromDate(toYMD(past));
+      setCashflowToDate(toYMD(today));
+    } else if (preset === 'THIS_MONTH') {
+      const first = new Date(today.getFullYear(), today.getMonth(), 1);
+      setCashflowFromDate(toYMD(first));
+      setCashflowToDate(toYMD(today));
+    } else if (preset === 'ALL_TIME') {
+      setCashflowFromDate('');
+      setCashflowToDate('');
+    }
+  };
+
+  // Cashflow CSV Export
+  const exportCashflowCSV = (filtered: Transaction[]) => {
+    const headers = ['ID', 'Date', 'Time', 'Trader Name', 'User ID', 'Type', 'Amount', 'Currency', 'Amount USD', 'Method/Rail', 'Reference/UTR', 'Status'];
+    const rows = filtered.map((t) => {
+      const d = new Date(t.timestamp);
+      const dateStr = d.toLocaleDateString('en-IN');
+      const timeStr = d.toLocaleTimeString('en-IN');
+      return [
+        `"${t.id}"`,
+        `"${dateStr}"`,
+        `"${timeStr}"`,
+        `"${(t.userName || '').replace(/"/g, '""')}"`,
+        `"${t.userId}"`,
+        `"${t.type}"`,
+        t.amount,
+        `"${t.currency}"`,
+        t.amountUSD ?? (t.currency === 'INR' ? +(t.amount / 95).toFixed(2) : t.amount),
+        `"${(t.method || t.paymentRail || 'N/A').replace(/"/g, '""')}"`,
+        `"${(t.utrNumber || (t as any).reference || 'N/A').replace(/"/g, '""')}"`,
+        `"${t.status}"`,
+      ].join(',');
+    });
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `ForexGrow_Cashflow_${cashflowFromDate || 'start'}_to_${cashflowToDate || 'now'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Handle User Edit
@@ -637,13 +737,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         </div>
       )}
 
-      {/* Admin Tabs */}
-      <div className={`flex space-x-2 px-6 pt-3 border-b ${
+      {/* Admin Tabs - Mobile Horizontally Scrollable */}
+      <div className={`flex space-x-2 px-4 sm:px-6 pt-3 border-b overflow-x-auto scrollbar-none flex-nowrap ${
         isLight ? 'border-slate-200' : 'border-[#262c3e]'
       }`}>
         {[
           { id: 'OVERVIEW', label: 'Platform Summary', icon: TrendingUp },
           { id: 'USERS', label: 'Traders & Balances', icon: Users, badge: users.length },
+          { id: 'CASHFLOW', label: 'Cashflow & Date Analytics', icon: BarChart3 },
           { id: 'PAYMENTS', label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
           { id: 'RISK', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
           { id: 'COUPONS', label: 'Special Promo Coupons', icon: Tag, badge: coupons.length },
@@ -655,7 +756,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center space-x-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition border-b-2 ${
+              className={`flex items-center space-x-2 px-3.5 sm:px-4 py-2.5 rounded-t-xl text-xs font-bold transition border-b-2 whitespace-nowrap flex-shrink-0 ${
                 isActive
                   ? `border-emerald-500 text-emerald-500 ${isLight ? 'bg-white' : 'bg-[#161a26]'}`
                   : (isLight ? 'border-transparent text-slate-500 hover:text-slate-900' : 'border-transparent text-gray-400 hover:text-white')
@@ -961,18 +1062,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       </td>
                       <td className="py-3.5 px-4 text-right space-x-2">
                         <button
-                          onClick={() => {
-                            setSelectedUserForBalance(u);
-                            setAdjustInputCurrency('INR');
-                            setTargetAccountCurrency(u.currency === 'USD' ? 'USD' : 'INR');
-                            setAdjustAmount(1000);
-                            setBalanceAction('ADD');
-                            setBalanceAccountType('REAL');
-                            setAdjustReason('Admin VIP Bonus');
-                          }}
-                          className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500 rounded-lg text-xs font-bold transition"
+                          onClick={() => openDirectBalanceModal(u)}
+                          className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-bold transition flex-inline items-center gap-1"
+                          title="Directly edit Real and Demo balances with 1-click presets"
                         >
-                          +/- Funds
+                          Direct Edit Funds
                         </button>
                         <button
                           onClick={() => setSelectedUserForEdit(u)}
@@ -994,6 +1088,538 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             </div>
           </div>
         )}
+
+        {/* ================= TAB: CASHFLOW & CUSTOM DATE ANALYTICS DASHBOARD ================= */}
+        {activeTab === 'CASHFLOW' && (() => {
+          // 1. Filter Transactions by Custom Date Range, Trader, Type, and Status
+          const filteredCashflow = transactions.filter((t) => {
+            const txDate = new Date(t.timestamp).toISOString().slice(0, 10);
+            if (cashflowFromDate && txDate < cashflowFromDate) return false;
+            if (cashflowToDate && txDate > cashflowToDate) return false;
+            if (cashflowUserFilter !== 'ALL' && t.userId !== cashflowUserFilter) return false;
+            if (cashflowTypeFilter !== 'ALL' && t.type !== cashflowTypeFilter) return false;
+            if (cashflowStatusFilter !== 'ALL' && t.status !== cashflowStatusFilter) return false;
+            return true;
+          });
+
+          // 2. Compute Filtered Metrics
+          const approvedDeposits = filteredCashflow.filter((t) => t.type === 'DEPOSIT' && t.status === 'APPROVED');
+          const approvedWithdrawals = filteredCashflow.filter((t) => t.type === 'WITHDRAWAL' && t.status === 'APPROVED');
+          const pendingTxns = filteredCashflow.filter((t) => t.status === 'PENDING');
+
+          const totalDepositsINR = approvedDeposits.reduce((acc, t) => acc + (t.currency === 'INR' ? t.amount : t.amount * 95), 0);
+          const totalDepositsUSD = approvedDeposits.reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount : +(t.amount / 95).toFixed(2)), 0);
+
+          const totalWithdrawalsINR = approvedWithdrawals.reduce((acc, t) => acc + (t.currency === 'INR' ? t.amount : t.amount * 95), 0);
+          const totalWithdrawalsUSD = approvedWithdrawals.reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount : +(t.amount / 95).toFixed(2)), 0);
+
+          const netCashflowINR = totalDepositsINR - totalWithdrawalsINR;
+          const netCashflowUSD = totalDepositsUSD - totalWithdrawalsUSD;
+
+          // 3. User-Wise Aggregation
+          const userWiseMap: Record<string, {
+            userId: string;
+            userName: string;
+            currency: string;
+            depositCount: number;
+            depositSumINR: number;
+            withdrawalCount: number;
+            withdrawalSumINR: number;
+            pendingCount: number;
+          }> = {};
+
+          filteredCashflow.forEach((t) => {
+            if (!userWiseMap[t.userId]) {
+              userWiseMap[t.userId] = {
+                userId: t.userId,
+                userName: t.userName || t.userId,
+                currency: t.currency || 'INR',
+                depositCount: 0,
+                depositSumINR: 0,
+                withdrawalCount: 0,
+                withdrawalSumINR: 0,
+                pendingCount: 0,
+              };
+            }
+            const record = userWiseMap[t.userId];
+            const inrVal = t.currency === 'INR' ? t.amount : t.amount * 95;
+            if (t.type === 'DEPOSIT') {
+              if (t.status === 'APPROVED') {
+                record.depositCount += 1;
+                record.depositSumINR += inrVal;
+              }
+            } else if (t.type === 'WITHDRAWAL') {
+              if (t.status === 'APPROVED') {
+                record.withdrawalCount += 1;
+                record.withdrawalSumINR += inrVal;
+              }
+            }
+            if (t.status === 'PENDING') {
+              record.pendingCount += 1;
+            }
+          });
+
+          const userWiseList = Object.values(userWiseMap).sort((a, b) => (b.depositSumINR - b.withdrawalSumINR) - (a.depositSumINR - a.withdrawalSumINR));
+
+          return (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              {/* Header Title */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className={`text-base font-black flex items-center space-x-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    <BarChart3 className="w-5 h-5 text-emerald-500" />
+                    <span>Custom Date Cashflow & User-Wise Ledger</span>
+                  </h3>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Analyze real deposits, withdrawals, and net house revenue across any custom date range or per-trader
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => exportCashflowCSV(filteredCashflow)}
+                    className="flex items-center space-x-1.5 px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition shadow-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Controls Card */}
+              <div className={`p-4 sm:p-5 rounded-3xl border space-y-4 transition-colors ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#161a26] border-[#262c3e]'
+              }`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {/* From Date */}
+                  <div>
+                    <label className={`text-xs font-bold block mb-1.5 flex items-center gap-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>From Date</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={cashflowFromDate}
+                        onChange={(e) => setCashflowFromDate(e.target.value)}
+                        className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition ${
+                          isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* To Date */}
+                  <div>
+                    <label className={`text-xs font-bold block mb-1.5 flex items-center gap-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>To Date</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={cashflowToDate}
+                        onChange={(e) => setCashflowToDate(e.target.value)}
+                        className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition ${
+                          isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Trader User Dropdown */}
+                  <div>
+                    <label className={`text-xs font-bold block mb-1.5 flex items-center gap-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      <Filter className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Filter Trader</span>
+                    </label>
+                    <select
+                      value={cashflowUserFilter}
+                      onChange={(e) => setCashflowUserFilter(e.target.value)}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition ${
+                        isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                      }`}
+                    >
+                      <option value="ALL">All Traders (Global House)</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Transaction Type */}
+                  <div>
+                    <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      Transaction Type
+                    </label>
+                    <select
+                      value={cashflowTypeFilter}
+                      onChange={(e) => setCashflowTypeFilter(e.target.value as any)}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition ${
+                        isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                      }`}
+                    >
+                      <option value="ALL">All (Deposits & Withdrawals)</option>
+                      <option value="DEPOSIT">Deposits Only</option>
+                      <option value="WITHDRAWAL">Withdrawals Only</option>
+                    </select>
+                  </div>
+
+                  {/* Settlement Status */}
+                  <div>
+                    <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      Settlement Status
+                    </label>
+                    <select
+                      value={cashflowStatusFilter}
+                      onChange={(e) => setCashflowStatusFilter(e.target.value as any)}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none transition ${
+                        isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                      }`}
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="APPROVED">Approved / Settled</option>
+                      <option value="PENDING">Pending Action</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Quick Date Presets */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-500/10">
+                  <span className={`text-[11px] font-bold mr-1 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Quick Presets:
+                  </span>
+                  {[
+                    { id: 'TODAY', label: 'Today' },
+                    { id: 'YESTERDAY', label: 'Yesterday' },
+                    { id: 'LAST7', label: 'Last 7 Days' },
+                    { id: 'THIS_MONTH', label: 'This Month' },
+                    { id: 'ALL_TIME', label: 'All Time' },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => applyDatePreset(p.id as any)}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition ${
+                        isLight
+                          ? 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                          : 'border-[#2e354b] bg-[#121620] text-gray-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  {cashflowUserFilter !== 'ALL' && (
+                    <button
+                      type="button"
+                      onClick={() => setCashflowUserFilter('ALL')}
+                      className="ml-auto px-2 py-1 text-[11px] font-bold rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition flex items-center gap-1"
+                    >
+                      <span>Showing: {users.find((u) => u.id === cashflowUserFilter)?.name || cashflowUserFilter}</span>
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 4 Summary KPI Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Deposits Card */}
+                <div className={`p-4 rounded-3xl border transition shadow-sm ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-bold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Inflow Deposits
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                      <ArrowDownLeft className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xl font-black text-emerald-400 mono-num">
+                    ₹{totalDepositsINR.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <div className={`text-[11px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    ${totalDepositsUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD • {approvedDeposits.length} approved
+                  </div>
+                </div>
+
+                {/* Total Withdrawals Card */}
+                <div className={`p-4 rounded-3xl border transition shadow-sm ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-bold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Outflow Payouts
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+                      <ArrowUpRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xl font-black text-rose-400 mono-num">
+                    ₹{totalWithdrawalsINR.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <div className={`text-[11px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    ${totalWithdrawalsUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD • {approvedWithdrawals.length} settled
+                  </div>
+                </div>
+
+                {/* Net House Cashflow Card */}
+                <div className={`p-4 rounded-3xl border transition shadow-sm ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-bold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Net Retained House Capital
+                    </span>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                      netCashflowINR >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                    }`}>
+                      <Wallet className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className={`mt-2 text-xl font-black mono-num ${netCashflowINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {netCashflowINR >= 0 ? '+' : ''}₹{netCashflowINR.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <div className={`text-[11px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    {netCashflowUSD >= 0 ? '+' : ''}${netCashflowUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD Net Spread
+                  </div>
+                </div>
+
+                {/* Pending Actions Card */}
+                <div className={`p-4 rounded-3xl border transition shadow-sm ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-bold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Pending Clearance
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className={`mt-2 text-xl font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {pendingTxns.length} Requests
+                  </div>
+                  <div className="text-[11px] text-amber-500 font-bold mt-0.5">
+                    {pendingTxns.length > 0 ? 'Action required in Cashier' : 'All transactions cleared'}
+                  </div>
+                </div>
+              </div>
+
+              {/* User-Wise Cashflow Breakdown Section */}
+              <div className={`p-4 sm:p-6 rounded-3xl border space-y-4 transition-colors ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#161a26] border-[#262c3e]'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      User-Wise Deposit & Withdrawal Breakdown
+                    </h4>
+                    <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Calculated for selected date range ({cashflowFromDate || 'Start'} to {cashflowToDate || 'Today'})
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-400 font-bold">
+                    {userWiseList.length} Active {userWiseList.length === 1 ? 'Trader' : 'Traders'}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                  <table className="w-full text-left text-xs min-w-[700px]">
+                    <thead className={`border-b uppercase font-semibold ${
+                      isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-[#121620] border-[#262c3e] text-gray-400'
+                    }`}>
+                      <tr>
+                        <th className="py-3 px-4">Trader</th>
+                        <th className="py-3 px-3">Base Currency</th>
+                        <th className="py-3 px-3 text-right">Deposited</th>
+                        <th className="py-3 px-3 text-right">Withdrawn</th>
+                        <th className="py-3 px-3 text-right">Net Cashflow</th>
+                        <th className="py-3 px-3 text-center">Pending</th>
+                        <th className="py-3 px-4 text-right">Quick Filter</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${isLight ? 'divide-slate-100' : 'divide-[#262c3e]/60'}`}>
+                      {userWiseList.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-gray-400 text-xs">
+                            No trader transactions found in this date range.
+                          </td>
+                        </tr>
+                      ) : (
+                        userWiseList.map((uw) => {
+                          const net = uw.depositSumINR - uw.withdrawalSumINR;
+                          return (
+                            <tr key={uw.userId} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
+                              <td className="py-3 px-4">
+                                <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{uw.userName}</div>
+                                <div className="text-[10px] text-gray-400 font-mono">{uw.userId}</div>
+                              </td>
+                              <td className="py-3 px-3 font-bold">
+                                {uw.currency === 'USD' ? '🇺🇸 USD ($)' : '🇮🇳 INR (₹)'}
+                              </td>
+                              <td className="py-3 px-3 text-right font-bold text-emerald-400 mono-num">
+                                ₹{uw.depositSumINR.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                <div className="text-[10px] text-gray-400">{uw.depositCount} deposits</div>
+                              </td>
+                              <td className="py-3 px-3 text-right font-bold text-rose-400 mono-num">
+                                ₹{uw.withdrawalSumINR.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                <div className="text-[10px] text-gray-400">{uw.withdrawalCount} payouts</div>
+                              </td>
+                              <td className={`py-3 px-3 text-right font-black mono-num ${net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {net >= 0 ? '+' : ''}₹{net.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                {uw.pendingCount > 0 ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                    {uw.pendingCount} Pending
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-500 text-[10px]">0</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => setCashflowUserFilter(uw.userId)}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border ${
+                                    cashflowUserFilter === uw.userId
+                                      ? 'bg-emerald-500 text-black border-emerald-500'
+                                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                  }`}
+                                >
+                                  {cashflowUserFilter === uw.userId ? 'Selected' : 'Inspect Trader'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Filtered Detailed Transaction Ledger Table */}
+              <div className={`p-4 sm:p-6 rounded-3xl border space-y-4 transition-colors ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#161a26] border-[#262c3e]'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      Filtered Transaction Ledger
+                    </h4>
+                    <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Showing {filteredCashflow.length} transactions matching date & trader filter
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                  <table className="w-full text-left text-xs min-w-[750px]">
+                    <thead className={`border-b uppercase font-semibold ${
+                      isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-[#121620] border-[#262c3e] text-gray-400'
+                    }`}>
+                      <tr>
+                        <th className="py-3 px-4">Timestamp</th>
+                        <th className="py-3 px-3">Trader</th>
+                        <th className="py-3 px-3">Type</th>
+                        <th className="py-3 px-3 text-right">Native Amount</th>
+                        <th className="py-3 px-3 text-right">USD Equivalent</th>
+                        <th className="py-3 px-3">Method / UTR</th>
+                        <th className="py-3 px-3">Status</th>
+                        <th className="py-3 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${isLight ? 'divide-slate-100' : 'divide-[#262c3e]/60'}`}>
+                      {filteredCashflow.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-gray-400 text-xs">
+                            No transactions matched the criteria. Try expanding the date range.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredCashflow.map((t) => {
+                          const dateObj = new Date(t.timestamp);
+                          const isDeposit = t.type === 'DEPOSIT';
+                          return (
+                            <tr key={t.id} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
+                              <td className="py-3 px-4">
+                                <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                  {dateObj.toLocaleDateString('en-IN')}
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-mono">
+                                  {dateObj.toLocaleTimeString('en-IN')}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{t.userName}</div>
+                                <div className="text-[10px] text-gray-400 font-mono">{t.userId}</div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                  isDeposit ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                }`}>
+                                  {t.type}
+                                </span>
+                              </td>
+                              <td className={`py-3 px-3 text-right font-black mono-num ${isDeposit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {isDeposit ? '+' : '-'}{formatCurrency(t.amount, t.currency)}
+                              </td>
+                              <td className={`py-3 px-3 text-right font-mono text-[11px] ${isLight ? 'text-slate-600' : 'text-gray-300'}`}>
+                                ${(t.amountUSD ?? (t.currency === 'INR' ? +(t.amount / 95).toFixed(2) : t.amount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="font-bold text-[11px] text-gray-200">{t.method || t.paymentRail || 'Bank / UPI'}</div>
+                                <div className="text-[10px] text-gray-400 font-mono">{t.utrNumber || (t as any).reference || '—'}</div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  t.status === 'APPROVED'
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : t.status === 'PENDING'
+                                    ? 'bg-amber-500/20 text-amber-400'
+                                    : 'bg-rose-500/20 text-rose-400'
+                                }`}>
+                                  {t.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                {t.status === 'PENDING' ? (
+                                  <div className="flex items-center justify-end space-x-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApprovePayment(t.id)}
+                                      className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-lg text-[10px] transition"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRejectPayment(t.id)}
+                                      className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold rounded-lg text-[10px] transition"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-gray-500 font-bold">Resolved</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ================= TAB 3: PAYMENTS & CASHIER ================= */}
         {activeTab === 'PAYMENTS' && (
@@ -1672,310 +2298,244 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         )}
       </div>
 
-      {/* ================= MODAL: ADJUST USER BALANCE ================= */}
-      {selectedUserForBalance && (() => {
-        const USD_INR_RATE = 95.0;
-        const enteredAmt = Math.max(0, Number(adjustAmount) || 0);
+      {/* ================= MODAL: EASIEST DIRECT BALANCE EDITOR ================= */}
+      {selectedUserForBalance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 transition-colors max-h-[92vh] overflow-y-auto ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
+          }`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-gray-500/20">
+              <div>
+                <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Direct Balance & Funds Editor
+                </h3>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                  Trader: <span className="font-bold text-emerald-400">{selectedUserForBalance.name}</span> ({selectedUserForBalance.id})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForBalance(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-500/20 text-gray-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
 
-        // Auto-calculated amount that will reflect on the trader's account
-        let previewAmount = enteredAmt;
-        if (adjustInputCurrency === 'USD' && targetAccountCurrency === 'INR') {
-          previewAmount = Number((enteredAmt * USD_INR_RATE).toFixed(2));
-        } else if (adjustInputCurrency === 'INR' && targetAccountCurrency === 'USD') {
-          previewAmount = Number((enteredAmt / USD_INR_RATE).toFixed(2));
-        }
-
-        const crossEquivalent = adjustInputCurrency === 'INR'
-          ? `$${(enteredAmt / USD_INR_RATE).toFixed(2)} USD`
-          : `₹${(enteredAmt * USD_INR_RATE).toLocaleString('en-IN', { maximumFractionDigits: 2 })} INR`;
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-4 transition-colors max-h-[92vh] overflow-y-auto ${
-              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
-            }`}>
-              <div className="flex items-center justify-between pb-2 border-b border-gray-500/20">
-                <div>
-                  <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Adjust Trader Balance</h3>
-                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                    Account: <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{selectedUserForBalance.name}</span> ({selectedUserForBalance.id})
-                  </p>
+            <div className="space-y-4">
+              {/* Account Base Currency Selector */}
+              <div>
+                <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  Account Base Currency
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDirectCurrency('INR')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                      directCurrency === 'INR'
+                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    <span>🇮🇳</span>
+                    <span>INR (₹ - Indian Rupee)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDirectCurrency('USD')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                      directCurrency === 'USD'
+                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    <span>🇺🇸</span>
+                    <span>USD ($ - US Dollar)</span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSelectedUserForBalance(null)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-500/20 text-gray-400 hover:text-white transition"
-                >
-                  ✕
-                </button>
               </div>
 
-              <div className="space-y-3.5">
-                {/* 1. Target Balance Selector */}
-                <div>
-                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Target Account</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setBalanceAccountType('REAL')}
-                      className={`py-2 px-3 text-xs font-bold rounded-xl border text-left transition ${
-                        balanceAccountType === 'REAL'
-                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 shadow-sm'
-                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
-                      }`}
-                    >
-                      <div className="text-[10px] uppercase font-bold text-gray-400">Live Real</div>
-                      <div className="text-sm font-black mono-num">
-                        {formatCurrency(selectedUserForBalance.realBalance, (selectedUserForBalance.currency as any) || 'INR')}
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBalanceAccountType('DEMO')}
-                      className={`py-2 px-3 text-xs font-bold rounded-xl border text-left transition ${
-                        balanceAccountType === 'DEMO'
-                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 shadow-sm'
-                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
-                      }`}
-                    >
-                      <div className="text-[10px] uppercase font-bold text-gray-400">Demo Practice</div>
-                      <div className="text-sm font-black mono-num">
-                        {formatCurrency(selectedUserForBalance.demoBalance, (selectedUserForBalance.currency as any) || 'INR')}
-                      </div>
-                    </button>
-                  </div>
+              {/* Active Trading Account Mode */}
+              <div>
+                <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  Trader Default View Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDirectAccountType('REAL')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition ${
+                      directAccountType === 'REAL'
+                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    🟢 Live Real Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDirectAccountType('DEMO')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition ${
+                      directAccountType === 'DEMO'
+                        ? 'border-sky-500 bg-sky-500/20 text-sky-400'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    🔵 Demo Practice Account
+                  </button>
                 </div>
+              </div>
 
-                {/* 2. Action: Credit vs Debit */}
-                <div>
-                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Action</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setBalanceAction('ADD')}
-                      className={`py-2 text-xs font-black rounded-xl border transition ${
-                        balanceAction === 'ADD'
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-sm'
-                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
-                      }`}
-                    >
-                      + Credit Funds
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBalanceAction('REMOVE')}
-                      className={`py-2 text-xs font-black rounded-xl border transition ${
-                        balanceAction === 'REMOVE'
-                          ? 'border-rose-500 bg-rose-500/20 text-rose-400 shadow-sm'
-                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
-                      }`}
-                    >
-                      - Debit Funds
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3. Account Currency (Strictly INR or USD, default INR) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                      Trader Account Currency
-                    </label>
-                    <span className="text-[10px] font-bold text-emerald-400">Default: INR</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTargetAccountCurrency('INR')}
-                      className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
-                        targetAccountCurrency === 'INR'
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500'
-                          : (isLight ? 'border-slate-300 bg-slate-50 text-slate-700' : 'border-[#2e354b] bg-[#121620] text-gray-400')
-                      }`}
-                    >
-                      <span className="text-sm">🇮🇳</span>
-                      <span>INR (₹ - Indian Rupee)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTargetAccountCurrency('USD')}
-                      className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
-                        targetAccountCurrency === 'USD'
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500'
-                          : (isLight ? 'border-slate-300 bg-slate-50 text-slate-700' : 'border-[#2e354b] bg-[#121620] text-gray-400')
-                      }`}
-                    >
-                      <span className="text-sm">🇺🇸</span>
-                      <span>USD ($ - US Dollar)</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Fund Adjustment Input Currency (INR vs USD) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                      Choose Deposit / Input Currency
-                    </label>
-                    <span className="text-[10px] text-gray-400">Auto-converts to trader currency</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-black/30 border border-gray-700/50">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (adjustInputCurrency !== 'INR') {
-                          setAdjustInputCurrency('INR');
-                          setAdjustAmount(adjustAmount >= 10 ? Math.round(adjustAmount * USD_INR_RATE) : 1000);
-                        }
-                      }}
-                      className={`py-2 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 ${
-                        adjustInputCurrency === 'INR'
-                          ? 'bg-emerald-500 text-white shadow-lg'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      <span>🇮🇳</span>
-                      <span>INR (₹) - Default</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (adjustInputCurrency !== 'USD') {
-                          setAdjustInputCurrency('USD');
-                          setAdjustAmount(adjustAmount >= 95 ? Math.round(adjustAmount / USD_INR_RATE) : 10);
-                        }
-                      }}
-                      className={`py-2 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 ${
-                        adjustInputCurrency === 'USD'
-                          ? 'bg-emerald-500 text-white shadow-lg'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      <span>🇺🇸</span>
-                      <span>USD ($)</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 5. Amount Input & Quick Chips */}
-                <div>
-                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                    Amount in {adjustInputCurrency === 'INR' ? 'INR (₹)' : 'USD ($)'}
+              {/* 1. Live Real Balance Input & Presets */}
+              <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-emerald-400 flex items-center space-x-1.5">
+                    <span>💵</span>
+                    <span>Live Real Account Balance</span>
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-base">
-                      {adjustInputCurrency === 'INR' ? '₹' : '$'}
-                    </span>
-                    <input
-                      type="number"
-                      value={adjustAmount}
-                      onChange={(e) => setAdjustAmount(Math.max(1, Number(e.target.value)))}
-                      className={`w-full border rounded-2xl pl-9 pr-4 py-2.5 text-base font-black focus:outline-none transition ${
-                        isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
-                      }`}
-                    />
-                  </div>
-
-                  {/* Quick Chips */}
-                  <div className="grid grid-cols-5 gap-1.5 mt-2">
-                    {adjustInputCurrency === 'INR' ? (
-                      [500, 1000, 2500, 5000, 10000].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setAdjustAmount(val)}
-                          className={`py-1 text-[11px] font-bold rounded-lg border transition ${
-                            adjustAmount === val
-                              ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                              : (isLight ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400 hover:text-white')
-                          }`}
-                        >
-                          +{val >= 1000 ? `${val / 1000}k` : val}
-                        </button>
-                      ))
-                    ) : (
-                      [10, 25, 50, 100, 250].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setAdjustAmount(val)}
-                          className={`py-1 text-[11px] font-bold rounded-lg border transition ${
-                            adjustAmount === val
-                              ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                              : (isLight ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400 hover:text-white')
-                          }`}
-                        >
-                          +${val}
-                        </button>
-                      ))
-                    )}
-                  </div>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    Current: {formatCurrency(selectedUserForBalance.realBalance, (selectedUserForBalance.currency as any) || 'INR')}
+                  </span>
                 </div>
 
-                {/* 6. Live Cross-Currency Calculation & Reflection Card */}
-                <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400 font-medium">Input Value:</span>
-                    <span className="font-bold text-white font-mono">
-                      {adjustInputCurrency === 'INR' ? `₹${enteredAmt.toLocaleString()}` : `$${enteredAmt.toLocaleString()}`} {adjustInputCurrency}
-                      <span className="text-gray-400 font-normal ml-1">≈ {crossEquivalent}</span>
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs pt-2 border-t border-emerald-500/20">
-                    <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                      <span>👉</span> Will reflect on trader account:
-                    </span>
-                    <span className="font-black text-sm font-mono text-emerald-300">
-                      {balanceAction === 'ADD' ? '+' : '-'}
-                      {targetAccountCurrency === 'INR' ? '₹' : '$'}
-                      {previewAmount.toLocaleString()} {targetAccountCurrency}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-gray-400 pt-0.5">
-                    <span>Forex Grow Exchange Peg:</span>
-                    <span className="font-bold text-gray-300 font-mono">1 USD = ₹95.00 INR (Nov 2026 Rate)</span>
-                  </div>
-                </div>
-
-                {/* 7. Audit Reason */}
-                <div>
-                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Audit Reason</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-emerald-400 text-sm">
+                    {directCurrency === 'INR' ? '₹' : '$'}
+                  </span>
                   <input
-                    type="text"
-                    value={adjustReason}
-                    onChange={(e) => setAdjustReason(e.target.value)}
-                    placeholder="e.g. Deposit manual top-up, VIP reward"
-                    className={`w-full border rounded-xl px-4 py-2 text-xs focus:outline-none transition ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400' : 'bg-[#121620] border-[#2e354b] text-white'
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={directRealBalance}
+                    onChange={(e) => setDirectRealBalance(Math.max(0, Number(e.target.value)))}
+                    className={`w-full border rounded-xl pl-8 pr-3 py-2 text-base font-black focus:outline-none transition ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
                     }`}
                   />
                 </div>
+
+                {/* Real Quick Add Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {directCurrency === 'INR' ? (
+                    <>
+                      {[500, 1000, 5000, 10000, 50000].map((add) => (
+                        <button
+                          key={add}
+                          type="button"
+                          onClick={() => setDirectRealBalance((prev) => +(Number(prev || 0) + add).toFixed(2))}
+                          className="px-2 py-1 text-[11px] font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition"
+                        >
+                          +₹{add >= 1000 ? `${add / 1000}k` : add}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setDirectRealBalance(0)}
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition ml-auto"
+                      >
+                        Set to 0
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {[10, 25, 50, 100, 500].map((add) => (
+                        <button
+                          key={add}
+                          type="button"
+                          onClick={() => setDirectRealBalance((prev) => +(Number(prev || 0) + add).toFixed(2))}
+                          className="px-2 py-1 text-[11px] font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition"
+                        >
+                          +${add}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setDirectRealBalance(0)}
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition ml-auto"
+                      >
+                        Set to 0
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* 8. Action Buttons */}
-              <div className="flex space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedUserForBalance(null)}
-                  className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition border ${
-                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAdjustBalance}
-                  className="flex-1 bg-gradient-to-r from-trade-green to-emerald-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg hover:brightness-110 active:scale-95 transition"
-                >
-                  Confirm {balanceAction === 'ADD' ? 'Credit' : 'Debit'}
-                </button>
+              {/* 2. Demo Balance Input & Presets */}
+              <div className="p-3.5 rounded-2xl border border-sky-500/30 bg-sky-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-sky-400 flex items-center space-x-1.5">
+                    <span>🎯</span>
+                    <span>Demo Practice Balance</span>
+                  </label>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    Current: {formatCurrency(selectedUserForBalance.demoBalance, (selectedUserForBalance.currency as any) || 'INR')}
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-sky-400 text-sm">
+                    {directCurrency === 'INR' ? '₹' : '$'}
+                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={directDemoBalance}
+                    onChange={(e) => setDirectDemoBalance(Math.max(0, Number(e.target.value)))}
+                    className={`w-full border rounded-xl pl-8 pr-3 py-2 text-base font-black focus:outline-none transition ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+
+                {/* Demo Quick Reset Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[10000, 50000, 100000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setDirectDemoBalance(preset)}
+                      className="px-2 py-1 text-[11px] font-bold rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 transition"
+                    >
+                      Reset {preset >= 1000 ? `${preset / 1000}k` : preset}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setDirectDemoBalance(0)}
+                    className="px-2 py-1 text-[11px] font-bold rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition ml-auto"
+                  >
+                    Set to 0
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Modal Actions */}
+            <div className="flex space-x-2 pt-2 border-t border-gray-500/20">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForBalance(null)}
+                className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition border ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingBalance}
+                onClick={handleSaveDirectBalances}
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black py-2.5 rounded-xl text-xs shadow-lg hover:brightness-110 active:scale-95 transition disabled:opacity-50"
+              >
+                {isSavingBalance ? 'Saving...' : 'Save & Apply Funds Now'}
+              </button>
+            </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* ================= MODAL: EDIT USER LEVEL & KYC ================= */}
       {selectedUserForEdit && (

@@ -40,7 +40,8 @@ import {
   Save,
   TrendingUp,
   Zap,
-  Power
+  Power,
+  Sliders,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -58,10 +59,10 @@ interface ManagerDashboardProps {
 }
 
 export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
-  const { theme } = useTrading();
+  const { theme, assets } = useTrading();
   const isLight = theme === 'light';
 
-  const [activeTab, setActiveTab] = useState<'CASHIER' | 'TRADERS' | 'TRADES' | 'RISK' | 'AUDIT'>('CASHIER');
+  const [activeTab, setActiveTab] = useState<'CASHIER' | 'TRADERS' | 'TRADES' | 'RISK' | 'MARKETS' | 'AUDIT'>('CASHIER');
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({
     enabled: true,
     targetWinRate: 20,
@@ -116,6 +117,27 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [editInstructions, setEditInstructions] = useState('');
   const [managerNotification, setManagerNotification] = useState<string | null>(null);
 
+  // User Balance Adjustment Modal State (Easiest Direct Balance Edit)
+  const [selectedUserForBalance, setSelectedUserForBalance] = useState<UserAccount | null>(null);
+  const [directRealBalance, setDirectRealBalance] = useState<number>(0);
+  const [directDemoBalance, setDirectDemoBalance] = useState<number>(10000);
+  const [directCurrency, setDirectCurrency] = useState<'INR' | 'USD'>('INR');
+  const [directAccountType, setDirectAccountType] = useState<'DEMO' | 'REAL'>('REAL');
+  const [isSavingBalance, setIsSavingBalance] = useState<boolean>(false);
+
+  // Asset Payout Margins State
+  const [payoutEdits, setPayoutEdits] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (assets && assets.length > 0) {
+      const pMap: Record<string, number> = {};
+      assets.forEach((a) => {
+        pMap[a.id] = a.payout;
+      });
+      setPayoutEdits(pMap);
+    }
+  }, [assets]);
+
   const showManagerToast = (msg: string) => {
     setManagerNotification(msg);
     setTimeout(() => setManagerNotification(null), 3500);
@@ -142,6 +164,60 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     name: 'Sarah Connor',
     email: 'manager@forexgrow.com',
     role: 'MANAGER' as const,
+  };
+
+  const openDirectBalanceModal = (u: UserAccount) => {
+    setSelectedUserForBalance(u);
+    setDirectRealBalance(u.realBalance ?? 0);
+    setDirectDemoBalance(u.demoBalance ?? 10000);
+    setDirectCurrency((u.currency as 'INR' | 'USD') || 'INR');
+    setDirectAccountType(u.activeAccountType || 'REAL');
+  };
+
+  const handleSaveDirectBalances = async () => {
+    if (!selectedUserForBalance) return;
+    setIsSavingBalance(true);
+    try {
+      const res = await fetch(apiUrl(`/api/manager/users/${selectedUserForBalance.id}/set-balances`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          realBalance: Number(directRealBalance),
+          demoBalance: Number(directDemoBalance),
+          currency: directCurrency,
+          activeAccountType: directAccountType,
+          actorName: managerProfile.name,
+        }),
+      });
+      if (res.ok) {
+        showManagerToast(`✅ Balances for ${selectedUserForBalance.name} updated!`);
+        setSelectedUserForBalance(null);
+        fetchManagerData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update balances');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error updating balances');
+    } finally {
+      setIsSavingBalance(false);
+    }
+  };
+
+  const handleSavePayout = async (assetId: string) => {
+    const val = payoutEdits[assetId];
+    if (val === undefined || isNaN(val)) return;
+    try {
+      await fetch(apiUrl(`/api/manager/assets/${assetId}/payout`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payout: val }),
+      });
+      showManagerToast(`✅ Payout for ${assetId} updated to +${val}% live!`);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleSavePaymentSettings = async (e: React.FormEvent) => {
@@ -587,13 +663,13 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className={`border-b px-4 sm:px-6 flex space-x-2 sm:space-x-6 overflow-x-auto ${
+      {/* Tabs Navigation - Mobile Horizontally Scrollable */}
+      <div className={`border-b px-4 sm:px-6 flex space-x-2 sm:space-x-6 overflow-x-auto scrollbar-none flex-nowrap ${
         isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#131724] border-[#222838]'
       }`}>
         <button
           onClick={() => setActiveTab('CASHIER')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
+          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
             activeTab === 'CASHIER'
               ? 'border-sky-500 text-sky-400'
               : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
@@ -610,7 +686,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
         <button
           onClick={() => setActiveTab('TRADERS')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
+          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
             activeTab === 'TRADERS'
               ? 'border-sky-500 text-sky-400'
               : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
@@ -622,7 +698,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
         <button
           onClick={() => setActiveTab('TRADES')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
+          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
             activeTab === 'TRADES'
               ? 'border-sky-500 text-sky-400'
               : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
@@ -635,7 +711,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
         <button
           onClick={() => setActiveTab('RISK')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
+          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
             activeTab === 'RISK'
               ? 'border-sky-500 text-sky-400'
               : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
@@ -649,8 +725,23 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
         </button>
 
         <button
+          onClick={() => setActiveTab('MARKETS')}
+          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
+            activeTab === 'MARKETS'
+              ? 'border-sky-500 text-sky-400'
+              : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Payout Customizer</span>
+          <span className="text-[9px] bg-sky-500/15 text-sky-400 px-1 rounded font-bold">
+            {assets.length}
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('AUDIT')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
+          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
             activeTab === 'AUDIT'
               ? 'border-sky-500 text-sky-400'
               : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
@@ -1023,41 +1114,53 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     </div>
 
                     {/* Manager Operations */}
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
-                      {/* KYC Toggle */}
-                      <button
-                        onClick={() => handleToggleKyc(u.id, u.isKycVerified)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
-                          u.isKycVerified
-                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30'
-                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                        }`}
-                      >
-                        {u.isKycVerified ? 'Revoke KYC' : 'Verify KYC'}
-                      </button>
+                    <div className="pt-2 border-t border-white/5 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        {/* KYC Toggle */}
+                        <button
+                          onClick={() => handleToggleKyc(u.id, u.isKycVerified)}
+                          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
+                            u.isKycVerified
+                              ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30'
+                              : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          }`}
+                        >
+                          {u.isKycVerified ? 'Revoke KYC' : 'Verify KYC'}
+                        </button>
 
-                      {/* Reset Demo */}
-                      <button
-                        onClick={() => handleResetDemo(u.id)}
-                        title="Reset Demo to $10,000"
-                        className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
-                          isLight ? 'hover:bg-slate-100 border-slate-200 text-slate-700' : 'hover:bg-white/10 border-white/10 text-gray-300'
-                        }`}
-                      >
-                        Reset Demo
-                      </button>
+                        {/* Reset Demo */}
+                        <button
+                          onClick={() => handleResetDemo(u.id)}
+                          title="Reset Demo to $10,000"
+                          className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
+                            isLight ? 'hover:bg-slate-100 border-slate-200 text-slate-700' : 'hover:bg-white/10 border-white/10 text-gray-300'
+                          }`}
+                        >
+                          Reset Demo
+                        </button>
 
-                      {/* Freeze/Unfreeze Account */}
+                        {/* Freeze/Unfreeze Account */}
+                        <button
+                          onClick={() => handleToggleUserStatus(u.id, u.status)}
+                          className={`p-1.5 rounded-xl border transition ${
+                            isFrozen
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30'
+                          }`}
+                          title={isFrozen ? 'Unfreeze Account' : 'Freeze Account'}
+                        >
+                          {isFrozen ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+
+                      {/* Direct Edit Funds Button */}
                       <button
-                        onClick={() => handleToggleUserStatus(u.id, u.status)}
-                        className={`p-1.5 rounded-xl border transition ${
-                          isFrozen
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                            : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30'
-                        }`}
-                        title={isFrozen ? 'Unfreeze Account' : 'Freeze Account'}
+                        type="button"
+                        onClick={() => openDirectBalanceModal(u)}
+                        className="w-full py-1.5 px-3 rounded-xl text-xs font-bold border border-emerald-500/30 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
                       >
-                        {isFrozen ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Direct Edit Funds (Live & Demo)</span>
                       </button>
                     </div>
                   </div>
@@ -1164,6 +1267,70 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB: MARKETS & ASSET PAYOUTS ================= */}
+        {activeTab === 'MARKETS' && (
+          <div className="space-y-4 animate-in fade-in duration-150">
+            <div>
+              <h3 className={`text-sm font-black flex items-center space-x-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                <Sliders className="w-4 h-4 text-sky-400" />
+                <span>Live Market Payout Margins</span>
+              </h3>
+              <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                Configure payout percentages for any asset. Payouts must be between 50% and 70%. Changes immediately reflect on all live trader terminals.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {assets.map((asset) => (
+                <div
+                  key={asset.id}
+                  className={`p-4 rounded-2xl border transition ${
+                    isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#181c2b] border-[#252c40]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="font-bold text-xs">{asset.name}</div>
+                      <div className="text-[10px] text-gray-400 uppercase font-mono">{asset.category}</div>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                      Live Payout
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-2 mt-3">
+                    <span className="text-xs font-bold text-gray-400">Payout:</span>
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min="50"
+                        max="70"
+                        value={payoutEdits[asset.id] ?? asset.payout}
+                        onChange={(e) =>
+                          setPayoutEdits({ ...payoutEdits, [asset.id]: Number(e.target.value) })
+                        }
+                        className={`w-full border rounded-xl px-3 py-1.5 text-xs font-black text-sky-400 focus:outline-none transition ${
+                          isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#121620] border-[#2e354b]'
+                        }`}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
+                        %
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSavePayout(asset.id)}
+                      className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-black transition active:scale-95 shadow-sm"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -2014,6 +2181,245 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: EASIEST DIRECT BALANCE EDITOR ================= */}
+      {selectedUserForBalance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 transition-colors max-h-[92vh] overflow-y-auto ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
+          }`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-gray-500/20">
+              <div>
+                <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Direct Balance & Funds Editor
+                </h3>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                  Trader: <span className="font-bold text-sky-400">{selectedUserForBalance.name}</span> ({selectedUserForBalance.id})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForBalance(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-500/20 text-gray-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Account Base Currency Selector */}
+              <div>
+                <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  Account Base Currency
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDirectCurrency('INR')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                      directCurrency === 'INR'
+                        ? 'border-sky-500 bg-sky-500/20 text-sky-400 ring-1 ring-sky-500'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    <span>🇮🇳</span>
+                    <span>INR (₹ - Indian Rupee)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDirectCurrency('USD')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                      directCurrency === 'USD'
+                        ? 'border-sky-500 bg-sky-500/20 text-sky-400 ring-1 ring-sky-500'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    <span>🇺🇸</span>
+                    <span>USD ($ - US Dollar)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Trading Account Mode */}
+              <div>
+                <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  Trader Default View Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDirectAccountType('REAL')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition ${
+                      directAccountType === 'REAL'
+                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    🟢 Live Real Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDirectAccountType('DEMO')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition ${
+                      directAccountType === 'DEMO'
+                        ? 'border-sky-500 bg-sky-500/20 text-sky-400'
+                        : isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400'
+                    }`}
+                  >
+                    🔵 Demo Practice Account
+                  </button>
+                </div>
+              </div>
+
+              {/* 1. Live Real Balance Input & Presets */}
+              <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-emerald-400 flex items-center space-x-1.5">
+                    <span>💵</span>
+                    <span>Live Real Account Balance</span>
+                  </label>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    Current: {formatCurrency(selectedUserForBalance.realBalance, selectedUserForBalance.currency)}
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-emerald-400 text-sm">
+                    {directCurrency === 'INR' ? '₹' : '$'}
+                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={directRealBalance}
+                    onChange={(e) => setDirectRealBalance(Math.max(0, Number(e.target.value)))}
+                    className={`w-full border rounded-xl pl-8 pr-3 py-2 text-base font-black focus:outline-none transition ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+
+                {/* Real Quick Add Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {directCurrency === 'INR' ? (
+                    <>
+                      {[500, 1000, 5000, 10000, 50000].map((add) => (
+                        <button
+                          key={add}
+                          type="button"
+                          onClick={() => setDirectRealBalance((prev) => +(Number(prev || 0) + add).toFixed(2))}
+                          className="px-2 py-1 text-[11px] font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition"
+                        >
+                          +₹{add >= 1000 ? `${add / 1000}k` : add}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setDirectRealBalance(0)}
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition ml-auto"
+                      >
+                        Set to 0
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {[10, 25, 50, 100, 500].map((add) => (
+                        <button
+                          key={add}
+                          type="button"
+                          onClick={() => setDirectRealBalance((prev) => +(Number(prev || 0) + add).toFixed(2))}
+                          className="px-2 py-1 text-[11px] font-bold rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition"
+                        >
+                          +${add}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setDirectRealBalance(0)}
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition ml-auto"
+                      >
+                        Set to 0
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Demo Balance Input & Presets */}
+              <div className="p-3.5 rounded-2xl border border-sky-500/30 bg-sky-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-sky-400 flex items-center space-x-1.5">
+                    <span>🎯</span>
+                    <span>Demo Practice Balance</span>
+                  </label>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    Current: {formatCurrency(selectedUserForBalance.demoBalance, selectedUserForBalance.currency)}
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-sky-400 text-sm">
+                    {directCurrency === 'INR' ? '₹' : '$'}
+                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={directDemoBalance}
+                    onChange={(e) => setDirectDemoBalance(Math.max(0, Number(e.target.value)))}
+                    className={`w-full border rounded-xl pl-8 pr-3 py-2 text-base font-black focus:outline-none transition ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+
+                {/* Demo Quick Reset Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[10000, 50000, 100000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setDirectDemoBalance(preset)}
+                      className="px-2 py-1 text-[11px] font-bold rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 transition"
+                    >
+                      Reset {preset >= 1000 ? `${preset / 1000}k` : preset}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setDirectDemoBalance(0)}
+                    className="px-2 py-1 text-[11px] font-bold rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition ml-auto"
+                  >
+                    Set to 0
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex space-x-2 pt-2 border-t border-gray-500/20">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForBalance(null)}
+                className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition border ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingBalance}
+                onClick={handleSaveDirectBalances}
+                className="flex-1 bg-gradient-to-r from-sky-500 to-teal-500 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-lg hover:brightness-110 active:scale-95 transition disabled:opacity-50"
+              >
+                {isSavingBalance ? 'Saving...' : 'Save & Apply Funds Now'}
+              </button>
+            </div>
           </div>
         </div>
       )}
