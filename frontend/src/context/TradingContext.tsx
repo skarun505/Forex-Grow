@@ -56,6 +56,24 @@ const getSessionCurrency = (): CurrencyCode => {
   return 'INR'; // Default currency is INR
 };
 
+const getSessionAsset = (): string => {
+  try {
+    const session = sessionStorage.getItem('quotex_session_asset');
+    if (session) return session;
+  } catch {}
+  return 'EURUSD_OTC';
+};
+
+const getSessionTimeframe = (): TimeframeInterval => {
+  try {
+    const session = sessionStorage.getItem('quotex_session_timeframe');
+    if (session && ['5s', '15s', '30s', '1m', '5m', '15m', '30m', '1h', '1d'].includes(session)) {
+      return session as TimeframeInterval;
+    }
+  } catch {}
+  return '5s';
+};
+
 export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [account, setAccount] = useState<UserAccount>({
@@ -73,7 +91,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     totalDepositedUSD: 1250.0,
   });
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [selectedAssetId, setSelectedAssetId] = useState<string>('EURUSD_OTC');
+  const [selectedAssetId, setSelectedAssetId] = useState<string>(getSessionAsset);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [activeTrades, setActiveTrades] = useState<Trade[]>([]);
   const [tradeHistory, setTradeHistory] = useState<Trade[]>([]);
@@ -87,7 +105,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     ema: false,
     bollinger: false,
   });
-  const [timeframe, setTimeframeState] = useState<TimeframeInterval>('5s');
+  const [timeframe, setTimeframeState] = useState<TimeframeInterval>(getSessionTimeframe);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('quotex_theme') as Theme) || 'dark');
   const [notification, setNotification] = useState<string | null>(null);
   const [lastSettledResult, setLastSettledResult] = useState<Trade | null>(null);
@@ -137,13 +155,16 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCandles([]);
     setTimeframeState(tf);
     timeframeRef.current = tf;
+    try {
+      sessionStorage.setItem('quotex_session_timeframe', tf);
+    } catch {}
     const seconds = TIMEFRAME_SECONDS[tf] || 5;
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: 'SET_TIMEFRAME',
           timeframe: seconds,
-          assetId: selectedAssetId,
+          assetId: selectedAssetIdRef.current || selectedAssetId,
         })
       );
     }
@@ -176,6 +197,17 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       socket.onopen = () => {
         setIsConnected(true);
+        const activeAsset = selectedAssetIdRef.current || getSessionAsset();
+        const activeTf = typeof timeframeRef.current === 'number'
+          ? timeframeRef.current
+          : (TIMEFRAME_SECONDS[timeframeRef.current as TimeframeInterval] || 5);
+
+        socket.send(JSON.stringify({
+          type: 'SUBSCRIBE_ASSET',
+          assetId: activeAsset,
+          timeframe: activeTf,
+        }));
+
         try {
           const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
           if (savedUserRaw) {
@@ -438,6 +470,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const selectAsset = (assetId: string) => {
     setSelectedAssetId(assetId);
     selectedAssetIdRef.current = assetId;
+    try {
+      sessionStorage.setItem('quotex_session_asset', assetId);
+    } catch {}
 
     // Clear stale candles immediately so the chart doesn't flash the previous asset's candles
     setCandles([]);
@@ -452,7 +487,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const msg: WSClientAction = {
         type: 'SUBSCRIBE_ASSET',
         assetId,
-        timeframe: TIMEFRAME_SECONDS[timeframeRef.current] || 5,
+        timeframe: typeof timeframeRef.current === 'number'
+          ? timeframeRef.current
+          : (TIMEFRAME_SECONDS[timeframeRef.current as TimeframeInterval] || 5),
       };
       wsRef.current.send(JSON.stringify(msg));
     }

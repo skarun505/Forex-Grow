@@ -21,13 +21,33 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
     return () => clearInterval(timer);
   }, []);
 
+  const [filterMode, setFilterMode] = useState<'PAIR' | 'ALL'>('PAIR');
+
+  // Match asset IDs flexibly (e.g. 'EURUSD_OTC' vs 'EUR/USD (OTC)' vs 'EURUSD')
+  const isMatchingAsset = (tradeAssetId?: string, currentAssetId?: string) => {
+    if (!tradeAssetId || !currentAssetId) return false;
+    if (tradeAssetId === currentAssetId) return true;
+    const cleanTrade = tradeAssetId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const cleanCurrent = currentAssetId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    return cleanTrade === cleanCurrent || cleanTrade.includes(cleanCurrent) || cleanCurrent.includes(cleanTrade);
+  };
+
   // Filter trades so only the active account (DEMO or REAL) history and active trades show
-  const filteredActiveTrades = activeTrades.filter(
+  const accountActiveTrades = activeTrades.filter(
     (t) => !t.accountType || t.accountType === account.activeAccountType
   );
-  const filteredTradeHistory = tradeHistory.filter(
+  const accountTradeHistory = tradeHistory.filter(
     (t) => !t.accountType || t.accountType === account.activeAccountType
   );
+
+  // Pair-wise filtering: when in PAIR mode, only show trades matching the selected chart pair
+  const filteredActiveTrades = filterMode === 'PAIR' && selectedAsset
+    ? accountActiveTrades.filter((t) => isMatchingAsset(t.assetId, selectedAsset.id))
+    : accountActiveTrades;
+
+  const filteredTradeHistory = filterMode === 'PAIR' && selectedAsset
+    ? accountTradeHistory.filter((t) => isMatchingAsset(t.assetId, selectedAsset.id))
+    : accountTradeHistory;
 
   return (
     <div
@@ -43,7 +63,7 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
       <div className={`flex items-center justify-between px-4 sm:px-6 pt-2.5 pb-2 border-b ${
         isLight ? 'border-slate-200' : 'border-[#2e354b]/50'
       }`}>
-        <div className="flex items-center space-x-4 sm:space-x-6">
+        <div className="flex items-center space-x-3 sm:space-x-5">
           <button
             onClick={() => setActiveTab('OPEN')}
             className={`pb-1 text-xs font-bold uppercase tracking-wider flex items-center space-x-2 border-b-2 transition ${
@@ -68,13 +88,41 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
                 : (isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200')
             }`}
           >
-            <span>History ({account.activeAccountType === 'DEMO' ? 'Demo' : 'Real'} · {account.currency})</span>
+            <span>
+              History ({filterMode === 'PAIR' && selectedAsset ? selectedAsset.name : 'All Pairs'} · {account.currency})
+            </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] ${
               isLight ? 'bg-slate-100 text-slate-700' : 'bg-[#222838] text-gray-300'
             }`}>
               {filteredTradeHistory.length}
             </span>
           </button>
+
+          {/* Pair-wise vs All Pairs Filter Toggle */}
+          <div className="hidden sm:flex items-center p-0.5 rounded-xl border border-gray-700/40 bg-black/30 space-x-1">
+            <button
+              onClick={() => setFilterMode('PAIR')}
+              className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black transition flex items-center space-x-1 ${
+                filterMode === 'PAIR'
+                  ? 'bg-emerald-500 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title={`Show only trades for ${selectedAsset?.name || 'this pair'}`}
+            >
+              <span>{selectedAsset?.name || 'This Pair'}</span>
+            </button>
+            <button
+              onClick={() => setFilterMode('ALL')}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition ${
+                filterMode === 'ALL'
+                  ? 'bg-emerald-500 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title="Show trades across all assets"
+            >
+              <span>All Pairs</span>
+            </button>
+          </div>
         </div>
 
         {/* Desktop Collapse / Mobile Close Button */}
@@ -183,10 +231,22 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
               </div>
             )
           ) : filteredTradeHistory.length === 0 ? (
-            <div className={`h-full flex items-center justify-center text-xs py-6 ${
+            <div className={`h-full flex flex-col items-center justify-center text-xs py-6 space-y-1.5 ${
               isLight ? 'text-slate-400' : 'text-gray-500'
             }`}>
-              <span>No closed trades in {account.activeAccountType === 'DEMO' ? 'Demo Practice' : 'Live Real'} account yet.</span>
+              <span>
+                {filterMode === 'PAIR' && selectedAsset
+                  ? `No closed trades for ${selectedAsset.name} in ${account.activeAccountType === 'DEMO' ? 'Demo' : 'Live Real'}.`
+                  : `No closed trades in ${account.activeAccountType === 'DEMO' ? 'Demo Practice' : 'Live Real'} account yet.`}
+              </span>
+              {filterMode === 'PAIR' && accountTradeHistory.length > 0 && (
+                <button
+                  onClick={() => setFilterMode('ALL')}
+                  className="text-emerald-400 font-bold hover:underline text-[11px]"
+                >
+                  View all {accountTradeHistory.length} trades across all pairs →
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">

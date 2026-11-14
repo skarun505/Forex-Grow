@@ -168,6 +168,7 @@ export class SettlementEngine extends EventEmitter {
     const user = this.adminManager.getUser(this.currentUserId);
     if (user) {
       user.currency = currency;
+      SupabaseDb.saveUser(user);
       return { ...user };
     }
     return this.getAccount();
