@@ -95,16 +95,28 @@ export interface ActiveSession {
   lastSeen: number;
 }
 
-const MAX_CONCURRENT_USERS = 2;
-// In-memory active authenticated users: userId -> ActiveSession
-const activeSessions = new Map<string, ActiveSession>();
+// Rule: Maximum 2 TRADERS can login at the same time. If a 3rd TRADER logs in, auto logout rest traders.
+// Admin and Manager sessions are completely INDEPENDENT and unconstrained.
+const MAX_CONCURRENT_TRADERS = 2;
+
+// In-memory active authenticated TRADERS: userId -> ActiveSession
+const activeTraderSessions = new Map<string, ActiveSession>();
+// In-memory active administrative staff (Admin & Manager)
+const activeStaffSessions = new Map<string, ActiveSession>();
 
 // ================= USER AUTHENTICATION ENDPOINTS =================
 app.get('/api/auth/concurrency-status', (_req, res) => {
   res.json({
-    maxLimit: MAX_CONCURRENT_USERS,
-    activeCount: activeSessions.size,
-    sessions: Array.from(activeSessions.values()).map(s => ({
+    maxTraderLimit: MAX_CONCURRENT_TRADERS,
+    activeTraderCount: activeTraderSessions.size,
+    activeStaffCount: activeStaffSessions.size,
+    traderSessions: Array.from(activeTraderSessions.values()).map(s => ({
+      userId: s.userId,
+      userName: s.userName,
+      role: s.role,
+      loginTime: s.loginTime,
+    })),
+    staffSessions: Array.from(activeStaffSessions.values()).map(s => ({
       userId: s.userId,
       userName: s.userName,
       role: s.role,
@@ -116,23 +128,44 @@ app.get('/api/auth/concurrency-status', (_req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   const userId = req.body?.userId;
   const token = req.body?.token;
-  if (userId && activeSessions.has(userId)) {
-    activeSessions.delete(userId);
+  let wasTrader = false;
+
+  if (userId) {
+    if (activeTraderSessions.has(userId)) {
+      activeTraderSessions.delete(userId);
+      wasTrader = true;
+    }
+    if (activeStaffSessions.has(userId)) {
+      activeStaffSessions.delete(userId);
+    }
   } else if (token) {
-    for (const [uid, sess] of activeSessions.entries()) {
+    for (const [uid, sess] of activeTraderSessions.entries()) {
       if (sess.token === token) {
-        activeSessions.delete(uid);
+        activeTraderSessions.delete(uid);
+        wasTrader = true;
+      }
+    }
+    for (const [uid, sess] of activeStaffSessions.entries()) {
+      if (sess.token === token) {
+        activeStaffSessions.delete(uid);
       }
     }
   }
 
-  broadcast({
-    type: 'SESSION_CONCURRENCY_UPDATE',
-    activeCount: activeSessions.size,
-    maxLimit: MAX_CONCURRENT_USERS,
-  });
+  if (wasTrader) {
+    broadcast({
+      type: 'SESSION_CONCURRENCY_UPDATE',
+      activeCount: activeTraderSessions.size,
+      maxLimit: MAX_CONCURRENT_TRADERS,
+      targetRole: 'TRADER',
+    });
+  }
 
-  res.json({ success: true, activeCount: activeSessions.size });
+  res.json({
+    success: true,
+    activeTraderCount: activeTraderSessions.size,
+    activeStaffCount: activeStaffSessions.size,
+  });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -184,40 +217,74 @@ app.post('/api/auth/login', (req, res) => {
     });
   }
 
-  // ================= 2-USER CONCURRENT LOGIN VALIDATION =================
-  // Rule: Only 2 people can login at the same time. If a 3rd person logs in, auto logout rest peoples!
-  const isAlreadyActive = activeSessions.has(found.id);
+  const userRole = (found.role || 'TRADER').toUpperCase();
+  const isStaff = userRole === 'ADMIN' || userRole === 'MANAGER';
+  const sessionToken = `jwt_session_${found.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  if (!isAlreadyActive && activeSessions.size >= MAX_CONCURRENT_USERS) {
-    console.log(`[AUTH] 3rd person login initiated by "${found.name}" (${found.id}). Active users were ${activeSessions.size}/${MAX_CONCURRENT_USERS}. Auto-logging out all previous users.`);
+  // ================= ADMIN & MANAGER LOGINS: INDEPENDENT =================
+  // Managers and Admins are NOT linked to trader concurrency limits.
+  // They do NOT evict traders and are NEVER evicted by trader logins.
+  if (isStaff) {
+    activeStaffSessions.set(found.id, {
+      token: sessionToken,
+      userId: found.id,
+      userName: found.name,
+      role: userRole,
+      loginTime: Date.now(),
+      lastSeen: Date.now(),
+    });
 
-    // 1. Broadcast immediate FORCE_LOGOUT to all active clients over WebSocket
+    console.log(`[AUTH] Staff login (${userRole}): "${found.name}" (${found.id}). Independent session active.`);
+
+    const safeUser = { ...found };
+    delete safeUser.password;
+
+    return res.json({
+      success: true,
+      user: safeUser,
+      token: sessionToken,
+      activeTraderSessionsCount: activeTraderSessions.size,
+      maxTraderLimit: MAX_CONCURRENT_TRADERS,
+      role: userRole,
+    });
+  }
+
+  // ================= 2-TRADER CONCURRENT LOGIN VALIDATION =================
+  // Rule: Only 2 TRADERS can login at the same time. If a 3rd trader logs in, auto logout previous traders!
+  // Both Admin and Manager panels remain completely independent and uninterrupted.
+  const isAlreadyActive = activeTraderSessions.has(found.id);
+
+  if (!isAlreadyActive && activeTraderSessions.size >= MAX_CONCURRENT_TRADERS) {
+    console.log(`[AUTH] 3rd trader login initiated by "${found.name}" (${found.id}). Active traders were ${activeTraderSessions.size}/${MAX_CONCURRENT_TRADERS}. Auto-logging out previous traders only.`);
+
+    // 1. Broadcast immediate FORCE_LOGOUT strictly to TRADERS over WebSocket
     broadcast({
       type: 'FORCE_LOGOUT',
-      reason: 'Maximum concurrent active user limit (2) reached. A 3rd user logged in, automatically terminating previous active sessions.',
+      targetRole: 'TRADER',
+      reason: 'Trader session limit (max 2 active traders) reached. A 3rd trader signed in, automatically terminating previous trader sessions.',
       activeCount: 1,
     });
 
-    // 2. Invalidate all previous active sessions
-    activeSessions.clear();
+    // 2. Invalidate all previous active TRADER sessions only
+    activeTraderSessions.clear();
   }
 
-  // 3. Register the new active session for this user
-  const sessionToken = `jwt_session_${found.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  activeSessions.set(found.id, {
+  // 3. Register the new active session for this trader
+  activeTraderSessions.set(found.id, {
     token: sessionToken,
     userId: found.id,
     userName: found.name,
-    role: found.role || 'TRADER',
+    role: 'TRADER',
     loginTime: Date.now(),
     lastSeen: Date.now(),
   });
 
-  // 4. Broadcast updated concurrency count
+  // 4. Broadcast updated trader concurrency count
   broadcast({
     type: 'SESSION_CONCURRENCY_UPDATE',
-    activeCount: activeSessions.size,
-    maxLimit: MAX_CONCURRENT_USERS,
+    activeCount: activeTraderSessions.size,
+    maxLimit: MAX_CONCURRENT_TRADERS,
+    targetRole: 'TRADER',
   });
 
   settlementEngine.setCurrentUserId(found.id);
@@ -236,8 +303,11 @@ app.post('/api/auth/login', (req, res) => {
     success: true,
     user: safeUser,
     token: sessionToken,
-    activeSessionsCount: activeSessions.size,
-    maxLimit: MAX_CONCURRENT_USERS,
+    activeSessionsCount: activeTraderSessions.size,
+    activeTraderSessionsCount: activeTraderSessions.size,
+    maxLimit: MAX_CONCURRENT_TRADERS,
+    maxTraderLimit: MAX_CONCURRENT_TRADERS,
+    role: 'TRADER',
   });
 });
 

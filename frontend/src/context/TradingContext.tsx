@@ -457,14 +457,36 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'FORCE_LOGOUT': {
-              const reason = action.reason || 'Active session limit exceeded (max 2 concurrent users). A 3rd user logged in, logging out previous sessions.';
+              const targetRole = action.targetRole || 'TRADER';
+              const pathname = window.location.pathname;
+              const isAdminDesk = pathname.startsWith('/admin');
+              const isManagerDesk = pathname.startsWith('/manager');
+
+              // If this eviction targets TRADERS, do NOT touch Admin or Manager sessions
+              if (targetRole === 'TRADER' && (isAdminDesk || isManagerDesk)) {
+                console.log('[AUTH] Admin/Manager session retained. Trader eviction ignored on desk route:', pathname);
+                break;
+              }
+
+              // Verify if this window has an active staff session
+              try {
+                if (targetRole === 'TRADER') {
+                  const hasAdmin = !!localStorage.getItem('quotex_admin_user');
+                  const hasManager = !!localStorage.getItem('quotex_manager_user');
+                  if ((isAdminDesk && hasAdmin) || (isManagerDesk && hasManager)) {
+                    console.log('[AUTH] Active administrative session protected from trader logout.');
+                    break;
+                  }
+                }
+              } catch {}
+
+              const reason = action.reason || 'Trader session limit reached (max 2 active traders). A 3rd trader logged in, terminating previous sessions.';
               showNotification(`⚠️ ${reason}`);
               try {
                 sessionStorage.setItem('quotex_forced_logout_reason', reason);
+                // Purge TRADER credentials only - Admin and Manager credentials remain completely intact!
                 localStorage.removeItem('quotex_trader_user');
                 localStorage.removeItem('quotex_current_user');
-                localStorage.removeItem('quotex_manager_user');
-                localStorage.removeItem('quotex_admin_user');
                 localStorage.removeItem('forexgrow_auth_token');
               } catch {}
               setTimeout(() => {
