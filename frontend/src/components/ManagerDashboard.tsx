@@ -38,6 +38,7 @@ import {
   Smartphone,
   Edit3,
   Save,
+  TrendingUp,
   Zap,
   Power
 } from 'lucide-react';
@@ -490,6 +491,15 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
             <span>{managerProfile.name}</span>
             <span className="text-[10px] font-bold text-sky-400">({managerProfile.role})</span>
           </div>
+
+          <button
+            onClick={() => window.open('/', '_blank')}
+            title="Open Live Trading Floor in New Tab"
+            className="flex items-center space-x-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm"
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Live Floor</span>
+          </button>
 
           <button
             onClick={fetchManagerData}

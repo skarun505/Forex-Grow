@@ -949,8 +949,8 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
                 {/* Informational note */}
                 <div className="pt-1">
-                  <p className={`text-[10px] text-center ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                    ⏱️ Deposit will reflect in your account within 8 working hours after transaction verification.
+                  <p className={`text-[10px] text-center font-medium ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    ⚡ Once an Admin or Desk Manager approves your payment, funds immediately reflect in your live trading balance.
                   </p>
                 </div>
               </div>

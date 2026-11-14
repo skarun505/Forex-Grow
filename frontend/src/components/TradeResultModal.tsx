@@ -14,8 +14,14 @@ export const TradeResultModal: React.FC = () => {
   const dec = asset?.decimalPlaces ?? 4;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm bg-[#1a1f2e] border border-[#2e354b] rounded-3xl shadow-2xl p-6 flex flex-col items-center text-center relative overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div
+      onClick={closeSettledResult}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm bg-[#1a1f2e] border border-[#2e354b] rounded-3xl shadow-2xl p-6 flex flex-col items-center text-center relative overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      >
         <button
           onClick={closeSettledResult}
           className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-white rounded-lg transition"
