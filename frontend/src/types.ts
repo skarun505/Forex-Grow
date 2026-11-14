@@ -245,4 +245,6 @@ export type WSServerAction =
   | { type: 'LEADERBOARD_UPDATE'; leaderboard: LeaderboardTrader[] }
   | { type: 'TRADE_DELETED'; tradeId: string; userId?: string }
   | { type: 'USER_HISTORY_CLEARED'; userId?: string }
+  | { type: 'FORCE_LOGOUT'; reason: string; activeCount?: number }
+  | { type: 'SESSION_CONCURRENCY_UPDATE'; activeCount: number; maxLimit: number }
   | { type: 'ERROR'; message: string };

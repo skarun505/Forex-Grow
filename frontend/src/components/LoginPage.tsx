@@ -69,6 +69,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [copiedType, setCopiedType] = useState<string | null>(null);
+  const [concurrencyNotice, setConcurrencyNotice] = useState<string | null>(null);
+  const [concurrencyInfo, setConcurrencyInfo] = useState<{ activeCount: number; maxLimit: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedNotice = sessionStorage.getItem('quotex_forced_logout_reason');
+      if (savedNotice) {
+        setConcurrencyNotice(savedNotice);
+        sessionStorage.removeItem('quotex_forced_logout_reason');
+      }
+    } catch {}
+
+    const checkConcurrency = async () => {
+      try {
+        const res = await fetch(apiUrl('/api/auth/concurrency-status'));
+        if (res.ok) {
+          const data = await res.json();
+          setConcurrencyInfo({ activeCount: data.activeCount, maxLimit: data.maxLimit });
+        }
+      } catch {}
+    };
+
+    checkConcurrency();
+    const timer = setInterval(checkConcurrency, 3000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Determine if identifier is phone number or email
   const isPhoneIdentifier = /^[+0-9\s-()]+$/.test(identifier.trim()) && identifier.trim().length >= 3;
@@ -76,6 +102,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setConcurrencyNotice(null);
 
     const cleanId = identifier.trim();
     if (!cleanId) {
@@ -109,6 +136,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
           setErrorMsg('Access Denied: Operations Manager privileges are required to access this desk.');
           setIsLoading(false);
           return;
+        }
+
+        if (data.token) {
+          localStorage.setItem('forexgrow_auth_token', data.token);
         }
 
         if (mode === 'ADMIN') {
@@ -305,6 +336,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
             </div>
 
             <div className="p-6 sm:p-7 space-y-4">
+              {/* Concurrency Auto-Logout Warning Banner */}
+              {concurrencyNotice && (
+                <div className="bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs p-3.5 rounded-2xl flex items-start space-x-2.5 animate-in fade-in">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
+                  <div>
+                    <div className="font-black text-amber-400 flex items-center space-x-1">
+                      <span>⚠️ Auto-Logout Enforced</span>
+                    </div>
+                    <div className="text-[11px] mt-0.5 leading-relaxed text-amber-200">
+                      {concurrencyNotice}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Real-time System Concurrency Indicator */}
+              {concurrencyInfo && (
+                <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-black/20 border border-white/5 text-[11px]">
+                  <div className="flex items-center space-x-2">
+                    <span className={`w-2 h-2 rounded-full ${
+                      concurrencyInfo.activeCount >= concurrencyInfo.maxLimit ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                    }`} />
+                    <span className="font-bold text-gray-300">
+                      Concurrent Active Logins: <span className={concurrencyInfo.activeCount >= concurrencyInfo.maxLimit ? 'text-amber-400' : 'text-emerald-400'}>{concurrencyInfo.activeCount} / {concurrencyInfo.maxLimit}</span>
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-gray-400">
+                    {concurrencyInfo.activeCount >= concurrencyInfo.maxLimit ? 'Next login auto-logs out others' : 'Max 2 Simultaneous'}
+                  </span>
+                </div>
+              )}
+
               {errorMsg && (
                 <div className="bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs p-3.5 rounded-2xl flex items-start space-x-2.5 animate-in fade-in">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />

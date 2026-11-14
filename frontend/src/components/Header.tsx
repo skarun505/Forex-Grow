@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTrading } from '../context/TradingContext';
 import { CURRENCY_CONFIGS, formatCurrency } from '../utils/currency';
+import { apiUrl } from '../utils/api';
 import { 
   ChevronDown, 
   RefreshCw, 
@@ -69,9 +70,18 @@ export const Header: React.FC<HeaderProps> = ({
   const currencyConfig = CURRENCY_CONFIGS[account.currency] || CURRENCY_CONFIGS.USD;
   const initials = account.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('forexgrow_auth_token');
+      await fetch(apiUrl('/api/auth/logout'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, userId: account.id }),
+      });
+    } catch {}
     localStorage.removeItem('quotex_trader_user');
     localStorage.removeItem('quotex_current_user');
+    localStorage.removeItem('forexgrow_auth_token');
     window.history.pushState({}, '', '/login');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };

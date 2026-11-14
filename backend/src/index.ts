@@ -85,7 +85,56 @@ app.get('/api/user/:userId/transactions', (req, res) => {
   res.json({ success: true, transactions: txns });
 });
 
+// ================= CONCURRENT ACTIVE SESSIONS TRACKER =================
+export interface ActiveSession {
+  token: string;
+  userId: string;
+  userName: string;
+  role: string;
+  loginTime: number;
+  lastSeen: number;
+}
+
+const MAX_CONCURRENT_USERS = 2;
+// In-memory active authenticated users: userId -> ActiveSession
+const activeSessions = new Map<string, ActiveSession>();
+
 // ================= USER AUTHENTICATION ENDPOINTS =================
+app.get('/api/auth/concurrency-status', (_req, res) => {
+  res.json({
+    maxLimit: MAX_CONCURRENT_USERS,
+    activeCount: activeSessions.size,
+    sessions: Array.from(activeSessions.values()).map(s => ({
+      userId: s.userId,
+      userName: s.userName,
+      role: s.role,
+      loginTime: s.loginTime,
+    })),
+  });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const userId = req.body?.userId;
+  const token = req.body?.token;
+  if (userId && activeSessions.has(userId)) {
+    activeSessions.delete(userId);
+  } else if (token) {
+    for (const [uid, sess] of activeSessions.entries()) {
+      if (sess.token === token) {
+        activeSessions.delete(uid);
+      }
+    }
+  }
+
+  broadcast({
+    type: 'SESSION_CONCURRENCY_UPDATE',
+    activeCount: activeSessions.size,
+    maxLimit: MAX_CONCURRENT_USERS,
+  });
+
+  res.json({ success: true, activeCount: activeSessions.size });
+});
+
 app.post('/api/auth/login', (req, res) => {
   const { identifier, email, phone, password } = req.body;
   const rawId = (identifier || email || phone || '').toString().trim();
@@ -135,6 +184,42 @@ app.post('/api/auth/login', (req, res) => {
     });
   }
 
+  // ================= 2-USER CONCURRENT LOGIN VALIDATION =================
+  // Rule: Only 2 people can login at the same time. If a 3rd person logs in, auto logout rest peoples!
+  const isAlreadyActive = activeSessions.has(found.id);
+
+  if (!isAlreadyActive && activeSessions.size >= MAX_CONCURRENT_USERS) {
+    console.log(`[AUTH] 3rd person login initiated by "${found.name}" (${found.id}). Active users were ${activeSessions.size}/${MAX_CONCURRENT_USERS}. Auto-logging out all previous users.`);
+
+    // 1. Broadcast immediate FORCE_LOGOUT to all active clients over WebSocket
+    broadcast({
+      type: 'FORCE_LOGOUT',
+      reason: 'Maximum concurrent active user limit (2) reached. A 3rd user logged in, automatically terminating previous active sessions.',
+      activeCount: 1,
+    });
+
+    // 2. Invalidate all previous active sessions
+    activeSessions.clear();
+  }
+
+  // 3. Register the new active session for this user
+  const sessionToken = `jwt_session_${found.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  activeSessions.set(found.id, {
+    token: sessionToken,
+    userId: found.id,
+    userName: found.name,
+    role: found.role || 'TRADER',
+    loginTime: Date.now(),
+    lastSeen: Date.now(),
+  });
+
+  // 4. Broadcast updated concurrency count
+  broadcast({
+    type: 'SESSION_CONCURRENCY_UPDATE',
+    activeCount: activeSessions.size,
+    maxLimit: MAX_CONCURRENT_USERS,
+  });
+
   settlementEngine.setCurrentUserId(found.id);
   broadcast({
     type: 'BALANCE_UPDATE',
@@ -150,7 +235,9 @@ app.post('/api/auth/login', (req, res) => {
   return res.json({
     success: true,
     user: safeUser,
-    token: `jwt_session_${found.id}_${Date.now()}`
+    token: sessionToken,
+    activeSessionsCount: activeSessions.size,
+    maxLimit: MAX_CONCURRENT_USERS,
   });
 });
 

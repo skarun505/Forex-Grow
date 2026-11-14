@@ -456,6 +456,29 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               setTradeHistory([]);
               break;
 
+            case 'FORCE_LOGOUT': {
+              const reason = action.reason || 'Active session limit exceeded (max 2 concurrent users). A 3rd user logged in, logging out previous sessions.';
+              showNotification(`⚠️ ${reason}`);
+              try {
+                sessionStorage.setItem('quotex_forced_logout_reason', reason);
+                localStorage.removeItem('quotex_trader_user');
+                localStorage.removeItem('quotex_current_user');
+                localStorage.removeItem('quotex_manager_user');
+                localStorage.removeItem('quotex_admin_user');
+                localStorage.removeItem('forexgrow_auth_token');
+              } catch {}
+              setTimeout(() => {
+                window.location.href = '/login';
+              }, 1200);
+              break;
+            }
+
+            case 'SESSION_CONCURRENCY_UPDATE':
+              window.dispatchEvent(new CustomEvent('session_concurrency_update', {
+                detail: { activeCount: action.activeCount, maxLimit: action.maxLimit }
+              }));
+              break;
+
             case 'ERROR':
               showNotification(`⚠️ ${action.message}`);
               break;

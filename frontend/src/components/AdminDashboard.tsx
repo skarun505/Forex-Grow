@@ -658,8 +658,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           </button>
 
           <button
-            onClick={() => {
+            onClick={async () => {
+              try {
+                const token = localStorage.getItem('forexgrow_auth_token');
+                await fetch(apiUrl('/api/auth/logout'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token }),
+                });
+              } catch {}
               localStorage.removeItem('quotex_admin_user');
+              localStorage.removeItem('forexgrow_auth_token');
               window.history.pushState({}, '', '/admin');
               window.dispatchEvent(new PopStateEvent('popstate'));
             }}

@@ -588,8 +588,17 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
           </button>
 
           <button
-            onClick={() => {
+            onClick={async () => {
+              try {
+                const token = localStorage.getItem('forexgrow_auth_token');
+                await fetch(apiUrl('/api/auth/logout'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token }),
+                });
+              } catch {}
               localStorage.removeItem('quotex_manager_user');
+              localStorage.removeItem('forexgrow_auth_token');
               window.history.pushState({}, '', '/manager');
               window.dispatchEvent(new PopStateEvent('popstate'));
             }}
