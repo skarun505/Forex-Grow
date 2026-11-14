@@ -19,7 +19,8 @@ import {
   CheckCircle2, 
   Building2, 
   Smartphone,
-  Info
+  Info,
+  Clock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -66,10 +67,8 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [proofFileName, setProofFileName] = useState<string | null>(null);
   const [isSubmittingDeposit, setIsSubmittingDeposit] = useState(false);
-  const [isFastTracking, setIsFastTracking] = useState(false);
-  const [depositMethod, setDepositMethod] = useState<'INSTANT' | 'PROOF'>('INSTANT');
   const [depositError, setDepositError] = useState<string | null>(null);
-  const [depositSuccessData, setDepositSuccessData] = useState<{ reference: string; amount: number; transactionId?: string; isInstant?: boolean; rail?: string } | null>(null);
+  const [depositSuccessData, setDepositSuccessData] = useState<{ reference: string; amount: number; transactionId?: string; rail?: string } | null>(null);
   const [realQrDataUrl, setRealQrDataUrl] = useState<string>('');
 
   // Fetch live payment settings whenever modal is opened
@@ -205,87 +204,6 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
     reader.readAsDataURL(file);
   };
 
-  const handleInstantDeposit = async () => {
-    if (numericDeposit <= 0) {
-      setDepositError('Please enter a valid deposit amount');
-      return;
-    }
-    setDepositError(null);
-    setIsSubmittingDeposit(true);
-    try {
-      const response = await fetch(apiUrl('/api/payment/deposit-instant'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: account.id,
-          userName: account.name,
-          amount: numericDeposit,
-          currency: account.currency,
-          amountUSD: depositAmountUSD,
-          promoCode: appliedPromo || undefined,
-          method: depositRail === 'BANK' ? `Instant Bank Transfer (${paymentSettings.bankName})` : 'Instant UPI Fast-Track',
-        }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setDepositSuccessData({
-          reference: data.reference || 'FG-DEP-' + Math.floor(100000 + Math.random() * 900000),
-          amount: numericDeposit,
-          transactionId: data.transactionId,
-          isInstant: true,
-          rail: depositRail,
-        });
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.5 },
-        });
-      } else {
-        setDepositError(data.error || 'Failed to process instant deposit');
-      }
-    } catch (e) {
-      // Local fallback simulation
-      setDepositSuccessData({
-        reference: 'FG-DEP-' + Math.floor(100000 + Math.random() * 900000),
-        amount: numericDeposit,
-        isInstant: true,
-        rail: depositRail,
-      });
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { y: 0.5 },
-      });
-    } finally {
-      setIsSubmittingDeposit(false);
-    }
-  };
-
-  const handleFastTrack = async () => {
-    if (!depositSuccessData?.transactionId) {
-      setDepositSuccessData((prev) => prev ? { ...prev, isInstant: true } : null);
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } });
-      return;
-    }
-    setIsFastTracking(true);
-    try {
-      const res = await fetch(apiUrl(`/api/payment/transactions/${depositSuccessData.transactionId}/fast-track`), {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (data.success) {
-        setDepositSuccessData((prev) => prev ? { ...prev, isInstant: true } : null);
-        confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
-      }
-    } catch (e) {
-      setDepositSuccessData((prev) => prev ? { ...prev, isInstant: true } : null);
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } });
-    } finally {
-      setIsFastTracking(false);
-    }
-  };
-
   const handleSubmitDepositProof = async () => {
     if (numericDeposit <= 0) {
       setDepositError('Please enter a valid deposit amount');
@@ -330,7 +248,6 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
           reference: data.reference || 'FG-DEP-' + Math.floor(100000 + Math.random() * 900000),
           amount: numericDeposit,
           transactionId: data.transactionId,
-          isInstant: false,
           rail: depositRail,
         });
         confetti({
@@ -345,7 +262,6 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
       setDepositSuccessData({
         reference: 'FG-DEP-' + Math.floor(100000 + Math.random() * 900000),
         amount: numericDeposit,
-        isInstant: false,
         rail: depositRail,
       });
       confetti({
@@ -508,22 +424,18 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
           {/* ================= DEPOSIT TAB ================= */}
           {activeTab === 'DEPOSIT' && (
             depositSuccessData ? (
-              /* Success Pop-up */
+              /* Success Pop-up: Waiting for Payment Verification */
               <div className="py-6 sm:py-8 flex flex-col items-center text-center space-y-4 animate-in zoom-in-95">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 animate-bounce">
-                  <CheckCircle2 className="w-10 h-10" />
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400 animate-pulse">
+                  <Clock className="w-9 h-9" />
                 </div>
 
                 <div className="space-y-1">
                   <h3 className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                    {depositSuccessData.isInstant ? 'Deposit Credited Instantly!' : 'Payment Proof Submitted Successfully!'}
+                    Waiting for Payment Verification
                   </h3>
-                  <div className={`inline-block border font-extrabold text-xs px-3 py-1 rounded-full uppercase tracking-wide ${
-                    depositSuccessData.isInstant 
-                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                      : 'bg-amber-500/15 border-amber-500/30 text-amber-500'
-                  }`}>
-                    {depositSuccessData.isInstant ? '⚡ LIVE REAL BALANCE CREDITED' : '⏳ Within 8 Working Hours'}
+                  <div className="inline-block bg-amber-500/15 border border-amber-500/30 text-amber-500 font-extrabold text-xs px-3.5 py-1 rounded-full uppercase tracking-wide">
+                    ⏳ Awaiting Admin / Manager Approval
                   </div>
                 </div>
 
@@ -532,42 +444,32 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 }`}>
                   <div className="flex justify-between">
                     <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Reference ID:</span>
-                    <span className="font-mono font-bold text-emerald-500">{depositSuccessData.reference}</span>
+                    <span className="font-mono font-bold text-amber-400">{depositSuccessData.reference}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Deposit Amount:</span>
-                    <span className="font-extrabold">{formatCurrency(depositAmountUSD, account.currency)}</span>
+                    <span className="font-extrabold text-emerald-400">
+                      {curr.symbol}{numericDeposit.toLocaleString()} ({formatCurrency(depositAmountUSD, 'USD')})
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Payment Rail:</span>
+                    <span className="font-semibold">{depositSuccessData.rail === 'BANK' ? '🏛️ Direct Bank Transfer' : '⚡ UPI Instant QR'}</span>
                   </div>
                   {utrNumber && (
                     <div className="flex justify-between">
                       <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>UTR Reference:</span>
-                      <span className="font-mono font-semibold">{utrNumber}</span>
+                      <span className="font-mono font-semibold text-emerald-400">{utrNumber}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Status:</span>
-                    <span className={depositSuccessData.isInstant ? 'text-emerald-400 font-black' : 'text-amber-500 font-black'}>
-                      {depositSuccessData.isInstant ? 'APPROVED & LIVE' : 'PENDING VERIFICATION'}
-                    </span>
+                    <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Verification Status:</span>
+                    <span className="text-amber-500 font-black">PENDING VERIFICATION</span>
                   </div>
                 </div>
 
-                {!depositSuccessData.isInstant && (
-                  <button
-                    type="button"
-                    onClick={handleFastTrack}
-                    disabled={isFastTracking}
-                    className="w-full max-w-md bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black py-3 px-6 rounded-2xl shadow-xl shadow-amber-500/20 transition transform active:scale-95 flex items-center justify-center space-x-2 text-xs font-bold"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>{isFastTracking ? 'Crediting Account...' : '⚡ Fast-Track Instant Credit (Zero Waiting)'}</span>
-                  </button>
-                )}
-
                 <p className={`text-xs max-w-md leading-relaxed ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
-                  {depositSuccessData.isInstant
-                    ? 'Your Real Account live balance is immediately credited and ready for high-yield market execution.'
-                    : 'Within 8 working hours, your deposit will reflect in your Forex Grow live trading account after desk verification.'}
+                  Your payment receipt and UTR reference have been forwarded to the verification desk. Once an <strong>Administrator</strong> or <strong>Desk Manager</strong> verifies and approves your transaction, the funds will automatically reflect in your live trading account balance.
                 </p>
 
                 <button
@@ -586,34 +488,6 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                     <span>{depositError}</span>
                   </div>
                 )}
-
-                {/* Deposit Mode Selector */}
-                <div className="grid grid-cols-2 gap-2 p-1 bg-black/20 rounded-2xl border border-white/5">
-                  <button
-                    type="button"
-                    onClick={() => setDepositMethod('INSTANT')}
-                    className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 ${
-                      depositMethod === 'INSTANT'
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md'
-                        : isLight ? 'text-slate-600 hover:bg-slate-100' : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>⚡ Instant Direct Credit</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDepositMethod('PROOF')}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
-                      depositMethod === 'PROOF'
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md'
-                        : isLight ? 'text-slate-600 hover:bg-slate-100' : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    <QrCode className="w-3.5 h-3.5" />
-                    <span>Manual UTR Slip</span>
-                  </button>
-                </div>
 
                 {/* Step 1: Enter Any Amount (No 3-digit lock!) */}
                 <div>
@@ -1279,16 +1153,14 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 <button
                   type="button"
                   disabled={isSubmittingDeposit || numericDeposit <= 0}
-                  onClick={depositMethod === 'INSTANT' ? handleInstantDeposit : handleSubmitDepositProof}
+                  onClick={handleSubmitDepositProof}
                   className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 text-slate-950 font-black py-3 sm:py-3.5 px-6 rounded-2xl shadow-xl shadow-emerald-500/20 transition transform active:scale-[0.99] flex items-center justify-center space-x-2 text-xs sm:text-sm"
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>
                     {isSubmittingDeposit
-                      ? 'Processing Deposit...'
-                      : depositMethod === 'INSTANT'
-                      ? `⚡ Deposit & Credit ${curr.symbol}${numericDeposit.toLocaleString()} Instantly`
-                      : 'Submit Deposit Proof for Verification'}
+                      ? 'Submitting Deposit Proof...'
+                      : `Submit Deposit of ${curr.symbol}${numericDeposit.toLocaleString()} for Verification`}
                   </span>
                 </button>
               </div>

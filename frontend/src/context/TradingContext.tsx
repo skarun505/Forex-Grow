@@ -314,13 +314,28 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'BALANCE_UPDATE':
-              setAccount((prev) => ({
-                ...prev,
-                demoBalance: action.demoBalance,
-                realBalance: action.realBalance,
-                activeAccountType: action.activeAccountType || prev.activeAccountType,
-                currency: action.currency || prev.currency,
-              }));
+              setAccount((prev) => {
+                const updated = {
+                  ...prev,
+                  demoBalance: action.demoBalance,
+                  realBalance: action.realBalance,
+                  activeAccountType: action.activeAccountType || prev.activeAccountType,
+                  currency: action.currency || prev.currency,
+                };
+                try {
+                  const stored = localStorage.getItem('quotex_trader_user');
+                  if (stored) {
+                    const parsed = JSON.parse(stored);
+                    localStorage.setItem('quotex_trader_user', JSON.stringify({ ...parsed, ...updated }));
+                  }
+                  const storedCur = localStorage.getItem('quotex_current_user');
+                  if (storedCur) {
+                    const parsed = JSON.parse(storedCur);
+                    localStorage.setItem('quotex_current_user', JSON.stringify({ ...parsed, ...updated }));
+                  }
+                } catch {}
+                return updated;
+              });
               break;
 
             case 'ASSETS_UPDATE':
@@ -328,11 +343,26 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'TRANSACTION_SUCCESS':
-              setAccount((prev) => ({
-                ...prev,
-                demoBalance: action.demoBalance,
-                realBalance: action.realBalance,
-              }));
+              setAccount((prev) => {
+                const updated = {
+                  ...prev,
+                  demoBalance: action.demoBalance,
+                  realBalance: action.realBalance,
+                };
+                try {
+                  const stored = localStorage.getItem('quotex_trader_user');
+                  if (stored) {
+                    const parsed = JSON.parse(stored);
+                    localStorage.setItem('quotex_trader_user', JSON.stringify({ ...parsed, ...updated }));
+                  }
+                  const storedCur = localStorage.getItem('quotex_current_user');
+                  if (storedCur) {
+                    const parsed = JSON.parse(storedCur);
+                    localStorage.setItem('quotex_current_user', JSON.stringify({ ...parsed, ...updated }));
+                  }
+                } catch {}
+                return updated;
+              });
               showNotification(`💰 ${action.message}`);
               if (!isMuted) sounds.playTradeWon();
               break;
