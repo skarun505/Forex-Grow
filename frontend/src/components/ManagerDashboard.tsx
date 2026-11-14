@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useTrading } from '../context/TradingContext';
-import { formatCurrency } from '../utils/currency';
 import { apiUrl } from '../utils/api';
 import {
   UserAccount,
@@ -23,6 +22,8 @@ import {
   Check,
   ArrowDownCircle,
   ArrowUpCircle,
+  ArrowDownLeft,
+  Wallet,
   RefreshCw,
   LogOut,
   Lock,
@@ -85,6 +86,65 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [userSearch, setUserSearch] = useState('');
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [selectedProofImg, setSelectedProofImg] = useState<string | null>(null);
+
+  // Global Manager Display Currency: Primary is strictly INR, next only USD
+  const [displayCurrency, setDisplayCurrency] = useState<'INR' | 'USD'>('INR');
+  const INR_RATE = 95.0;
+
+  const formatMoney = (amountUSD: number, showSecondary = true) => {
+    const safeUSD = amountUSD || 0;
+    const inrVal = safeUSD * INR_RATE;
+    const inrStr = `₹${inrVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const usdStr = `$${safeUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (displayCurrency === 'INR') {
+      return { primary: inrStr, secondary: showSecondary ? `${usdStr} USD` : undefined };
+    } else {
+      return { primary: usdStr, secondary: showSecondary ? `${inrStr} INR` : undefined };
+    }
+  };
+
+  const formatTxnAmount = (amount: number, curr?: string) => {
+    const c = (curr || 'INR').toUpperCase();
+    const safeAmt = amount || 0;
+    const inrVal = c === 'USD' ? safeAmt * INR_RATE : safeAmt;
+    const usdVal = c === 'USD' ? safeAmt : safeAmt / INR_RATE;
+    const inrStr = `₹${inrVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const usdStr = `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (displayCurrency === 'INR') {
+      return { primary: inrStr, secondary: usdStr };
+    } else {
+      return { primary: usdStr, secondary: inrStr };
+    }
+  };
+
+  const formatUserBal = (amount: number, userCurr?: string) => {
+    const c = (userCurr || 'INR').toUpperCase();
+    const safeAmt = amount || 0;
+    const inrVal = c === 'USD' ? safeAmt * INR_RATE : safeAmt;
+    const usdVal = c === 'USD' ? safeAmt : safeAmt / INR_RATE;
+    const inrStr = `₹${inrVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const usdStr = `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (displayCurrency === 'INR') {
+      return { primary: inrStr, secondary: usdStr };
+    } else {
+      return { primary: usdStr, secondary: inrStr };
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('forexgrow_auth_token');
+      await fetch(apiUrl('/api/auth/logout'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+    } catch {}
+    localStorage.removeItem('quotex_manager_user');
+    localStorage.removeItem('forexgrow_auth_token');
+    window.history.pushState({}, '', '/manager');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
 
   // Client Creation States
   const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
@@ -535,30 +595,102 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
       isLight ? 'bg-slate-50 text-slate-800' : 'bg-[#0f121d] text-gray-100'
     }`}>
       {/* Top Header */}
-      <header className={`h-16 border-b px-4 sm:px-6 flex items-center justify-between z-30 transition-colors ${
+      <header className={`border-b transition-colors px-3 sm:px-6 py-2.5 sm:py-0 min-h-[56px] sm:h-16 flex flex-col sm:flex-row justify-between sm:items-center gap-2 z-30 ${
         isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#151926] border-[#252c40]'
       }`}>
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center font-black text-white shadow-lg shadow-sky-500/20 text-sm">
-            MGR
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h1 className={`text-base font-black tracking-wide ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                FOREX GROW
-              </h1>
-              <span className="text-[10px] font-black uppercase bg-sky-500/15 text-sky-400 px-2 py-0.5 rounded-full border border-sky-500/30">
-                Operations Manager Desk
-              </span>
+        {/* Top Row: Brand & Mobile Quick Action Icons */}
+        <div className="flex items-center justify-between w-full sm:w-auto">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center font-black text-white shadow-lg shadow-sky-500/20 text-xs sm:text-sm shrink-0">
+              MGR
             </div>
-            <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-              Cashier settlements, KYC verification & live trading desk
-            </p>
+            <div>
+              <div className="flex items-center space-x-1.5">
+                <h1 className={`text-xs sm:text-base font-black tracking-wide ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <span className="sm:hidden">MGR DESK</span>
+                  <span className="hidden sm:inline">FOREX GROW</span>
+                </h1>
+                <span className="text-[8px] sm:text-[10px] font-black uppercase bg-sky-500/15 text-sky-400 px-1.5 sm:px-2 py-0.5 rounded-full border border-sky-500/30">
+                  Operations Desk
+                </span>
+              </div>
+              <p className={`text-[9px] sm:text-xs truncate max-w-[200px] sm:max-w-none ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                <span className="sm:hidden">Cashier & KYC Desk</span>
+                <span className="hidden sm:inline">Cashier settlements, KYC verification & live trading desk</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Mobile Utility Icons */}
+          <div className="flex items-center space-x-1 sm:hidden">
+            {/* Currency Pill for Mobile */}
+            <div className={`flex items-center p-0.5 rounded-lg border text-[10px] font-black ${
+              isLight ? 'bg-slate-100 border-slate-300' : 'bg-[#121622] border-[#283248]'
+            }`}>
+              <button
+                onClick={() => setDisplayCurrency('INR')}
+                className={`px-1.5 py-0.5 rounded transition ${
+                  displayCurrency === 'INR' ? 'bg-sky-500 text-black font-black shadow-sm' : 'text-gray-400'
+                }`}
+                title="Primary Currency INR"
+              >
+                ₹ INR
+              </button>
+              <button
+                onClick={() => setDisplayCurrency('USD')}
+                className={`px-1.5 py-0.5 rounded transition ${
+                  displayCurrency === 'USD' ? 'bg-sky-500 text-black font-black shadow-sm' : 'text-gray-400'
+                }`}
+                title="Secondary Currency USD"
+              >
+                $ USD
+              </button>
+            </div>
+
+            <button
+              onClick={fetchManagerData}
+              className={`p-1.5 rounded-lg border transition ${
+                isLight ? 'hover:bg-slate-100 border-slate-200 text-slate-600' : 'hover:bg-[#20273c] border-[#29324a] text-gray-300'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-sky-400' : ''}`} />
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
+              title="Logout"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
         {/* Right Info & Actions */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between sm:justify-end space-x-2 sm:space-x-3 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-[#252c40]/30">
+          {/* Desktop Currency Switcher Pill: INR is Default */}
+          <div className={`hidden sm:flex items-center p-1 rounded-xl border text-xs font-black ${
+            isLight ? 'bg-slate-100 border-slate-300' : 'bg-[#121622] border-[#283248]'
+          }`}>
+            <span className="text-[10px] text-gray-400 px-2 uppercase font-bold">Currency:</span>
+            <button
+              onClick={() => setDisplayCurrency('INR')}
+              className={`px-2.5 py-1 rounded-lg transition font-mono ${
+                displayCurrency === 'INR' ? 'bg-sky-500 text-black shadow-sm font-black' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              ₹ INR (Primary)
+            </button>
+            <button
+              onClick={() => setDisplayCurrency('USD')}
+              className={`px-2.5 py-1 rounded-lg transition font-mono ${
+                displayCurrency === 'USD' ? 'bg-sky-500 text-black shadow-sm font-black' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              $ USD
+            </button>
+          </div>
+
           {/* Manager ID pill */}
           <div className={`hidden md:flex items-center space-x-2 border px-3 py-1.5 rounded-xl text-xs font-semibold ${
             isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-[#1b2132] border-[#29324a] text-gray-300'
@@ -571,7 +703,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
           <button
             onClick={() => window.open('/', '_blank')}
             title="Open Live Trading Floor in New Tab"
-            className="flex items-center space-x-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition shadow-sm"
           >
             <TrendingUp className="w-3.5 h-3.5" />
             <span>Live Floor</span>
@@ -580,7 +712,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
           <button
             onClick={fetchManagerData}
             title="Refresh Manager Data"
-            className={`p-2 rounded-xl border transition ${
+            className={`hidden sm:block p-2 rounded-xl border transition ${
               isLight ? 'hover:bg-slate-100 border-slate-200 text-slate-600' : 'hover:bg-[#20273c] border-[#29324a] text-gray-300'
             }`}
           >
@@ -588,22 +720,9 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
           </button>
 
           <button
-            onClick={async () => {
-              try {
-                const token = localStorage.getItem('forexgrow_auth_token');
-                await fetch(apiUrl('/api/auth/logout'), {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token }),
-                });
-              } catch {}
-              localStorage.removeItem('quotex_manager_user');
-              localStorage.removeItem('forexgrow_auth_token');
-              window.history.pushState({}, '', '/manager');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
+            onClick={handleLogout}
             title="Log Out of Manager Desk"
-            className="flex items-center space-x-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl text-xs font-bold transition"
+            className="hidden sm:flex items-center space-x-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl text-xs font-bold transition"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Logout</span>
@@ -611,154 +730,138 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
         </div>
       </header>
 
-      {/* Overview Stat Banner */}
-      <div className={`border-b p-4 sm:px-6 grid grid-cols-2 sm:grid-cols-4 gap-3 ${
+      {/* Overview Stat Banner - Responsive INR Primary View */}
+      <div className={`border-b p-3 sm:px-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 ${
         isLight ? 'bg-white border-slate-200' : 'bg-[#131622] border-[#222838]'
       }`}>
-        <div className={`p-3.5 rounded-2xl border ${
+        {/* Card 1: Pending Deposits */}
+        <div className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${
           overview?.pendingDeposits && overview.pendingDeposits > 0
             ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
             : isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#181c2b] border-[#252c40]'
         }`}>
           <div className="flex items-center justify-between text-xs font-bold">
-            <span>Pending Deposits</span>
-            <ArrowDownCircle className="w-4 h-4" />
+            <span className="text-[10px] sm:text-xs">Pending Deposits</span>
+            <ArrowDownCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           </div>
-          <div className="text-2xl font-black mt-1 mono-num">
+          <div className="text-lg sm:text-2xl font-black mt-1 mono-num">
             {overview?.pendingDeposits || 0}
           </div>
-          <div className="text-[10px] opacity-80 mt-0.5">Need UTR / proof verification</div>
+          <div className="text-[9px] sm:text-[10px] opacity-80 mt-0.5 truncate">Need verification</div>
         </div>
 
-        <div className={`p-3.5 rounded-2xl border ${
+        {/* Card 2: Pending Payouts */}
+        <div className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${
           overview?.pendingWithdrawals && overview.pendingWithdrawals > 0
             ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
             : isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#181c2b] border-[#252c40]'
         }`}>
           <div className="flex items-center justify-between text-xs font-bold">
-            <span>Pending Payouts</span>
-            <ArrowUpCircle className="w-4 h-4" />
+            <span className="text-[10px] sm:text-xs">Pending Payouts</span>
+            <ArrowUpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           </div>
-          <div className="text-2xl font-black mt-1 mono-num">
+          <div className="text-lg sm:text-2xl font-black mt-1 mono-num">
             {overview?.pendingWithdrawals || 0}
           </div>
-          <div className="text-[10px] opacity-80 mt-0.5">Awaiting payout clearance</div>
+          <div className="text-[9px] sm:text-[10px] opacity-80 mt-0.5 truncate">Awaiting clearance</div>
         </div>
 
-        <div className={`p-3.5 rounded-2xl border ${
+        {/* Card 3: Settled Inflow (INR Primary) */}
+        <div className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${
           isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#181c2b] border-[#252c40] text-gray-200'
         }`}>
           <div className="flex items-center justify-between text-xs font-bold text-gray-400">
-            <span>Active Traders</span>
-            <Users className="w-4 h-4 text-sky-400" />
+            <span className="text-[10px] sm:text-xs">Approved Deposits</span>
+            <ArrowDownLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black mt-1 mono-num text-sky-400">
+          <div className="text-base sm:text-2xl font-black mt-1 mono-num text-emerald-400 truncate">
+            {formatMoney(overview?.totalApprovedDepositsUSD || 0).primary}
+          </div>
+          <div className="text-[9px] sm:text-[10px] text-gray-400 mt-0.5 truncate">
+            {formatMoney(overview?.totalApprovedDepositsUSD || 0).secondary}
+          </div>
+        </div>
+
+        {/* Card 4: Pending Volume */}
+        <div className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${
+          isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#181c2b] border-[#252c40] text-gray-200'
+        }`}>
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400">
+            <span className="text-[10px] sm:text-xs">Pending Volume</span>
+            <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+          </div>
+          <div className="text-base sm:text-2xl font-black mt-1 mono-num text-amber-400 truncate">
+            {formatMoney(overview?.totalPendingAmountUSD || 0).primary}
+          </div>
+          <div className="text-[9px] sm:text-[10px] text-gray-400 mt-0.5 truncate">
+            {formatMoney(overview?.totalPendingAmountUSD || 0).secondary}
+          </div>
+        </div>
+
+        {/* Card 5: Active Traders */}
+        <div className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${
+          isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#181c2b] border-[#252c40] text-gray-200'
+        }`}>
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400">
+            <span className="text-[10px] sm:text-xs">Active Traders</span>
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400 shrink-0" />
+          </div>
+          <div className="text-lg sm:text-2xl font-black mt-1 mono-num text-sky-400">
             {overview?.totalActiveUsers || 0}
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Platform registered accounts</div>
+          <div className="text-[9px] sm:text-[10px] text-gray-400 mt-0.5 truncate">Platform accounts</div>
         </div>
 
-        <div className={`p-3.5 rounded-2xl border ${
+        {/* Card 6: KYC Verified Traders */}
+        <div className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${
           isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#181c2b] border-[#252c40] text-gray-200'
         }`}>
           <div className="flex items-center justify-between text-xs font-bold text-gray-400">
-            <span>KYC Verified Traders</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span className="text-[10px] sm:text-xs">KYC Verified</span>
+            <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black mt-1 mono-num text-emerald-400">
+          <div className="text-lg sm:text-2xl font-black mt-1 mono-num text-emerald-400">
             {overview?.verifiedUsersCount || 0}
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Identity approved</div>
+          <div className="text-[9px] sm:text-[10px] text-gray-400 mt-0.5 truncate">Identity approved</div>
         </div>
       </div>
 
       {/* Tabs Navigation - Mobile Horizontally Scrollable */}
-      <div className={`border-b px-4 sm:px-6 flex space-x-2 sm:space-x-6 overflow-x-auto scrollbar-none flex-nowrap ${
+      <div className={`border-b px-3 sm:px-6 flex space-x-1.5 sm:space-x-4 overflow-x-auto scrollbar-none flex-nowrap ${
         isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#131724] border-[#222838]'
       }`}>
-        <button
-          onClick={() => setActiveTab('CASHIER')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
-            activeTab === 'CASHIER'
-              ? 'border-sky-500 text-sky-400'
-              : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Cashier Queue</span>
-          {pendingCount > 0 && (
-            <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
-              {pendingCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('TRADERS')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
-            activeTab === 'TRADERS'
-              ? 'border-sky-500 text-sky-400'
-              : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Traders & KYC</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('TRADES')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
-            activeTab === 'TRADES'
-              ? 'border-sky-500 text-sky-400'
-              : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <Activity className="w-4 h-4" />
-          <span>Live Trades Desk</span>
-          <span className="text-[9px] bg-emerald-500/15 text-emerald-400 px-1 rounded uppercase">Live</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('RISK')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
-            activeTab === 'RISK'
-              ? 'border-sky-500 text-sky-400'
-              : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>Quotex Risk Engine</span>
-          <span className="text-[9px] bg-emerald-500/15 text-emerald-400 px-1 rounded uppercase font-bold">
-            {riskSettings.enabled ? `${riskSettings.targetWinRate}%` : 'OFF'}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('MARKETS')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
-            activeTab === 'MARKETS'
-              ? 'border-sky-500 text-sky-400'
-              : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <Sliders className="w-4 h-4" />
-          <span>Payout Customizer</span>
-          <span className="text-[9px] bg-sky-500/15 text-sky-400 px-1 rounded font-bold">
-            {assets.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('AUDIT')}
-          className={`py-3 px-1 text-xs font-black uppercase tracking-wider flex items-center space-x-2 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
-            activeTab === 'AUDIT'
-              ? 'border-sky-500 text-sky-400'
-              : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Audit Log</span>
-        </button>
+        {[
+          { id: 'CASHIER', shortLabel: `Cashier (${pendingCount})`, label: 'Cashier Queue', icon: CreditCard, badge: pendingCount },
+          { id: 'TRADERS', shortLabel: `Traders (${users.length})`, label: 'Traders & KYC', icon: Users, badge: users.length },
+          { id: 'TRADES', shortLabel: 'Trades', label: 'Live Trades Desk', icon: Activity },
+          { id: 'RISK', shortLabel: 'Risk', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
+          { id: 'MARKETS', shortLabel: 'Payouts', label: 'Payout Customizer', icon: Sliders, badge: assets.length },
+          { id: 'AUDIT', shortLabel: 'Audit', label: 'Audit Log', icon: FileText },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`py-2.5 sm:py-3 px-2 sm:px-3 text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 border-b-2 whitespace-nowrap flex-shrink-0 transition ${
+                isActive
+                  ? 'border-sky-500 text-sky-400'
+                  : isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="sm:hidden">{tab.shortLabel}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
+              {tab.badge !== undefined && tab.badge !== '' && tab.badge !== 0 && (
+                <span className="hidden sm:inline-block bg-sky-500/20 text-sky-400 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Content Area */}
@@ -957,18 +1060,23 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                           </button>
                         )}
 
-                        {/* Amount */}
+                        {/* Amount - Primary INR */}
                         <div className="text-right">
-                          <div className={`text-lg font-black mono-num ${
-                            isDeposit ? 'text-emerald-400' : 'text-rose-400'
-                          }`}>
-                            {isDeposit ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}
-                          </div>
-                          {tx.amountUSD && tx.currency !== 'USD' && (
-                            <div className="text-[10px] text-gray-400 font-mono">
-                              ≈ ${tx.amountUSD.toFixed(2)} USD
-                            </div>
-                          )}
+                          {(() => {
+                            const amtFmt = formatTxnAmount(tx.amount, tx.currency);
+                            return (
+                              <>
+                                <div className={`text-base sm:text-lg font-black mono-num ${
+                                  isDeposit ? 'text-emerald-400' : 'text-rose-400'
+                                }`}>
+                                  {isDeposit ? '+' : '-'}{amtFmt.primary}
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-mono">
+                                  ({amtFmt.secondary})
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
 
                         {/* Approve & Reject Buttons */}
@@ -1107,18 +1215,32 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                       <div className={`mt-3 p-2.5 rounded-xl border grid grid-cols-2 gap-2 text-xs ${
                         isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10131f] border-[#20273a]'
                       }`}>
-                        <div>
-                          <span className="text-[10px] text-gray-400 block">Live Real Balance</span>
-                          <span className="font-black text-sm mono-num text-emerald-400">
-                            {formatCurrency(u.realBalance, u.currency)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-gray-400 block">Demo Balance</span>
-                          <span className="font-bold text-xs mono-num text-gray-300">
-                            {formatCurrency(u.demoBalance, u.currency)}
-                          </span>
-                        </div>
+                        {(() => {
+                          const realFmt = formatUserBal(u.realBalance, u.currency);
+                          const demoFmt = formatUserBal(u.demoBalance, u.currency);
+                          return (
+                            <>
+                              <div>
+                                <span className="text-[10px] text-gray-400 block font-bold">Live Real Balance</span>
+                                <div className="font-black text-sm mono-num text-emerald-400 mt-0.5">
+                                  {realFmt.primary}
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-mono">
+                                  ({realFmt.secondary})
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-gray-400 block font-bold">Demo Practice</span>
+                                <div className="font-bold text-xs mono-num text-amber-400 mt-0.5">
+                                  {demoFmt.primary}
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-mono">
+                                  ({demoFmt.secondary})
+                                </div>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -2292,7 +2414,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     <span>Live Real Account Balance</span>
                   </label>
                   <span className="text-[10px] text-gray-400 font-mono">
-                    Current: {formatCurrency(selectedUserForBalance.realBalance, selectedUserForBalance.currency)}
+                    Current: {formatUserBal(selectedUserForBalance.realBalance, selectedUserForBalance.currency).primary}
                   </span>
                 </div>
 
@@ -2366,7 +2488,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     <span>Demo Practice Balance</span>
                   </label>
                   <span className="text-[10px] text-gray-400 font-mono">
-                    Current: {formatCurrency(selectedUserForBalance.demoBalance, selectedUserForBalance.currency)}
+                    Current: {formatUserBal(selectedUserForBalance.demoBalance, selectedUserForBalance.currency).primary}
                   </span>
                 </div>
 

@@ -83,6 +83,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Global Admin Display Currency: Primary is strictly INR, next only USD
+  const [displayCurrency, setDisplayCurrency] = useState<'INR' | 'USD'>('INR');
+  const INR_RATE = 95.0;
+
+  const formatMoney = (amountUSD: number, showSecondary = true) => {
+    const safeUSD = amountUSD || 0;
+    const inrVal = safeUSD * INR_RATE;
+    const inrStr = `₹${inrVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const usdStr = `$${safeUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (displayCurrency === 'INR') {
+      return { primary: inrStr, secondary: showSecondary ? `${usdStr} USD` : undefined };
+    } else {
+      return { primary: usdStr, secondary: showSecondary ? `${inrStr} INR` : undefined };
+    }
+  };
+
+  const formatTxnAmount = (amount: number, curr?: string) => {
+    const c = (curr || 'INR').toUpperCase();
+    const safeAmt = amount || 0;
+    const inrVal = c === 'USD' ? safeAmt * INR_RATE : safeAmt;
+    const usdVal = c === 'USD' ? safeAmt : safeAmt / INR_RATE;
+    const inrStr = `₹${inrVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const usdStr = `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (displayCurrency === 'INR') {
+      return { primary: inrStr, secondary: usdStr };
+    } else {
+      return { primary: usdStr, secondary: inrStr };
+    }
+  };
+
+  const formatUserBal = (amount: number, userCurr?: string) => {
+    const c = (userCurr || 'INR').toUpperCase();
+    const safeAmt = amount || 0;
+    const inrVal = c === 'USD' ? safeAmt * INR_RATE : safeAmt;
+    const usdVal = c === 'USD' ? safeAmt : safeAmt / INR_RATE;
+    const inrStr = `₹${inrVal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const usdStr = `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (displayCurrency === 'INR') {
+      return { primary: inrStr, secondary: usdStr };
+    } else {
+      return { primary: usdStr, secondary: inrStr };
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('forexgrow_auth_token');
+      await fetch(apiUrl('/api/auth/logout'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+    } catch {}
+    localStorage.removeItem('quotex_admin_user');
+    localStorage.removeItem('forexgrow_auth_token');
+    window.history.pushState({}, '', '/admin');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   // New Trader Account Creation State
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [newUserName, setNewUserName] = useState('');
@@ -596,168 +655,249 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       isLight ? 'bg-[#f4f6f9] text-slate-800' : 'bg-[#0e121b] text-gray-100'
     }`}>
       {/* Top Admin Navigation Bar */}
-      <header className={`h-16 border-b px-6 flex items-center justify-between transition-colors ${
+      <header className={`border-b transition-colors px-3 sm:px-6 py-2.5 sm:py-0 min-h-[56px] sm:h-16 flex flex-col sm:flex-row justify-between sm:items-center gap-2 ${
         isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
       }`}>
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center text-black font-black shadow-lg shadow-amber-500/20">
-            <ShieldAlert className="w-5 h-5 text-black" />
+        {/* Top Row: Brand & Mobile Quick Action Icons */}
+        <div className="flex items-center justify-between w-full sm:w-auto">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center text-black font-black shadow-lg shadow-amber-500/20 shrink-0">
+              <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
+            </div>
+            <div>
+              <div className={`text-xs sm:text-sm font-black tracking-wide flex items-center space-x-1.5 ${
+                isLight ? 'text-slate-900' : 'text-white'
+              }`}>
+                <span className="sm:hidden">ADMIN CENTER</span>
+                <span className="hidden sm:inline">FOREX GROW BROKER ADMIN</span>
+                <span className="text-[8px] sm:text-[9px] font-black uppercase bg-amber-500/20 text-amber-500 px-1 sm:px-1.5 py-0.2 rounded border border-amber-500/30">
+                  ROOT
+                </span>
+              </div>
+              <div className={`text-[9px] sm:text-[10px] truncate max-w-[210px] sm:max-w-none ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                <span className="sm:hidden">Master Backoffice & Payouts</span>
+                <span className="hidden sm:inline">Forex Grow Master Backoffice, User Management & Payout Controller</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <div className={`text-sm font-black tracking-wide flex items-center space-x-2 ${
-              isLight ? 'text-slate-900' : 'text-white'
+
+          {/* Mobile Utility Icons */}
+          <div className="flex items-center space-x-1 sm:hidden">
+            {/* Currency Pill for Mobile */}
+            <div className={`flex items-center p-0.5 rounded-lg border text-[10px] font-black ${
+              isLight ? 'bg-slate-100 border-slate-300' : 'bg-[#121622] border-[#283248]'
             }`}>
-              <span>FOREX GROW BROKER ADMIN CENTER</span>
-              <span className="text-[9px] font-black uppercase bg-amber-500/20 text-amber-500 px-1.5 py-0.2 rounded border border-amber-500/30">
-                ROOT ACCESS
-              </span>
+              <button
+                onClick={() => setDisplayCurrency('INR')}
+                className={`px-1.5 py-0.5 rounded transition ${
+                  displayCurrency === 'INR' ? 'bg-emerald-500 text-black font-black shadow-sm' : 'text-gray-400'
+                }`}
+                title="Primary Currency INR"
+              >
+                ₹ INR
+              </button>
+              <button
+                onClick={() => setDisplayCurrency('USD')}
+                className={`px-1.5 py-0.5 rounded transition ${
+                  displayCurrency === 'USD' ? 'bg-emerald-500 text-black font-black shadow-sm' : 'text-gray-400'
+                }`}
+                title="Secondary Currency USD"
+              >
+                $ USD
+              </button>
             </div>
-            <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-              Forex Grow Master Backoffice, User Management & Payout Controller
-            </div>
+
+            <button
+              onClick={toggleTheme}
+              className={`p-1.5 rounded-lg transition ${
+                isLight ? 'text-slate-600 hover:bg-slate-100' : 'text-gray-400 hover:bg-white/5'
+              }`}
+            >
+              {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-sky-500" />}
+            </button>
+
+            <button
+              onClick={fetchAdminData}
+              className={`p-1.5 rounded-lg transition ${
+                isLight ? 'text-slate-600 hover:bg-slate-100' : 'text-gray-400 hover:bg-white/5'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-emerald-500' : ''}`} />
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
+              title="Logout"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
-          {/* Theme Toggle in Admin */}
-          <button
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className={`p-2 rounded-xl transition ${
-              isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
-            ) : (
-              <Moon className="w-4 h-4 text-sky-500" />
-            )}
-          </button>
-
-          <button
-            onClick={fetchAdminData}
-            title="Refresh Data"
-            className={`p-2 rounded-xl transition ${
-              isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-500' : ''}`} />
-          </button>
-          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>System Active</span>
+        {/* Right Desktop Controls / Mobile Secondary Bar */}
+        <div className="flex items-center justify-between sm:justify-end space-x-2 sm:space-x-3 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-[#262c3e]/30">
+          {/* Desktop Currency Switcher Pill: INR is Default */}
+          <div className={`hidden sm:flex items-center p-1 rounded-xl border text-xs font-black ${
+            isLight ? 'bg-slate-100 border-slate-300' : 'bg-[#121622] border-[#283248]'
+          }`}>
+            <span className="text-[10px] text-gray-400 px-2 uppercase font-bold">Currency:</span>
+            <button
+              onClick={() => setDisplayCurrency('INR')}
+              className={`px-2.5 py-1 rounded-lg transition font-mono ${
+                displayCurrency === 'INR' ? 'bg-emerald-500 text-black shadow-sm font-black' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              ₹ INR (Primary)
+            </button>
+            <button
+              onClick={() => setDisplayCurrency('USD')}
+              className={`px-2.5 py-1 rounded-lg transition font-mono ${
+                displayCurrency === 'USD' ? 'bg-emerald-500 text-black shadow-sm font-black' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              $ USD
+            </button>
           </div>
 
           <button
             onClick={() => window.open('/', '_blank')}
             title="Open Live Trading Floor in New Tab"
-            className="flex items-center space-x-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition shadow-sm"
           >
             <TrendingUp className="w-3.5 h-3.5" />
             <span>Live Floor</span>
           </button>
 
-          <button
-            onClick={async () => {
-              try {
-                const token = localStorage.getItem('forexgrow_auth_token');
-                await fetch(apiUrl('/api/auth/logout'), {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token }),
-                });
-              } catch {}
-              localStorage.removeItem('quotex_admin_user');
-              localStorage.removeItem('forexgrow_auth_token');
-              window.history.pushState({}, '', '/admin');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
-            title="Log Out of Admin Portal"
-            className="flex items-center space-x-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl text-xs font-bold transition"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
-          </button>
+          <div className="hidden sm:flex bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs font-bold px-3 py-1.5 rounded-xl items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>System Active</span>
+          </div>
+
+          <div className="hidden sm:flex items-center space-x-2">
+            <button
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              className={`p-2 rounded-xl transition ${
+                isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-sky-500" />}
+            </button>
+
+            <button
+              onClick={fetchAdminData}
+              title="Refresh Data"
+              className={`p-2 rounded-xl transition ${
+                isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-500' : ''}`} />
+            </button>
+
+            <button
+              onClick={handleLogout}
+              title="Log Out of Admin Portal"
+              className="flex items-center space-x-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl text-xs font-bold transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Admin KPI Top Highlights */}
+      {/* Admin KPI Top Highlights - Responsive INR Primary View */}
       {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 p-6 pb-2">
-          <div className={`border rounded-2xl p-4 shadow-sm transition-colors ${
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 p-3 sm:p-6 pb-2">
+          {/* 1. Total Traders */}
+          <div className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
           }`}>
-            <div className={`text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Total Traders</div>
-            <div className={`text-2xl font-black mono-num mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>{overview.totalUsers}</div>
-            <div className="text-[10px] text-emerald-500 font-bold mt-0.5">
+            <div className={`text-[10px] sm:text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Total Traders</div>
+            <div className={`text-lg sm:text-2xl font-black mono-num mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>{overview.totalUsers}</div>
+            <div className="text-[9px] sm:text-[10px] text-emerald-500 font-bold mt-0.5 truncate">
               {overview.activeTradersCount} Active Accounts
             </div>
           </div>
 
-          <div className={`border rounded-2xl p-4 shadow-sm transition-colors ${
+          {/* 2. Platform Volume */}
+          <div className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
           }`}>
-            <div className={`text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Platform Volume</div>
-            <div className={`text-2xl font-black mono-num mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-              ${overview.totalVolumeUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <div className={`text-[10px] sm:text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Platform Volume</div>
+            <div className={`text-base sm:text-2xl font-black mono-num mt-1 truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              {formatMoney(overview.totalVolumeUSD).primary}
             </div>
-            <div className={`text-[10px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Real order flow</div>
+            <div className={`text-[9px] sm:text-[10px] mt-0.5 truncate ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+              {formatMoney(overview.totalVolumeUSD).secondary}
+            </div>
           </div>
 
-          <div className={`border rounded-2xl p-4 shadow-sm transition-colors ${
+          {/* 3. Total Deposits */}
+          <div className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
           }`}>
-            <div className={`text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Total Deposits</div>
-            <div className="text-2xl font-black text-emerald-500 mono-num mt-1">
-              ${overview.totalDepositsUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <div className={`text-[10px] sm:text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Total Deposits</div>
+            <div className="text-base sm:text-2xl font-black text-emerald-500 mono-num mt-1 truncate">
+              {formatMoney(overview.totalDepositsUSD).primary}
             </div>
-            <div className={`text-[10px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>UPI & Fiat Pool</div>
+            <div className={`text-[9px] sm:text-[10px] mt-0.5 truncate ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+              {formatMoney(overview.totalDepositsUSD).secondary}
+            </div>
           </div>
 
-          <div className={`border rounded-2xl p-4 shadow-sm transition-colors ${
+          {/* 4. Total Withdrawals */}
+          <div className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
           }`}>
-            <div className={`text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Total Withdrawals</div>
-            <div className="text-2xl font-black text-rose-500 mono-num mt-1">
-              ${overview.totalWithdrawalsUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <div className={`text-[10px] sm:text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Total Withdrawals</div>
+            <div className="text-base sm:text-2xl font-black text-rose-500 mono-num mt-1 truncate">
+              {formatMoney(overview.totalWithdrawalsUSD).primary}
             </div>
-            <div className={`text-[10px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Released to clients</div>
+            <div className={`text-[9px] sm:text-[10px] mt-0.5 truncate ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+              {formatMoney(overview.totalWithdrawalsUSD).secondary}
+            </div>
           </div>
 
-          <div className={`border rounded-2xl p-4 shadow-sm transition-colors ${
+          {/* 5. House Net P&L */}
+          <div className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
           }`}>
-            <div className={`text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>House Net P&L</div>
-            <div className="text-2xl font-black text-amber-500 mono-num mt-1">
-              +${overview.houseNetProfitUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <div className={`text-[10px] sm:text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>House Net P&L</div>
+            <div className="text-base sm:text-2xl font-black text-amber-500 mono-num mt-1 truncate">
+              {overview.houseNetProfitUSD >= 0 ? '+' : ''}{formatMoney(overview.houseNetProfitUSD).primary}
             </div>
-            <div className="text-[10px] text-emerald-500 font-bold mt-0.5">Profitable Spread</div>
+            <div className="text-[9px] sm:text-[10px] text-emerald-500 font-bold mt-0.5 truncate">
+              {formatMoney(overview.houseNetProfitUSD).secondary}
+            </div>
           </div>
 
-          <div className={`border rounded-2xl p-4 shadow-sm transition-colors ${
+          {/* 6. Pending Cashier */}
+          <div className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
           }`}>
-            <div className={`text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Pending Cashier</div>
-            <div className={`text-2xl font-black mono-num mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+            <div className={`text-[10px] sm:text-[11px] font-semibold uppercase ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Pending Cashier</div>
+            <div className={`text-lg sm:text-2xl font-black mono-num mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {overview.pendingTransactionsCount}
             </div>
-            <div className="text-[10px] text-amber-500 font-bold mt-0.5">Requires Approval</div>
+            <div className="text-[9px] sm:text-[10px] text-amber-500 font-bold mt-0.5 truncate">Requires Approval</div>
           </div>
         </div>
       )}
 
-      {/* Admin Tabs - Mobile Horizontally Scrollable */}
-      <div className={`flex space-x-2 px-4 sm:px-6 pt-3 border-b overflow-x-auto scrollbar-none flex-nowrap ${
+      {/* Admin Tabs - Mobile Horizontally Scrollable with short labels */}
+      <div className={`flex space-x-1.5 sm:space-x-2 px-3 sm:px-6 pt-2 sm:pt-3 border-b overflow-x-auto scrollbar-none flex-nowrap ${
         isLight ? 'border-slate-200' : 'border-[#262c3e]'
       }`}>
         {[
-          { id: 'OVERVIEW', label: 'Platform Summary', icon: TrendingUp },
-          { id: 'USERS', label: 'Traders & Balances', icon: Users, badge: users.length },
-          { id: 'CASHFLOW', label: 'Cashflow & Date Analytics', icon: BarChart3 },
-          { id: 'PAYMENTS', label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
-          { id: 'RISK', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
-          { id: 'COUPONS', label: 'Special Promo Coupons', icon: Tag, badge: coupons.length },
-          { id: 'MARKETS', label: 'Asset Payout Customizer', icon: Sliders, badge: assets.length },
+          { id: 'OVERVIEW', shortLabel: 'Summary', label: 'Platform Summary', icon: TrendingUp },
+          { id: 'USERS', shortLabel: `Traders (${users.length})`, label: 'Traders & Balances', icon: Users, badge: users.length },
+          { id: 'CASHFLOW', shortLabel: 'Cashflow', label: 'Cashflow & Date Analytics', icon: BarChart3 },
+          { id: 'PAYMENTS', shortLabel: `Cashier (${overview?.pendingTransactionsCount || 0})`, label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
+          { id: 'RISK', shortLabel: 'Risk Engine', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
+          { id: 'COUPONS', shortLabel: 'Coupons', label: 'Special Promo Coupons', icon: Tag, badge: coupons.length },
+          { id: 'MARKETS', shortLabel: 'Payouts', label: 'Asset Payout Customizer', icon: Sliders, badge: assets.length },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -765,16 +905,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center space-x-2 px-3.5 sm:px-4 py-2.5 rounded-t-xl text-xs font-bold transition border-b-2 whitespace-nowrap flex-shrink-0 ${
+              className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl text-[11px] sm:text-xs font-bold transition border-b-2 whitespace-nowrap flex-shrink-0 ${
                 isActive
                   ? `border-emerald-500 text-emerald-500 ${isLight ? 'bg-white' : 'bg-[#161a26]'}`
                   : (isLight ? 'border-transparent text-slate-500 hover:text-slate-900' : 'border-transparent text-gray-400 hover:text-white')
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="sm:hidden">{tab.shortLabel}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
               {tab.badge !== undefined && tab.badge !== '' && tab.badge !== 0 && (
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                <span className={`hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                   isActive
                     ? 'bg-emerald-500 text-black'
                     : (isLight ? 'bg-slate-200 text-slate-700' : 'bg-[#222838] text-gray-300')
@@ -890,67 +1031,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     {transactions
                       .filter((t) => t.status === 'PENDING')
                       .slice(0, 3)
-                      .map((tx) => (
-                        <div
-                          key={tx.id}
-                          className={`p-3 border rounded-2xl flex items-center justify-between transition-colors ${
-                            isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
-                          }`}
-                        >
-                          <div className="space-y-0.5">
-                            <div className="text-xs font-bold flex items-center space-x-1.5">
-                              <span className={isLight ? 'text-slate-900' : 'text-white'}>{tx.userName}</span>
-                              <span className={`text-[10px] px-1.5 rounded font-black ${
-                                tx.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
-                              }`}>
-                                {tx.type}
-                              </span>
-                              {tx.utrNumber && (
-                                <span className="text-[10px] bg-sky-500/15 text-sky-500 border border-sky-500/30 px-1 rounded font-mono">
-                                  UTR: {tx.utrNumber}
+                      .map((tx) => {
+                        const amtFmt = formatTxnAmount(tx.amount, tx.currency);
+                        return (
+                          <div
+                            key={tx.id}
+                            className={`p-3.5 border rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
+                            }`}
+                          >
+                            <div className="space-y-1 min-w-0">
+                              <div className="text-xs font-bold flex flex-wrap items-center gap-1.5">
+                                <span className={isLight ? 'text-slate-900' : 'text-white'}>{tx.userName}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                                  tx.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                                }`}>
+                                  {tx.type}
                                 </span>
-                              )}
-                            </div>
-                            <div className={`text-[11px] font-mono flex items-center space-x-2 ${
-                              isLight ? 'text-slate-500' : 'text-gray-400'
-                            }`}>
-                              <span>{formatCurrency(tx.amount, (tx.currency as any) || 'USD')} • {tx.method}</span>
-                              {tx.proofImage && (
-                                <button
-                                  onClick={() => setPreviewProofUrl(tx.proofImage || null)}
-                                  className="text-xs text-sky-500 hover:text-sky-600 underline font-semibold flex items-center space-x-0.5"
-                                >
-                                  <Eye className="w-3 h-3" />
-                                  <span>View Slip</span>
-                                </button>
-                              )}
-                            </div>
-                            {tx.bankDetails && (
-                              <div className="text-[10px] font-mono text-amber-500">
-                                {tx.bankDetails.upiId ? (
-                                  <span>UPI: {tx.bankDetails.upiId}</span>
-                                ) : (
-                                  <span>{tx.bankDetails.bankName} - A/C: {tx.bankDetails.accountNumber} ({tx.bankDetails.ifscCode})</span>
+                                {tx.utrNumber && (
+                                  <span className="text-[10px] bg-sky-500/15 text-sky-400 border border-sky-500/30 px-1.5 py-0.2 rounded font-mono">
+                                    UTR: {tx.utrNumber}
+                                  </span>
                                 )}
                               </div>
-                            )}
+                              <div className={`text-xs font-mono flex flex-wrap items-center gap-2 ${
+                                isLight ? 'text-slate-600' : 'text-gray-300'
+                              }`}>
+                                <span className="font-black text-emerald-400">{amtFmt.primary}</span>
+                                <span className="text-[10px] text-gray-400">({amtFmt.secondary})</span>
+                                <span className="text-gray-400">• {tx.method}</span>
+                                {tx.proofImage && (
+                                  <button
+                                    onClick={() => setPreviewProofUrl(tx.proofImage || null)}
+                                    className="text-xs text-sky-400 hover:text-sky-300 underline font-semibold flex items-center space-x-0.5"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>Proof Slip</span>
+                                  </button>
+                                )}
+                              </div>
+                              {tx.bankDetails && (
+                                <div className="text-[10px] font-mono text-amber-400">
+                                  {tx.bankDetails.upiId ? (
+                                    <span>UPI: {tx.bankDetails.upiId}</span>
+                                  ) : (
+                                    <span>{tx.bankDetails.bankName} - A/C: {tx.bankDetails.accountNumber} ({tx.bankDetails.ifscCode})</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 pt-1 sm:pt-0 border-t sm:border-t-0 border-[#262c3e]/30">
+                              <button
+                                onClick={() => handleApprovePayment(tx.id)}
+                                className="flex-1 sm:flex-none px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-xs font-black transition shadow-sm text-center"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleRejectPayment(tx.id)}
+                                className="flex-1 sm:flex-none px-3.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition text-center"
+                              >
+                                Reject
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => handleApprovePayment(tx.id)}
-                              className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition shadow-sm"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleRejectPayment(tx.id)}
-                              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-500 rounded-lg text-xs font-bold transition"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     {transactions.filter((t) => t.status === 'PENDING').length === 0 && (
                       <div className={`text-xs text-center py-8 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>
                         No pending transactions requiring manual review!
@@ -1004,11 +1150,113 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               </div>
             </div>
 
-            {/* Users Table */}
-            <div className={`border rounded-3xl overflow-hidden shadow-xl transition-colors ${
+            {/* Mobile Responsive Trader Cards */}
+            <div className="grid grid-cols-1 gap-3 lg:hidden">
+              {filteredUsers.map((u) => {
+                const realFmt = formatUserBal(u.realBalance, u.currency);
+                const demoFmt = formatUserBal(u.demoBalance, u.currency);
+                return (
+                  <div
+                    key={u.id}
+                    className={`p-4 rounded-2xl border transition shadow-sm space-y-3 ${
+                      isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]'
+                    }`}
+                  >
+                    {/* Top: Name, VIP & Status */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className={`font-black text-sm flex items-center space-x-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          <span>{u.name}</span>
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-black ${
+                            u.vipLevel === 'VIP'
+                              ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                              : u.vipLevel === 'PRO'
+                              ? 'bg-purple-500/20 text-purple-500 border border-purple-500/30'
+                              : 'bg-slate-500/20 text-gray-400'
+                          }`}>
+                            {u.vipLevel}
+                          </span>
+                        </div>
+                        <div className={`text-[11px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                          {u.email} {u.phone ? `• ${u.phone}` : ''}
+                        </div>
+                        <div className="text-[10px] font-mono text-gray-500">ID: {u.id}</div>
+                      </div>
+                      <div className="flex items-center space-x-1 shrink-0">
+                        {u.isKycVerified ? (
+                          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold border border-emerald-500/20">
+                            KYC ✓
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded font-bold border border-amber-500/20">
+                            KYC ?
+                          </span>
+                        )}
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                          u.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                        }`}>
+                          {u.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Middle: Balances Grid (Primary INR) */}
+                    <div className={`grid grid-cols-2 gap-2 p-2.5 rounded-xl border ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#202738]'
+                    }`}>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block">Real Live Balance</span>
+                        <div className="text-base font-black text-emerald-400 mono-num mt-0.5">
+                          {realFmt.primary}
+                        </div>
+                        <div className="text-[9px] text-gray-500 font-mono">
+                          ({realFmt.secondary})
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block">Practice Demo</span>
+                        <div className="text-base font-black text-amber-400 mono-num mt-0.5">
+                          {demoFmt.primary}
+                        </div>
+                        <div className="text-[9px] text-gray-500 font-mono">
+                          ({demoFmt.secondary})
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div className="flex items-center space-x-2 pt-1">
+                      <button
+                        onClick={() => openDirectBalanceModal(u)}
+                        className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition shadow-sm text-center flex items-center justify-center space-x-1"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Direct Edit</span>
+                      </button>
+                      <button
+                        onClick={() => setSelectedUserForEdit(u)}
+                        className="px-3 py-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-xl text-xs font-bold transition text-center"
+                      >
+                        Level
+                      </button>
+                      <button
+                        onClick={() => handleViewUserTrades(u)}
+                        className="px-3 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition text-center"
+                      >
+                        Trades ({u.totalTrades})
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Users Table */}
+            <div className={`hidden lg:block border rounded-3xl overflow-x-auto shadow-xl transition-colors ${
               isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#161a26] border-[#262c3e]'
             }`}>
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className={`border-b uppercase font-semibold ${
                   isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-[#121620] border-[#262c3e] text-gray-400'
                 }`}>
@@ -1024,74 +1272,80 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${isLight ? 'divide-slate-100' : 'divide-[#262c3e]/60'}`}>
-                  {filteredUsers.map((u) => (
-                    <tr key={u.id} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
-                      <td className="py-3.5 px-4">
-                        <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{u.name}</div>
-                        <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{u.email}</div>
-                        <div className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>{u.id}</div>
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                          u.vipLevel === 'VIP'
-                            ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
-                            : u.vipLevel === 'PRO'
-                            ? 'bg-purple-500/20 text-purple-500 border border-purple-500/30'
-                            : (isLight ? 'bg-slate-200 text-slate-700' : 'bg-[#222838] text-gray-300')
-                        }`}>
-                          {u.vipLevel}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3">
-                        {u.isKycVerified ? (
-                          <span className="text-emerald-500 font-bold flex items-center space-x-1">
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            <span>Verified</span>
+                  {filteredUsers.map((u) => {
+                    const realFmt = formatUserBal(u.realBalance, u.currency);
+                    const demoFmt = formatUserBal(u.demoBalance, u.currency);
+                    return (
+                      <tr key={u.id} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
+                        <td className="py-3.5 px-4">
+                          <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{u.name}</div>
+                          <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{u.email}</div>
+                          <div className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>{u.id}</div>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            u.vipLevel === 'VIP'
+                              ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                              : u.vipLevel === 'PRO'
+                              ? 'bg-purple-500/20 text-purple-500 border border-purple-500/30'
+                              : (isLight ? 'bg-slate-200 text-slate-700' : 'bg-[#222838] text-gray-300')
+                          }`}>
+                            {u.vipLevel}
                           </span>
-                        ) : (
-                          <span className="text-amber-500 font-bold flex items-center space-x-1">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            <span>Pending</span>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          {u.isKycVerified ? (
+                            <span className="text-emerald-500 font-bold flex items-center space-x-1">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Verified</span>
+                            </span>
+                          ) : (
+                            <span className="text-amber-500 font-bold flex items-center space-x-1">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              <span>Pending</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-3 font-bold text-amber-400 mono-num">
+                          <div>{demoFmt.primary}</div>
+                          <div className="text-[9px] text-gray-500 font-mono">({demoFmt.secondary})</div>
+                        </td>
+                        <td className="py-3.5 px-3 font-black text-emerald-400 mono-num">
+                          <div>{realFmt.primary}</div>
+                          <div className="text-[9px] text-gray-500 font-mono">({realFmt.secondary})</div>
+                        </td>
+                        <td className={`py-3.5 px-3 font-bold mono-num ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>{u.totalTrades}</td>
+                        <td className="py-3.5 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            u.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
+                          }`}>
+                            {u.status}
                           </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-3 font-bold text-emerald-500 mono-num">
-                        {formatCurrency(u.demoBalance, (u.currency as any) || 'USD')}
-                      </td>
-                      <td className={`py-3.5 px-3 font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                        {formatCurrency(u.realBalance, (u.currency as any) || 'USD')}
-                      </td>
-                      <td className={`py-3.5 px-3 font-bold mono-num ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>{u.totalTrades}</td>
-                      <td className="py-3.5 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          u.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
-                        }`}>
-                          {u.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right space-x-2">
-                        <button
-                          onClick={() => openDirectBalanceModal(u)}
-                          className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-bold transition flex-inline items-center gap-1"
-                          title="Directly edit Real and Demo balances with 1-click presets"
-                        >
-                          Direct Edit Funds
-                        </button>
-                        <button
-                          onClick={() => setSelectedUserForEdit(u)}
-                          className="px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-500 rounded-lg text-xs font-bold transition"
-                        >
-                          Edit Level
-                        </button>
-                        <button
-                          onClick={() => handleViewUserTrades(u)}
-                          className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs font-bold transition"
-                        >
-                          Trades
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-x-2">
+                          <button
+                            onClick={() => openDirectBalanceModal(u)}
+                            className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-bold transition flex-inline items-center gap-1"
+                            title="Directly edit Real and Demo balances with 1-click presets"
+                          >
+                            Direct Edit Funds
+                          </button>
+                          <button
+                            onClick={() => setSelectedUserForEdit(u)}
+                            className="px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-500 rounded-lg text-xs font-bold transition"
+                          >
+                            Edit Level
+                          </button>
+                          <button
+                            onClick={() => handleViewUserTrades(u)}
+                            className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs font-bold transition"
+                          >
+                            Trades
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1720,10 +1974,120 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               </div>
             </div>
 
-            <div className={`border rounded-3xl overflow-hidden shadow-xl transition-colors ${
+            {/* Mobile Responsive Cashier Cards */}
+            <div className="grid grid-cols-1 gap-3 lg:hidden">
+              {filteredTransactions.map((tx) => {
+                const amtFmt = formatTxnAmount(tx.amount, tx.currency);
+                return (
+                  <div
+                    key={tx.id}
+                    className={`p-4 rounded-2xl border transition shadow-sm space-y-3 ${
+                      tx.status === 'PENDING'
+                        ? (isLight ? 'bg-amber-50/50 border-amber-300' : 'bg-[#181d2e] border-amber-500/30')
+                        : (isLight ? 'bg-white border-slate-200' : 'bg-[#161a26] border-[#262c3e]')
+                    }`}
+                  >
+                    {/* Header: User, Type, Status */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className={`font-black text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          {tx.userName}
+                        </div>
+                        <div className="text-[10px] font-mono text-gray-500">ID: {tx.id}</div>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                          tx.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                        }`}>
+                          {tx.type}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          tx.status === 'APPROVED'
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : tx.status === 'PENDING'
+                            ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                            : 'bg-rose-500/20 text-rose-400'
+                        }`}>
+                          {tx.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Amount & Method Banner */}
+                    <div className={`p-3 rounded-xl border flex items-center justify-between ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#222838]'
+                    }`}>
+                      <div>
+                        <div className="text-base font-black text-emerald-400 mono-num">
+                          {amtFmt.primary}
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-mono">
+                          ({amtFmt.secondary})
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                          {tx.method}
+                        </div>
+                        <div className="text-[10px] text-gray-500">
+                          {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Verification info: UTR or Slip */}
+                    {(tx.utrNumber || tx.proofImage || tx.bankDetails) && (
+                      <div className="space-y-1.5 text-xs">
+                        {tx.utrNumber && (
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 font-mono">
+                            <span>UTR: {tx.utrNumber}</span>
+                            <button
+                              onClick={() => handleCopy(tx.utrNumber || '', `utr-${tx.id}`)}
+                              className="text-gray-400 hover:text-white"
+                            >
+                              {copiedId === `utr-${tx.id}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        )}
+                        {tx.proofImage && (
+                          <button
+                            onClick={() => setPreviewProofUrl(tx.proofImage || null)}
+                            className="w-full py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            <span>View Payment Proof Slip</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Actions if PENDING */}
+                    {tx.status === 'PENDING' && (
+                      <div className="flex items-center space-x-2 pt-1">
+                        <button
+                          onClick={() => handleApprovePayment(tx.id)}
+                          className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition shadow-sm text-center"
+                        >
+                          Approve Payout
+                        </button>
+                        <button
+                          onClick={() => handleRejectPayment(tx.id)}
+                          className="flex-1 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition text-center"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className={`hidden lg:block border rounded-3xl overflow-x-auto shadow-xl transition-colors ${
               isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#161a26] border-[#262c3e]'
             }`}>
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className={`border-b uppercase font-semibold ${
                   isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-[#121620] border-[#262c3e] text-gray-400'
                 }`}>
@@ -1740,120 +2104,121 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${isLight ? 'divide-slate-100' : 'divide-[#262c3e]/60'}`}>
-                  {filteredTransactions.map((tx) => (
-                    <tr key={tx.id} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
-                      <td className={`py-3.5 px-4 font-mono font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>{tx.id}</td>
-                      <td className={`py-3.5 px-3 font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{tx.userName}</td>
-                      <td className="py-3.5 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                          tx.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
-                        }`}>
-                          {tx.type}
-                        </span>
-                      </td>
-                      <td className={`py-3.5 px-3 font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                        <div>{formatCurrency(tx.amount, (tx.currency as any) || 'USD')}</div>
-                        {tx.amountUSD && tx.currency !== 'USD' && (
+                  {filteredTransactions.map((tx) => {
+                    const amtFmt = formatTxnAmount(tx.amount, tx.currency);
+                    return (
+                      <tr key={tx.id} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
+                        <td className={`py-3.5 px-4 font-mono font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>{tx.id}</td>
+                        <td className={`py-3.5 px-3 font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{tx.userName}</td>
+                        <td className="py-3.5 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            tx.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
+                          }`}>
+                            {tx.type}
+                          </span>
+                        </td>
+                        <td className={`py-3.5 px-3 font-black mono-num text-emerald-400`}>
+                          <div>{amtFmt.primary}</div>
                           <div className="text-[10px] text-gray-400 font-mono font-normal">
-                            ≈ ${tx.amountUSD.toFixed(2)} USD
+                            ({amtFmt.secondary})
                           </div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <div className={`font-semibold ${isLight ? 'text-slate-800' : 'text-gray-200'}`}>{tx.method}</div>
-                        {tx.bankDetails && (
-                          <div className="text-[11px] font-mono mt-0.5 space-y-0.5">
-                            {tx.bankDetails.upiId ? (
-                              <div className="flex items-center space-x-1.5 text-sky-500">
-                                <span>UPI: {tx.bankDetails.upiId}</span>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <div className={`font-semibold ${isLight ? 'text-slate-800' : 'text-gray-200'}`}>{tx.method}</div>
+                          {tx.bankDetails && (
+                            <div className="text-[11px] font-mono mt-0.5 space-y-0.5">
+                              {tx.bankDetails.upiId ? (
+                                <div className="flex items-center space-x-1.5 text-sky-500">
+                                  <span>UPI: {tx.bankDetails.upiId}</span>
+                                  <button
+                                    onClick={() => handleCopy(tx.bankDetails?.upiId || '', `upi-${tx.id}`)}
+                                    className="text-gray-400 hover:text-white"
+                                    title="Copy UPI"
+                                  >
+                                    {copiedId === `upi-${tx.id}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className={isLight ? 'text-slate-600' : 'text-gray-300'}>
+                                  <div><span className="font-bold">A/C:</span> {tx.bankDetails.accountNumber}</div>
+                                  <div><span className="font-bold">IFSC:</span> {tx.bankDetails.ifscCode} • {tx.bankDetails.bankName}</div>
+                                  <div><span className="font-bold">Name:</span> {tx.bankDetails.holderName}</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {tx.address && <div className="text-[10px] text-gray-400 font-mono truncate max-w-[150px]">{tx.address}</div>}
+                          {tx.promoCode && <div className="text-[10px] text-amber-500 font-mono font-bold">Promo: {tx.promoCode}</div>}
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <div className="space-y-1">
+                            {tx.utrNumber ? (
+                              <div className="flex items-center space-x-1">
+                                <span className="font-mono text-[11px] font-bold bg-sky-500/10 text-sky-500 border border-sky-500/30 px-1.5 py-0.5 rounded">
+                                  UTR: {tx.utrNumber}
+                                </span>
                                 <button
-                                  onClick={() => handleCopy(tx.bankDetails?.upiId || '', `upi-${tx.id}`)}
-                                  className="text-gray-400 hover:text-white"
-                                  title="Copy UPI"
+                                  onClick={() => handleCopy(tx.utrNumber || '', `utr-${tx.id}`)}
+                                  className="p-1 text-gray-400 hover:text-sky-500 transition"
+                                  title="Copy UTR"
                                 >
-                                  {copiedId === `upi-${tx.id}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                  {copiedId === `utr-${tx.id}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                                 </button>
                               </div>
-                            ) : (
-                              <div className={isLight ? 'text-slate-600' : 'text-gray-300'}>
-                                <div><span className="font-bold">A/C:</span> {tx.bankDetails.accountNumber}</div>
-                                <div><span className="font-bold">IFSC:</span> {tx.bankDetails.ifscCode} • {tx.bankDetails.bankName}</div>
-                                <div><span className="font-bold">Name:</span> {tx.bankDetails.holderName}</div>
-                              </div>
+                            ) : null}
+
+                            {tx.proofImage ? (
+                              <button
+                                onClick={() => setPreviewProofUrl(tx.proofImage || null)}
+                                className="flex items-center space-x-1 text-xs font-bold text-emerald-500 hover:text-emerald-600 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-lg transition"
+                              >
+                                <ImageIcon className="w-3.5 h-3.5" />
+                                <span>View Slip</span>
+                              </button>
+                            ) : null}
+
+                            {!tx.utrNumber && !tx.proofImage && (
+                              <span className="text-gray-400 text-[11px]">-</span>
                             )}
                           </div>
-                        )}
-                        {tx.address && <div className="text-[10px] text-gray-400 font-mono truncate max-w-[150px]">{tx.address}</div>}
-                        {tx.promoCode && <div className="text-[10px] text-amber-500 font-mono font-bold">Promo: {tx.promoCode}</div>}
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <div className="space-y-1">
-                          {tx.utrNumber ? (
-                            <div className="flex items-center space-x-1">
-                              <span className="font-mono text-[11px] font-bold bg-sky-500/10 text-sky-500 border border-sky-500/30 px-1.5 py-0.5 rounded">
-                                UTR: {tx.utrNumber}
-                              </span>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            tx.status === 'APPROVED'
+                              ? 'bg-emerald-500/20 text-emerald-500'
+                              : tx.status === 'PENDING'
+                              ? 'bg-amber-500/20 text-amber-500'
+                              : 'bg-rose-500/20 text-rose-500'
+                          }`}>
+                            {tx.status}
+                          </span>
+                        </td>
+                        <td className={`py-3.5 px-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                          {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-x-2">
+                          {tx.status === 'PENDING' ? (
+                            <>
                               <button
-                                onClick={() => handleCopy(tx.utrNumber || '', `utr-${tx.id}`)}
-                                className="p-1 text-gray-400 hover:text-sky-500 transition"
-                                title="Copy UTR"
+                                onClick={() => handleApprovePayment(tx.id)}
+                                className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition shadow-sm"
                               >
-                                {copiedId === `utr-${tx.id}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                Approve
                               </button>
-                            </div>
-                          ) : null}
-
-                          {tx.proofImage ? (
-                            <button
-                              onClick={() => setPreviewProofUrl(tx.proofImage || null)}
-                              className="flex items-center space-x-1 text-xs font-bold text-emerald-500 hover:text-emerald-600 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-lg transition"
-                            >
-                              <ImageIcon className="w-3.5 h-3.5" />
-                              <span>View Slip</span>
-                            </button>
-                          ) : null}
-
-                          {!tx.utrNumber && !tx.proofImage && (
-                            <span className="text-gray-400 text-[11px]">-</span>
+                              <button
+                                onClick={() => handleRejectPayment(tx.id)}
+                                className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-500 rounded-lg text-xs font-bold transition"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : (
+                            <span className={`text-[11px] ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>Resolved</span>
                           )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          tx.status === 'APPROVED'
-                            ? 'bg-emerald-500/20 text-emerald-500'
-                            : tx.status === 'PENDING'
-                            ? 'bg-amber-500/20 text-amber-500'
-                            : 'bg-rose-500/20 text-rose-500'
-                        }`}>
-                          {tx.status}
-                        </span>
-                      </td>
-                      <td className={`py-3.5 px-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                        {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="py-3.5 px-4 text-right space-x-2">
-                        {tx.status === 'PENDING' ? (
-                          <>
-                            <button
-                              onClick={() => handleApprovePayment(tx.id)}
-                              className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition shadow-sm"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleRejectPayment(tx.id)}
-                              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-500 rounded-lg text-xs font-bold transition"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        ) : (
-                          <span className={`text-[11px] ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>Resolved</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -2405,7 +2770,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     <span>Live Real Account Balance</span>
                   </label>
                   <span className="text-[10px] text-gray-400 font-mono">
-                    Current: {formatCurrency(selectedUserForBalance.realBalance, (selectedUserForBalance.currency as any) || 'INR')}
+                    Current: {formatUserBal(selectedUserForBalance.realBalance, selectedUserForBalance.currency).primary}
                   </span>
                 </div>
 
@@ -2479,7 +2844,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     <span>Demo Practice Balance</span>
                   </label>
                   <span className="text-[10px] text-gray-400 font-mono">
-                    Current: {formatCurrency(selectedUserForBalance.demoBalance, (selectedUserForBalance.currency as any) || 'INR')}
+                    Current: {formatUserBal(selectedUserForBalance.demoBalance, selectedUserForBalance.currency).primary}
                   </span>
                 </div>
 
