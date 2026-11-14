@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTrading } from '../context/TradingContext';
-import { CURRENCY_CONFIGS, formatCurrency, getQuickAmountChips } from '../utils/currency';
+import { CURRENCY_CONFIGS, formatCurrency, formatUSDToCurrency, getQuickAmountChips } from '../utils/currency';
 import { ArrowUp, ArrowDown, Clock, Plus, Minus } from 'lucide-react';
 
 const DURATION_PRESETS = [
@@ -136,7 +136,7 @@ export const OrderPanel: React.FC = () => {
             <div className="flex items-center justify-between text-xs font-semibold mb-2">
               <span className={isLight ? 'text-slate-600' : 'text-gray-400'}>Investment ({curr.code})</span>
               <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                ≈ {formatCurrency(amountUSD, account.currency)}
+                ≈ {formatUSDToCurrency(amountUSD, account.currency)}
               </span>
             </div>
 
@@ -228,10 +228,10 @@ export const OrderPanel: React.FC = () => {
               <span className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Projected Return</span>
               <div className="text-right">
                 <div className={`text-lg font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  {formatCurrency(totalReturnUSD, account.currency)}
+                  {formatUSDToCurrency(totalReturnUSD, account.currency)}
                 </div>
                 <div className="text-xs font-bold text-emerald-500 mono-num">
-                  (+{formatCurrency(profitUSD, account.currency)})
+                  (+{formatUSDToCurrency(profitUSD, account.currency)})
                 </div>
               </div>
             </div>
@@ -360,7 +360,7 @@ export const OrderPanel: React.FC = () => {
               <Minus className="w-3.5 h-3.5" />
             </button>
             <span className={`text-xs sm:text-sm font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-              {formatCurrency(amountUSD, account.currency)}
+              {formatUSDToCurrency(amountUSD, account.currency)}
             </span>
             <button
               onClick={() => handleAdjustAmount(1)}
@@ -398,7 +398,7 @@ export const OrderPanel: React.FC = () => {
               </div>
             </div>
             <span className="text-[11px] font-mono font-bold bg-black/25 px-1.5 py-0.5 rounded">
-              +{formatCurrency(profitUSD, account.currency)}
+              +{formatUSDToCurrency(profitUSD, account.currency)}
             </span>
           </button>
 
@@ -415,7 +415,7 @@ export const OrderPanel: React.FC = () => {
               </div>
             </div>
             <span className="text-[11px] font-mono font-bold bg-black/25 px-1.5 py-0.5 rounded">
-              +{formatCurrency(profitUSD, account.currency)}
+              +{formatUSDToCurrency(profitUSD, account.currency)}
             </span>
           </button>
         </div>

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTrading } from '../context/TradingContext';
 import { formatCurrency } from '../utils/currency';
 import { apiUrl } from '../utils/api';
+import { ForexGrowLogo } from './ForexGrowLogo';
 import {
   AdminOverview,
   UserAccount,
@@ -66,6 +67,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     microPipSniping: true,
     applyToRealOnly: false,
   });
+  const [isRiskDirty, setIsRiskDirty] = useState(false);
+  const isRiskDirtyRef = useRef(false);
   const [isSavingRisk, setIsSavingRisk] = useState(false);
   const [riskSaveSuccess, setRiskSaveSuccess] = useState(false);
 
@@ -288,7 +291,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       if (psRes?.settings) {
         setPaymentSettings(psRes.settings);
       }
-      if (riskRes?.settings) {
+      if (riskRes?.settings && !isRiskDirtyRef.current) {
         setRiskSettings(riskRes.settings);
       }
 
@@ -304,6 +307,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     }
   };
 
+  const updateRiskSetting = (updates: Partial<RiskSettings>) => {
+    setIsRiskDirty(true);
+    isRiskDirtyRef.current = true;
+    setRiskSettings((prev) => ({ ...prev, ...updates }));
+  };
+
   const handleSaveRiskSettings = async (updates: Partial<RiskSettings>) => {
     setIsSavingRisk(true);
     try {
@@ -316,6 +325,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       const data = await res.json();
       if (data?.settings) {
         setRiskSettings(data.settings);
+        setIsRiskDirty(false);
+        isRiskDirtyRef.current = false;
         setRiskSaveSuccess(true);
         showAdminToast(`✅ Quotex Risk Engine saved! Win-rate set to ${data.settings.targetWinRate}% (${Math.round(data.settings.targetWinRate/10)} wins / ${10 - Math.round(data.settings.targetWinRate/10)} losses)`);
         setTimeout(() => setRiskSaveSuccess(false), 3000);
@@ -660,26 +671,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       }`}>
         {/* Top Row: Brand & Mobile Quick Action Icons */}
         <div className="flex items-center justify-between w-full sm:w-auto">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center text-black font-black shadow-lg shadow-amber-500/20 shrink-0">
-              <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
-            </div>
-            <div>
-              <div className={`text-xs sm:text-sm font-black tracking-wide flex items-center space-x-1.5 ${
-                isLight ? 'text-slate-900' : 'text-white'
-              }`}>
-                <span className="sm:hidden">ADMIN CENTER</span>
-                <span className="hidden sm:inline">FOREX GROW BROKER ADMIN</span>
-                <span className="text-[8px] sm:text-[9px] font-black uppercase bg-amber-500/20 text-amber-500 px-1 sm:px-1.5 py-0.2 rounded border border-amber-500/30">
-                  ROOT
-                </span>
-              </div>
-              <div className={`text-[9px] sm:text-[10px] truncate max-w-[210px] sm:max-w-none ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                <span className="sm:hidden">Master Backoffice & Payouts</span>
-                <span className="hidden sm:inline">Forex Grow Master Backoffice, User Management & Payout Controller</span>
-              </div>
-            </div>
-          </div>
+          <ForexGrowLogo
+            size="sm"
+            variant="admin"
+            badgeText="ROOT"
+            subtitle="Master Backoffice, User Management & Payout Controller"
+          />
 
           {/* Mobile Utility Icons */}
           <div className="flex items-center space-x-1 sm:hidden">
@@ -929,7 +926,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       </div>
 
       {/* Tab Panels */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-36">
         {/* ================= TAB 1: OVERVIEW ================= */}
         {activeTab === 'OVERVIEW' && (
           <div className="space-y-6">
@@ -2391,7 +2388,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       max={90}
                       step={1}
                       value={riskSettings.targetWinRate}
-                      onChange={(e) => setRiskSettings({ ...riskSettings, targetWinRate: Number(e.target.value) })}
+                      onChange={(e) => updateRiskSetting({ targetWinRate: Number(e.target.value) })}
                       className="w-full h-2.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                     />
                     <div className="flex justify-between text-[10px] text-gray-500 font-bold px-1">
@@ -2412,10 +2409,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     ].map((preset) => (
                       <button
                         key={preset.rate}
-                        onClick={() => setRiskSettings({ ...riskSettings, targetWinRate: preset.rate })}
+                        onClick={() => updateRiskSetting({ targetWinRate: preset.rate })}
                         className={`p-3 rounded-2xl border text-left transition ${
                           riskSettings.targetWinRate === preset.rate
-                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500'
                             : (isLight ? 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100' : 'border-[#262c3e] bg-[#121620] text-gray-300 hover:border-gray-500')
                         }`}
                       >
@@ -2460,7 +2457,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     ].map((item) => (
                       <div
                         key={item.mode}
-                        onClick={() => setRiskSettings({ ...riskSettings, mode: item.mode })}
+                        onClick={() => updateRiskSetting({ mode: item.mode })}
                         className={`p-4 rounded-2xl border cursor-pointer transition ${
                           riskSettings.mode === item.mode
                             ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
@@ -2498,7 +2495,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => setRiskSettings({ ...riskSettings, microPipSniping: !riskSettings.microPipSniping })}
+                      onClick={() => updateRiskSetting({ microPipSniping: !riskSettings.microPipSniping })}
                       className={`w-12 h-6 rounded-full transition-colors p-1 flex items-center ${
                         riskSettings.microPipSniping ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
                       }`}
@@ -2520,7 +2517,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => setRiskSettings({ ...riskSettings, applyToRealOnly: !riskSettings.applyToRealOnly })}
+                      onClick={() => updateRiskSetting({ applyToRealOnly: !riskSettings.applyToRealOnly })}
                       className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
                         riskSettings.applyToRealOnly
                           ? 'bg-amber-500/20 border-amber-500 text-amber-400'
@@ -2534,6 +2531,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
                 {/* Save Changes Button */}
                 <div className="pt-2 flex items-center justify-end space-x-3">
+                  {isRiskDirty && (
+                    <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg animate-pulse flex items-center space-x-1">
+                      <span>⚠️ Unsaved changes ({riskSettings.targetWinRate}%)</span>
+                    </span>
+                  )}
                   {riskSaveSuccess && (
                     <span className="text-xs font-bold text-emerald-400 flex items-center space-x-1 animate-in fade-in">
                       <Check className="w-4 h-4" />
@@ -2543,10 +2545,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   <button
                     onClick={() => handleSaveRiskSettings(riskSettings)}
                     disabled={isSavingRisk}
-                    className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center space-x-2"
+                    className={`px-6 py-3 font-black text-xs rounded-xl shadow-lg transition flex items-center space-x-2 ${
+                      isRiskDirty
+                        ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 ring-2 ring-emerald-400 shadow-emerald-500/30 animate-pulse'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                    }`}
                   >
                     <Save className="w-4 h-4" />
-                    <span>{isSavingRisk ? 'Saving Algorithm...' : 'Save & Deploy Risk Settings'}</span>
+                    <span>{isSavingRisk ? 'Saving Algorithm...' : isRiskDirty ? 'Save & Deploy Changes Now' : 'Save & Deploy Risk Settings'}</span>
                   </button>
                 </div>
               </div>

@@ -305,14 +305,14 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
   const numericWithdraw = Number(withdrawAmountInput) || 0;
   const withdrawAmountUSD = numericWithdraw / curr.rateAgainstUSD;
-  const realBalanceLocal = Number((account.realBalance * curr.rateAgainstUSD).toFixed(2));
+  const realBalanceLocal = account.realBalance;
 
   const handleSubmitWithdrawal = async () => {
     if (numericWithdraw <= 0) {
       setWithdrawError('Please enter a valid withdrawal amount');
       return;
     }
-    if (account.realBalance < withdrawAmountUSD) {
+    if (account.realBalance < numericWithdraw) {
       setWithdrawError(`Insufficient Real Live Balance. You have ${formatCurrency(account.realBalance, account.currency)} available to withdraw.`);
       return;
     }
@@ -984,7 +984,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   </div>
                   <div className="flex justify-between">
                     <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Amount Deducted:</span>
-                    <span className="font-extrabold">{formatCurrency(withdrawAmountUSD, account.currency)}</span>
+                    <span className="font-extrabold">{formatCurrency(numericWithdraw, account.currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Payout Destination:</span>
@@ -1195,7 +1195,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 )}
 
                 {/* Balance warning if insufficient */}
-                {account.realBalance < withdrawAmountUSD && (
+                {account.realBalance < numericWithdraw && (
                   <div className="text-[11px] text-center text-amber-500 font-bold bg-amber-500/10 py-2 px-3 rounded-xl border border-amber-500/20">
                     ⚠️ Insufficient Real Balance ({formatCurrency(account.realBalance, account.currency)} available). Switch to Real Account or lower the withdrawal amount.
                   </div>
@@ -1250,7 +1250,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 </div>
                 <button
                   type="button"
-                  disabled={isSubmittingWithdraw || numericWithdraw <= 0 || account.realBalance < withdrawAmountUSD}
+                  disabled={isSubmittingWithdraw || numericWithdraw <= 0 || account.realBalance < numericWithdraw}
                   onClick={handleSubmitWithdrawal}
                   className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black py-3 sm:py-3.5 px-6 rounded-2xl shadow-xl shadow-emerald-500/20 transition transform active:scale-[0.99] flex items-center justify-center space-x-2 text-xs sm:text-sm"
                 >

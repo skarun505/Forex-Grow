@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Theme } from '../types';
 import { apiUrl } from '../utils/api';
+import { ForexGrowLogo } from './ForexGrowLogo';
 import { 
   Lock, 
   Mail, 
@@ -174,38 +175,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
         isLight ? 'border-slate-200' : 'border-white/5'
       }`}>
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigateTo(mode === 'ADMIN' ? '/admin' : mode === 'MANAGER' ? '/manager' : '/')}>
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg font-black text-sm text-slate-950 ${
-            mode === 'ADMIN' 
-              ? 'bg-gradient-to-tr from-purple-500 to-indigo-400 shadow-purple-500/25' 
-              : mode === 'MANAGER' 
-              ? 'bg-gradient-to-tr from-sky-400 to-emerald-400 shadow-sky-500/25' 
-              : 'bg-gradient-to-tr from-emerald-500 via-teal-400 to-emerald-600 shadow-emerald-500/25'
-          }`}>
-            FG
-          </div>
-          <div>
-            <div className={`text-lg sm:text-xl font-black tracking-wider flex items-center space-x-2 ${
-              isLight ? 'text-slate-900' : 'text-white'
-            }`}>
-              <span>FOREX GROW</span>
-              <span className={`text-[10px] sm:text-xs px-1.5 py-0.5 rounded-lg font-bold border ${
-                mode === 'ADMIN' 
-                  ? 'bg-purple-500/15 border-purple-500/30 text-purple-400' 
-                  : mode === 'MANAGER' 
-                  ? 'bg-sky-500/15 border-sky-500/30 text-sky-400' 
-                  : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
-              }`}>
-                {mode === 'ADMIN' ? 'MASTER ADMIN' : mode === 'MANAGER' ? 'OPERATIONS DESK' : 'PRO TERMINAL'}
-              </span>
-            </div>
-            <p className={`text-[10px] tracking-wider uppercase font-semibold hidden sm:block ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-              {mode === 'ADMIN' 
-                ? 'Liquidity Controller & Master Administration' 
-                : mode === 'MANAGER' 
-                ? 'Cashier Settlements & Operations Desk' 
-                : 'Institutional Binary Options & Multi-Asset Execution'}
-            </p>
-          </div>
+          <ForexGrowLogo
+            size="md"
+            variant={mode === 'ADMIN' ? 'admin' : mode === 'MANAGER' ? 'manager' : 'trader'}
+            badgeText={mode === 'ADMIN' ? 'MASTER ADMIN' : mode === 'MANAGER' ? 'OPERATIONS DESK' : 'PRO TERMINAL'}
+            subtitle={
+              mode === 'ADMIN'
+                ? 'Liquidity Controller & Master Administration'
+                : mode === 'MANAGER'
+                ? 'Cashier Settlements & Operations Desk'
+                : 'Institutional Binary Options & Multi-Asset Execution'
+            }
+          />
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-3">

@@ -95,27 +95,48 @@ export interface ActiveSession {
   lastSeen: number;
 }
 
-// Rule: Maximum 2 TRADERS can login at the same time. If a 3rd TRADER logs in, auto logout rest traders.
+// Rule: Account-Based Device Concurrency for Traders.
+// Multiple different trader accounts can access and trade on the platform simultaneously.
+// For each individual trader account, a maximum of 2 devices / sessions are permitted concurrently.
+// If a 3rd device / session signs into that same trader account, previous sessions for that account are auto-logged out.
 // Admin and Manager sessions are completely INDEPENDENT and unconstrained.
-const MAX_CONCURRENT_TRADERS = 2;
+const MAX_DEVICES_PER_TRADER_ACCOUNT = 2;
 
-// In-memory active authenticated TRADERS: userId -> ActiveSession
-const activeTraderSessions = new Map<string, ActiveSession>();
+// In-memory active authenticated TRADER sessions: userId -> Map<token, ActiveSession>
+const traderAccountSessions = new Map<string, Map<string, ActiveSession>>();
 // In-memory active administrative staff (Admin & Manager)
 const activeStaffSessions = new Map<string, ActiveSession>();
 
+// Helper to count total active trader devices
+function getTotalActiveTraderDevices(): number {
+  let count = 0;
+  for (const sessMap of traderAccountSessions.values()) {
+    count += sessMap.size;
+  }
+  return count;
+}
+
 // ================= USER AUTHENTICATION ENDPOINTS =================
 app.get('/api/auth/concurrency-status', (_req, res) => {
+  const allTraderSessions: any[] = [];
+  for (const sessMap of traderAccountSessions.values()) {
+    for (const s of sessMap.values()) {
+      allTraderSessions.push({
+        userId: s.userId,
+        userName: s.userName,
+        role: s.role,
+        loginTime: s.loginTime,
+      });
+    }
+  }
+
   res.json({
-    maxTraderLimit: MAX_CONCURRENT_TRADERS,
-    activeTraderCount: activeTraderSessions.size,
+    maxDevicesPerAccount: MAX_DEVICES_PER_TRADER_ACCOUNT,
+    activeTraderAccountsCount: traderAccountSessions.size,
+    totalActiveTraderDevices: allTraderSessions.length,
+    activeTraderCount: traderAccountSessions.size,
     activeStaffCount: activeStaffSessions.size,
-    traderSessions: Array.from(activeTraderSessions.values()).map(s => ({
-      userId: s.userId,
-      userName: s.userName,
-      role: s.role,
-      loginTime: s.loginTime,
-    })),
+    traderSessions: allTraderSessions,
     staffSessions: Array.from(activeStaffSessions.values()).map(s => ({
       userId: s.userId,
       userName: s.userName,
@@ -131,23 +152,28 @@ app.post('/api/auth/logout', (req, res) => {
   let wasTrader = false;
 
   if (userId) {
-    if (activeTraderSessions.has(userId)) {
-      activeTraderSessions.delete(userId);
+    if (traderAccountSessions.has(userId)) {
+      traderAccountSessions.delete(userId);
       wasTrader = true;
     }
     if (activeStaffSessions.has(userId)) {
       activeStaffSessions.delete(userId);
     }
   } else if (token) {
-    for (const [uid, sess] of activeTraderSessions.entries()) {
-      if (sess.token === token) {
-        activeTraderSessions.delete(uid);
+    for (const [uid, sessMap] of traderAccountSessions.entries()) {
+      if (sessMap.has(token)) {
+        sessMap.delete(token);
+        if (sessMap.size === 0) {
+          traderAccountSessions.delete(uid);
+        }
         wasTrader = true;
+        break;
       }
     }
     for (const [uid, sess] of activeStaffSessions.entries()) {
       if (sess.token === token) {
         activeStaffSessions.delete(uid);
+        break;
       }
     }
   }
@@ -155,15 +181,16 @@ app.post('/api/auth/logout', (req, res) => {
   if (wasTrader) {
     broadcast({
       type: 'SESSION_CONCURRENCY_UPDATE',
-      activeCount: activeTraderSessions.size,
-      maxLimit: MAX_CONCURRENT_TRADERS,
+      activeCount: getTotalActiveTraderDevices(),
+      maxLimit: MAX_DEVICES_PER_TRADER_ACCOUNT,
       targetRole: 'TRADER',
     });
   }
 
   res.json({
     success: true,
-    activeTraderCount: activeTraderSessions.size,
+    activeTraderAccountsCount: traderAccountSessions.size,
+    totalActiveTraderDevices: getTotalActiveTraderDevices(),
     activeStaffCount: activeStaffSessions.size,
   });
 });
@@ -243,34 +270,42 @@ app.post('/api/auth/login', (req, res) => {
       success: true,
       user: safeUser,
       token: sessionToken,
-      activeTraderSessionsCount: activeTraderSessions.size,
-      maxTraderLimit: MAX_CONCURRENT_TRADERS,
+      activeTraderAccountsCount: traderAccountSessions.size,
+      maxDevicesPerAccount: MAX_DEVICES_PER_TRADER_ACCOUNT,
       role: userRole,
     });
   }
 
-  // ================= 2-TRADER CONCURRENT LOGIN VALIDATION =================
-  // Rule: Only 2 TRADERS can login at the same time. If a 3rd trader logs in, auto logout previous traders!
-  // Both Admin and Manager panels remain completely independent and uninterrupted.
-  const isAlreadyActive = activeTraderSessions.has(found.id);
+  // ================= PER-ACCOUNT 2-DEVICE CONCURRENCY VALIDATION =================
+  // Rule: Multiple different trader accounts can be logged in concurrently without restrictions.
+  // BUT for any SINGLE trader account, a maximum of 2 devices / sessions are permitted simultaneously.
+  // If a 3rd device signs into that SAME trader account, previous sessions for THAT account are auto-logged out!
+  // Admin and Manager panels remain completely independent and uninterrupted.
+  let accountSessions = traderAccountSessions.get(found.id);
+  if (!accountSessions) {
+    accountSessions = new Map<string, ActiveSession>();
+    traderAccountSessions.set(found.id, accountSessions);
+  }
 
-  if (!isAlreadyActive && activeTraderSessions.size >= MAX_CONCURRENT_TRADERS) {
-    console.log(`[AUTH] 3rd trader login initiated by "${found.name}" (${found.id}). Active traders were ${activeTraderSessions.size}/${MAX_CONCURRENT_TRADERS}. Auto-logging out previous traders only.`);
+  if (accountSessions.size >= MAX_DEVICES_PER_TRADER_ACCOUNT) {
+    console.log(`[AUTH] 3rd device login for trader account "${found.name}" (${found.id}). Devices were ${accountSessions.size}/${MAX_DEVICES_PER_TRADER_ACCOUNT}. Auto-logging out previous sessions for this account.`);
 
-    // 1. Broadcast immediate FORCE_LOGOUT strictly to TRADERS over WebSocket
+    // 1. Broadcast immediate FORCE_LOGOUT strictly to other sessions of THIS specific trader account
     broadcast({
       type: 'FORCE_LOGOUT',
       targetRole: 'TRADER',
-      reason: 'Trader session limit (max 2 active traders) reached. A 3rd trader signed in, automatically terminating previous trader sessions.',
+      targetUserId: found.id,
+      exceptToken: sessionToken,
+      reason: `Account device limit (max 2 devices) reached for ${found.name}. A new device signed in, terminating previous sessions.`,
       activeCount: 1,
     });
 
-    // 2. Invalidate all previous active TRADER sessions only
-    activeTraderSessions.clear();
+    // 2. Invalidate previous active sessions for THIS account only
+    accountSessions.clear();
   }
 
-  // 3. Register the new active session for this trader
-  activeTraderSessions.set(found.id, {
+  // 3. Register the new active device session for this trader
+  accountSessions.set(sessionToken, {
     token: sessionToken,
     userId: found.id,
     userName: found.name,
@@ -282,9 +317,10 @@ app.post('/api/auth/login', (req, res) => {
   // 4. Broadcast updated trader concurrency count
   broadcast({
     type: 'SESSION_CONCURRENCY_UPDATE',
-    activeCount: activeTraderSessions.size,
-    maxLimit: MAX_CONCURRENT_TRADERS,
+    activeCount: getTotalActiveTraderDevices(),
+    maxLimit: MAX_DEVICES_PER_TRADER_ACCOUNT,
     targetRole: 'TRADER',
+    targetUserId: found.id,
   });
 
   settlementEngine.setCurrentUserId(found.id);
@@ -303,10 +339,10 @@ app.post('/api/auth/login', (req, res) => {
     success: true,
     user: safeUser,
     token: sessionToken,
-    activeSessionsCount: activeTraderSessions.size,
-    activeTraderSessionsCount: activeTraderSessions.size,
-    maxLimit: MAX_CONCURRENT_TRADERS,
-    maxTraderLimit: MAX_CONCURRENT_TRADERS,
+    activeDevicesForAccount: accountSessions.size,
+    maxDevicesPerAccount: MAX_DEVICES_PER_TRADER_ACCOUNT,
+    totalActiveTraderDevices: getTotalActiveTraderDevices(),
+    activeTraderAccountsCount: traderAccountSessions.size,
     role: 'TRADER',
   });
 });

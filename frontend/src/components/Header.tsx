@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTrading } from '../context/TradingContext';
 import { CURRENCY_CONFIGS, formatCurrency } from '../utils/currency';
 import { apiUrl } from '../utils/api';
+import { ForexGrowLogo } from './ForexGrowLogo';
 import { 
   ChevronDown, 
   RefreshCw, 
@@ -98,23 +99,11 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Brand & Asset Pill */}
       <div className="flex items-center space-x-2 sm:space-x-5">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-slate-950 font-black text-xs sm:text-sm">
-            FG
-          </div>
-          <div className="hidden xs:block">
-            <div className={`font-black text-sm sm:text-base tracking-wide flex items-center space-x-1.5 ${
-              isLight ? 'text-slate-900' : 'text-white'
-            }`}>
-              <span>FOREX GROW</span>
-              <span className="text-[8px] sm:text-[9px] font-black uppercase bg-emerald-500/15 text-emerald-500 px-1 rounded border border-emerald-500/30">
-                PRO
-              </span>
-            </div>
-            <div className="hidden sm:flex items-center space-x-1.5 text-[10px] text-gray-400">
-              <span className={`inline-block w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-              <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>{isConnected ? 'Live Market' : 'Connecting...'}</span>
-            </div>
-          </div>
+          <ForexGrowLogo
+            size="sm"
+            variant="trader"
+            subtitle={isConnected ? 'Live Market' : 'Connecting...'}
+          />
         </div>
 
         {/* Selected Asset Button */}

@@ -81,8 +81,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     name: 'Alex Rivera',
     email: 'alex.rivera@quotex.pro',
     demoBalance: 10000.0,
-    realBalance: 500.0,
-    activeAccountType: 'DEMO',
+    realBalance: 10000.0,
+    activeAccountType: 'REAL',
     currency: getSessionCurrency(),
     vipLevel: 'VIP',
     isKycVerified: true,
@@ -480,7 +480,31 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
               } catch {}
 
-              const reason = action.reason || 'Trader session limit reached (max 2 active traders). A 3rd trader logged in, terminating previous sessions.';
+              // Account-specific device validation: check if this logout targets our account
+              if (action.targetUserId) {
+                try {
+                  const storedTraderStr = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+                  if (storedTraderStr) {
+                    const parsed = JSON.parse(storedTraderStr);
+                    if (parsed.id && parsed.id !== action.targetUserId) {
+                      // Different trader account! Do NOT logout!
+                      break;
+                    }
+                  }
+                } catch {}
+              }
+
+              // If this device is the one that just signed in, ignore the eviction
+              if (action.exceptToken) {
+                try {
+                  const currentToken = localStorage.getItem('forexgrow_auth_token');
+                  if (currentToken && currentToken === action.exceptToken) {
+                    break;
+                  }
+                } catch {}
+              }
+
+              const reason = action.reason || 'Account device limit (max 2 devices) reached. A new device signed in, terminating previous sessions.';
               showNotification(`⚠️ ${reason}`);
               try {
                 sessionStorage.setItem('quotex_forced_logout_reason', reason);

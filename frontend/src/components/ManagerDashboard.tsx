@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTrading } from '../context/TradingContext';
 import { apiUrl } from '../utils/api';
+import { ForexGrowLogo } from './ForexGrowLogo';
 import {
   UserAccount,
   Transaction,
@@ -71,6 +72,8 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     microPipSniping: true,
     applyToRealOnly: false,
   });
+  const [isRiskDirty, setIsRiskDirty] = useState(false);
+  const isRiskDirtyRef = useRef(false);
   const [isSavingRisk, setIsSavingRisk] = useState(false);
   const [riskSaveSuccess, setRiskSaveSuccess] = useState(false);
   const [overview, setOverview] = useState<ManagerOverview | null>(null);
@@ -335,7 +338,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
       if (psRes?.settings) {
         setPaymentSettings(psRes.settings);
       }
-      if (riskRes?.settings) {
+      if (riskRes?.settings && !isRiskDirtyRef.current) {
         setRiskSettings(riskRes.settings);
       }
     } catch (e) {
@@ -343,6 +346,12 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const updateRiskSetting = (updates: Partial<RiskSettings>) => {
+    setIsRiskDirty(true);
+    isRiskDirtyRef.current = true;
+    setRiskSettings((prev) => ({ ...prev, ...updates }));
   };
 
   const handleSaveRiskSettings = async (updates: Partial<RiskSettings>) => {
@@ -357,6 +366,8 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
       const data = await res.json();
       if (data?.settings) {
         setRiskSettings(data.settings);
+        setIsRiskDirty(false);
+        isRiskDirtyRef.current = false;
         setRiskSaveSuccess(true);
         showManagerToast(`✅ Quotex Risk Engine saved! Win-rate set to ${data.settings.targetWinRate}% (${Math.round(data.settings.targetWinRate / 10)} wins / ${10 - Math.round(data.settings.targetWinRate / 10)} losses)`);
         setTimeout(() => setRiskSaveSuccess(false), 3000);
@@ -591,7 +602,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
   const pendingCount = (overview?.pendingDeposits || 0) + (overview?.pendingWithdrawals || 0);
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans select-none transition-colors duration-200 ${
+    <div className={`fixed inset-0 z-40 flex flex-col overflow-hidden font-sans select-none transition-colors duration-200 ${
       isLight ? 'bg-slate-50 text-slate-800' : 'bg-[#0f121d] text-gray-100'
     }`}>
       {/* Top Header */}
@@ -600,26 +611,12 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
       }`}>
         {/* Top Row: Brand & Mobile Quick Action Icons */}
         <div className="flex items-center justify-between w-full sm:w-auto">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center font-black text-white shadow-lg shadow-sky-500/20 text-xs sm:text-sm shrink-0">
-              MGR
-            </div>
-            <div>
-              <div className="flex items-center space-x-1.5">
-                <h1 className={`text-xs sm:text-base font-black tracking-wide ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  <span className="sm:hidden">MGR DESK</span>
-                  <span className="hidden sm:inline">FOREX GROW</span>
-                </h1>
-                <span className="text-[8px] sm:text-[10px] font-black uppercase bg-sky-500/15 text-sky-400 px-1.5 sm:px-2 py-0.5 rounded-full border border-sky-500/30">
-                  Operations Desk
-                </span>
-              </div>
-              <p className={`text-[9px] sm:text-xs truncate max-w-[200px] sm:max-w-none ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                <span className="sm:hidden">Cashier & KYC Desk</span>
-                <span className="hidden sm:inline">Cashier settlements, KYC verification & live trading desk</span>
-              </p>
-            </div>
-          </div>
+          <ForexGrowLogo
+            size="sm"
+            variant="manager"
+            badgeText="OPERATIONS"
+            subtitle="Cashier settlements, KYC verification & live trading desk"
+          />
 
           {/* Mobile Utility Icons */}
           <div className="flex items-center space-x-1 sm:hidden">
@@ -865,7 +862,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-36">
         {/* ================= TAB 1: CASHIER QUEUE ================= */}
         {activeTab === 'CASHIER' && (
           <div className="space-y-4">
@@ -1589,7 +1586,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                       max={90}
                       step={1}
                       value={riskSettings.targetWinRate}
-                      onChange={(e) => setRiskSettings({ ...riskSettings, targetWinRate: Number(e.target.value) })}
+                      onChange={(e) => updateRiskSetting({ targetWinRate: Number(e.target.value) })}
                       className="w-full h-2.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
                     />
                     <div className="flex justify-between text-[10px] text-gray-500 font-bold px-1">
@@ -1610,10 +1607,10 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     ].map((preset) => (
                       <button
                         key={preset.rate}
-                        onClick={() => setRiskSettings({ ...riskSettings, targetWinRate: preset.rate })}
+                        onClick={() => updateRiskSetting({ targetWinRate: preset.rate })}
                         className={`p-3 rounded-2xl border text-left transition ${
                           riskSettings.targetWinRate === preset.rate
-                            ? 'border-sky-500 bg-sky-500/10 text-sky-400'
+                            ? 'border-sky-500 bg-sky-500/10 text-sky-400 ring-1 ring-sky-500'
                             : (isLight ? 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100' : 'border-[#262c3e] bg-[#121620] text-gray-300 hover:border-gray-500')
                         }`}
                       >
@@ -1658,7 +1655,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     ].map((item) => (
                       <div
                         key={item.mode}
-                        onClick={() => setRiskSettings({ ...riskSettings, mode: item.mode })}
+                        onClick={() => updateRiskSetting({ mode: item.mode })}
                         className={`p-4 rounded-2xl border cursor-pointer transition ${
                           riskSettings.mode === item.mode
                             ? 'border-sky-500 bg-sky-500/10 ring-1 ring-sky-500'
@@ -1696,7 +1693,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                       </p>
                     </div>
                     <button
-                      onClick={() => setRiskSettings({ ...riskSettings, microPipSniping: !riskSettings.microPipSniping })}
+                      onClick={() => updateRiskSetting({ microPipSniping: !riskSettings.microPipSniping })}
                       className={`w-12 h-6 rounded-full transition-colors p-1 flex items-center ${
                         riskSettings.microPipSniping ? 'bg-sky-500 justify-end' : 'bg-slate-700 justify-start'
                       }`}
@@ -1718,7 +1715,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                       </p>
                     </div>
                     <button
-                      onClick={() => setRiskSettings({ ...riskSettings, applyToRealOnly: !riskSettings.applyToRealOnly })}
+                      onClick={() => updateRiskSetting({ applyToRealOnly: !riskSettings.applyToRealOnly })}
                       className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
                         riskSettings.applyToRealOnly
                           ? 'bg-amber-500/20 border-amber-500 text-amber-400'
@@ -1732,6 +1729,11 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
                 {/* Save Changes Button */}
                 <div className="pt-2 flex items-center justify-end space-x-3">
+                  {isRiskDirty && (
+                    <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg animate-pulse flex items-center space-x-1">
+                      <span>⚠️ Unsaved changes ({riskSettings.targetWinRate}%)</span>
+                    </span>
+                  )}
                   {riskSaveSuccess && (
                     <span className="text-xs font-bold text-sky-400 flex items-center space-x-1 animate-in fade-in">
                       <Check className="w-4 h-4" />
@@ -1741,10 +1743,14 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                   <button
                     onClick={() => handleSaveRiskSettings(riskSettings)}
                     disabled={isSavingRisk}
-                    className="px-6 py-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center space-x-2"
+                    className={`px-6 py-3 font-black text-xs rounded-xl shadow-lg transition flex items-center space-x-2 ${
+                      isRiskDirty
+                        ? 'bg-gradient-to-r from-sky-400 to-emerald-400 text-slate-950 ring-2 ring-sky-400 shadow-sky-500/30 animate-pulse'
+                        : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-sky-500/20'
+                    }`}
                   >
                     <Save className="w-4 h-4" />
-                    <span>{isSavingRisk ? 'Saving Algorithm...' : 'Save & Deploy Risk Settings'}</span>
+                    <span>{isSavingRisk ? 'Saving Algorithm...' : isRiskDirty ? 'Save & Deploy Changes Now' : 'Save & Deploy Risk Settings'}</span>
                   </button>
                 </div>
               </div>

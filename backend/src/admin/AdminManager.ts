@@ -68,6 +68,19 @@ export class AdminManager extends EventEmitter {
       const dbUsers = await SupabaseDb.loadUsers();
       if (dbUsers.length > 0) {
         for (const u of dbUsers) {
+          // Normalize primary currency to INR as requested
+          if (u.id === 'usr_quotex_vip_99') {
+            u.currency = 'INR';
+            if (u.realBalance > 500000) u.realBalance = 10000.00;
+            if (u.demoBalance > 500000) u.demoBalance = 10000.00;
+            u.activeAccountType = 'REAL';
+            await SupabaseDb.saveUser(u);
+          } else if (u.id === 'usr_manager_ops_01') {
+            u.currency = 'INR';
+            if (u.realBalance > 500000) u.realBalance = 100000.00;
+            if (u.demoBalance > 500000) u.demoBalance = 10000.00;
+            await SupabaseDb.saveUser(u);
+          }
           this.users.set(u.id, u);
         }
       } else {
@@ -112,7 +125,7 @@ export class AdminManager extends EventEmitter {
     };
     this.users.set(superAdmin.id, superAdmin);
 
-    // Primary Demo VIP Trader
+    // Primary VIP Trader
     const primaryUser: UserAccount = {
       id: 'usr_quotex_vip_99',
       name: 'Alex Rivera',
@@ -121,8 +134,8 @@ export class AdminManager extends EventEmitter {
       password: 'forexgrow123',
       role: 'ADMIN',
       demoBalance: 10000.00,
-      realBalance: 500.00,
-      activeAccountType: 'DEMO',
+      realBalance: 10000.00,
+      activeAccountType: 'REAL',
       currency: 'INR',
       vipLevel: 'VIP',
       isKycVerified: true,
@@ -142,9 +155,9 @@ export class AdminManager extends EventEmitter {
       password: 'manager123',
       role: 'MANAGER',
       demoBalance: 10000.00,
-      realBalance: 0.00,
-      activeAccountType: 'DEMO',
-      currency: 'USD',
+      realBalance: 100000.00,
+      activeAccountType: 'REAL',
+      currency: 'INR',
       vipLevel: 'PRO',
       isKycVerified: true,
       status: 'ACTIVE',
