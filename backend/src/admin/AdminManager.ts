@@ -445,7 +445,7 @@ export class AdminManager extends EventEmitter {
 
   public updateUser(
     userId: string,
-    updates: Partial<Pick<UserAccount, 'name' | 'vipLevel' | 'isKycVerified' | 'status' | 'currency'>>
+    updates: Partial<Pick<UserAccount, 'name' | 'vipLevel' | 'isKycVerified' | 'status' | 'currency' | 'realBalance' | 'demoBalance'>>
   ): { success: boolean; user?: UserAccount; error?: string } {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
@@ -455,6 +455,8 @@ export class AdminManager extends EventEmitter {
     if (updates.isKycVerified !== undefined) user.isKycVerified = updates.isKycVerified;
     if (updates.status !== undefined) user.status = updates.status;
     if (updates.currency !== undefined) user.currency = updates.currency;
+    if (updates.realBalance !== undefined) user.realBalance = updates.realBalance;
+    if (updates.demoBalance !== undefined) user.demoBalance = updates.demoBalance;
 
     this.emit('user_updated', user);
     SupabaseDb.saveUser(user);

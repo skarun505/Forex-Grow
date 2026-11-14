@@ -83,7 +83,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [newUserPhone, setNewUserPhone] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('Trader@2026');
   const [createdSlip, setCreatedSlip] = useState<any | null>(null);
-  const [newUserCurrency, setNewUserCurrency] = useState<string>('USD');
+  const [newUserCurrency, setNewUserCurrency] = useState<string>('INR');
   const [newUserAccountType, setNewUserAccountType] = useState<'DEMO' | 'REAL'>('DEMO');
   const [newUserDemoBal, setNewUserDemoBal] = useState<number>(10000);
   const [newUserRealBal, setNewUserRealBal] = useState<number>(0);
@@ -95,9 +95,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<UserAccount | null>(null);
   const [balanceAction, setBalanceAction] = useState<'ADD' | 'REMOVE'>('ADD');
   const [balanceAccountType, setBalanceAccountType] = useState<'DEMO' | 'REAL'>('REAL');
-  const [adjustAmount, setAdjustAmount] = useState<number>(100);
+  const [adjustAmount, setAdjustAmount] = useState<number>(1000);
   const [adjustReason, setAdjustReason] = useState<string>('Admin VIP Bonus');
-  const [adjustCurrency, setAdjustCurrency] = useState<string>('USD');
+  const [adjustInputCurrency, setAdjustInputCurrency] = useState<'INR' | 'USD'>('INR');
+  const [targetAccountCurrency, setTargetAccountCurrency] = useState<'INR' | 'USD'>('INR');
 
   // User Edit Modal State
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserAccount | null>(null);
@@ -265,7 +266,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           accountType: balanceAccountType,
           action: balanceAction,
           amount: adjustAmount,
-          currency: adjustCurrency,
+          inputCurrency: adjustInputCurrency,
+          currency: targetAccountCurrency,
           reason: adjustReason,
         }),
       });
@@ -952,8 +954,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                         <button
                           onClick={() => {
                             setSelectedUserForBalance(u);
-                            setAdjustCurrency(u.currency || 'USD');
-                            setAdjustAmount(100);
+                            setAdjustInputCurrency('INR');
+                            setTargetAccountCurrency(u.currency === 'USD' ? 'USD' : 'INR');
+                            setAdjustAmount(1000);
+                            setBalanceAction('ADD');
+                            setBalanceAccountType('REAL');
+                            setAdjustReason('Admin VIP Bonus');
                           }}
                           className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500 rounded-lg text-xs font-bold transition"
                         >
@@ -1653,142 +1659,309 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       </div>
 
       {/* ================= MODAL: ADJUST USER BALANCE ================= */}
-      {selectedUserForBalance && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-4 transition-colors ${
-            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
-          }`}>
-            <h3 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Adjust Trader Balance</h3>
-            <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-              Account: <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{selectedUserForBalance.name}</span> ({selectedUserForBalance.id})
-            </p>
+      {selectedUserForBalance && (() => {
+        const USD_INR_RATE = 95.0;
+        const enteredAmt = Math.max(0, Number(adjustAmount) || 0);
 
-            <div className="space-y-3">
-              <div>
-                <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Target Balance</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setBalanceAccountType('REAL')}
-                    className={`py-2 text-xs font-bold rounded-xl border transition ${
-                      balanceAccountType === 'REAL'
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500'
-                        : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
+        // Auto-calculated amount that will reflect on the trader's account
+        let previewAmount = enteredAmt;
+        if (adjustInputCurrency === 'USD' && targetAccountCurrency === 'INR') {
+          previewAmount = Number((enteredAmt * USD_INR_RATE).toFixed(2));
+        } else if (adjustInputCurrency === 'INR' && targetAccountCurrency === 'USD') {
+          previewAmount = Number((enteredAmt / USD_INR_RATE).toFixed(2));
+        }
+
+        const crossEquivalent = adjustInputCurrency === 'INR'
+          ? `$${(enteredAmt / USD_INR_RATE).toFixed(2)} USD`
+          : `₹${(enteredAmt * USD_INR_RATE).toLocaleString('en-IN', { maximumFractionDigits: 2 })} INR`;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-4 transition-colors max-h-[92vh] overflow-y-auto ${
+              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-500/20">
+                <div>
+                  <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Adjust Trader Balance</h3>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Account: <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{selectedUserForBalance.name}</span> ({selectedUserForBalance.id})
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedUserForBalance(null)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-500/20 text-gray-400 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3.5">
+                {/* 1. Target Balance Selector */}
+                <div>
+                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Target Account</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBalanceAccountType('REAL')}
+                      className={`py-2 px-3 text-xs font-bold rounded-xl border text-left transition ${
+                        balanceAccountType === 'REAL'
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 shadow-sm'
+                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
+                      }`}
+                    >
+                      <div className="text-[10px] uppercase font-bold text-gray-400">Live Real</div>
+                      <div className="text-sm font-black mono-num">
+                        {formatCurrency(selectedUserForBalance.realBalance, (selectedUserForBalance.currency as any) || 'INR')}
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBalanceAccountType('DEMO')}
+                      className={`py-2 px-3 text-xs font-bold rounded-xl border text-left transition ${
+                        balanceAccountType === 'DEMO'
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 shadow-sm'
+                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
+                      }`}
+                    >
+                      <div className="text-[10px] uppercase font-bold text-gray-400">Demo Practice</div>
+                      <div className="text-sm font-black mono-num">
+                        {formatCurrency(selectedUserForBalance.demoBalance, (selectedUserForBalance.currency as any) || 'INR')}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Action: Credit vs Debit */}
+                <div>
+                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Action</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBalanceAction('ADD')}
+                      className={`py-2 text-xs font-black rounded-xl border transition ${
+                        balanceAction === 'ADD'
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-sm'
+                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
+                      }`}
+                    >
+                      + Credit Funds
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBalanceAction('REMOVE')}
+                      className={`py-2 text-xs font-black rounded-xl border transition ${
+                        balanceAction === 'REMOVE'
+                          ? 'border-rose-500 bg-rose-500/20 text-rose-400 shadow-sm'
+                          : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
+                      }`}
+                    >
+                      - Debit Funds
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Account Currency (Strictly INR or USD, default INR) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      Trader Account Currency
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-400">Default: INR</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTargetAccountCurrency('INR')}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                        targetAccountCurrency === 'INR'
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500'
+                          : (isLight ? 'border-slate-300 bg-slate-50 text-slate-700' : 'border-[#2e354b] bg-[#121620] text-gray-400')
+                      }`}
+                    >
+                      <span className="text-sm">🇮🇳</span>
+                      <span>INR (₹ - Indian Rupee)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTargetAccountCurrency('USD')}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                        targetAccountCurrency === 'USD'
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500'
+                          : (isLight ? 'border-slate-300 bg-slate-50 text-slate-700' : 'border-[#2e354b] bg-[#121620] text-gray-400')
+                      }`}
+                    >
+                      <span className="text-sm">🇺🇸</span>
+                      <span>USD ($ - US Dollar)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Fund Adjustment Input Currency (INR vs USD) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      Choose Deposit / Input Currency
+                    </label>
+                    <span className="text-[10px] text-gray-400">Auto-converts to trader currency</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-black/30 border border-gray-700/50">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (adjustInputCurrency !== 'INR') {
+                          setAdjustInputCurrency('INR');
+                          setAdjustAmount(adjustAmount >= 10 ? Math.round(adjustAmount * USD_INR_RATE) : 1000);
+                        }
+                      }}
+                      className={`py-2 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 ${
+                        adjustInputCurrency === 'INR'
+                          ? 'bg-emerald-500 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🇮🇳</span>
+                      <span>INR (₹) - Default</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (adjustInputCurrency !== 'USD') {
+                          setAdjustInputCurrency('USD');
+                          setAdjustAmount(adjustAmount >= 95 ? Math.round(adjustAmount / USD_INR_RATE) : 10);
+                        }
+                      }}
+                      className={`py-2 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 ${
+                        adjustInputCurrency === 'USD'
+                          ? 'bg-emerald-500 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🇺🇸</span>
+                      <span>USD ($)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 5. Amount Input & Quick Chips */}
+                <div>
+                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                    Amount in {adjustInputCurrency === 'INR' ? 'INR (₹)' : 'USD ($)'}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-base">
+                      {adjustInputCurrency === 'INR' ? '₹' : '$'}
+                    </span>
+                    <input
+                      type="number"
+                      value={adjustAmount}
+                      onChange={(e) => setAdjustAmount(Math.max(1, Number(e.target.value)))}
+                      className={`w-full border rounded-2xl pl-9 pr-4 py-2.5 text-base font-black focus:outline-none transition ${
+                        isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Quick Chips */}
+                  <div className="grid grid-cols-5 gap-1.5 mt-2">
+                    {adjustInputCurrency === 'INR' ? (
+                      [500, 1000, 2500, 5000, 10000].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setAdjustAmount(val)}
+                          className={`py-1 text-[11px] font-bold rounded-lg border transition ${
+                            adjustAmount === val
+                              ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
+                              : (isLight ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400 hover:text-white')
+                          }`}
+                        >
+                          +{val >= 1000 ? `${val / 1000}k` : val}
+                        </button>
+                      ))
+                    ) : (
+                      [10, 25, 50, 100, 250].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setAdjustAmount(val)}
+                          className={`py-1 text-[11px] font-bold rounded-lg border transition ${
+                            adjustAmount === val
+                              ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
+                              : (isLight ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-[#2e354b] bg-[#121620] text-gray-400 hover:text-white')
+                          }`}
+                        >
+                          +${val}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 6. Live Cross-Currency Calculation & Reflection Card */}
+                <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400 font-medium">Input Value:</span>
+                    <span className="font-bold text-white font-mono">
+                      {adjustInputCurrency === 'INR' ? `₹${enteredAmt.toLocaleString()}` : `$${enteredAmt.toLocaleString()}`} {adjustInputCurrency}
+                      <span className="text-gray-400 font-normal ml-1">≈ {crossEquivalent}</span>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-2 border-t border-emerald-500/20">
+                    <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                      <span>👉</span> Will reflect on trader account:
+                    </span>
+                    <span className="font-black text-sm font-mono text-emerald-300">
+                      {balanceAction === 'ADD' ? '+' : '-'}
+                      {targetAccountCurrency === 'INR' ? '₹' : '$'}
+                      {previewAmount.toLocaleString()} {targetAccountCurrency}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-gray-400 pt-0.5">
+                    <span>Forex Grow Exchange Peg:</span>
+                    <span className="font-bold text-gray-300 font-mono">1 USD = ₹95.00 INR (Nov 2026 Rate)</span>
+                  </div>
+                </div>
+
+                {/* 7. Audit Reason */}
+                <div>
+                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Audit Reason</label>
+                  <input
+                    type="text"
+                    value={adjustReason}
+                    onChange={(e) => setAdjustReason(e.target.value)}
+                    placeholder="e.g. Deposit manual top-up, VIP reward"
+                    className={`w-full border rounded-xl px-4 py-2 text-xs focus:outline-none transition ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400' : 'bg-[#121620] border-[#2e354b] text-white'
                     }`}
-                  >
-                    Live Real ({formatCurrency(selectedUserForBalance.realBalance, (selectedUserForBalance.currency as any) || 'USD')})
-                  </button>
-                  <button
-                    onClick={() => setBalanceAccountType('DEMO')}
-                    className={`py-2 text-xs font-bold rounded-xl border transition ${
-                      balanceAccountType === 'DEMO'
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500'
-                        : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
-                    }`}
-                  >
-                    Demo Practice ({formatCurrency(selectedUserForBalance.demoBalance, (selectedUserForBalance.currency as any) || 'USD')})
-                  </button>
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Action</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setBalanceAction('ADD')}
-                    className={`py-2 text-xs font-bold rounded-xl border transition ${
-                      balanceAction === 'ADD'
-                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-500'
-                        : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
-                    }`}
-                  >
-                    + Credit Funds
-                  </button>
-                  <button
-                    onClick={() => setBalanceAction('REMOVE')}
-                    className={`py-2 text-xs font-bold rounded-xl border transition ${
-                      balanceAction === 'REMOVE'
-                        ? 'border-rose-500 bg-rose-500/20 text-rose-500'
-                        : (isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#2e354b] text-gray-400')
-                    }`}
-                  >
-                    - Debit Funds
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                  Account Currency (Forex Grow Nov 2026 Rate)
-                </label>
-                <select
-                  value={adjustCurrency}
-                  onChange={(e) => setAdjustCurrency(e.target.value)}
-                  className={`w-full border rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none transition ${
-                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+              {/* 8. Action Buttons */}
+              <div className="flex space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForBalance(null)}
+                  className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition border ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
                   }`}
                 >
-                  <option value="INR">🇮🇳 INR - Indian Rupee (₹95.00 / USD)</option>
-                  <option value="USD">🇺🇸 USD - US Dollar ($1.00)</option>
-                  <option value="EUR">🇪🇺 EUR - Euro (€0.95 / USD)</option>
-                  <option value="GBP">🇬🇧 GBP - British Pound (£0.80 / USD)</option>
-                  <option value="BRL">🇧🇷 BRL - Brazilian Real (R$6.10 / USD)</option>
-                  <option value="AED">🇦🇪 AED - UAE Dirham (AED 3.67 / USD)</option>
-                  <option value="JPY">🇯🇵 JPY - Japanese Yen (¥158.00 / USD)</option>
-                  <option value="IDR">🇮🇩 IDR - Indonesian Rupiah (Rp 16,500 / USD)</option>
-                  <option value="CAD">🇨🇦 CAD - Canadian Dollar (C$1.42 / USD)</option>
-                  <option value="AUD">🇦🇺 AUD - Australian Dollar (A$1.56 / USD)</option>
-                  <option value="TRY">🇹🇷 TRY - Turkish Lira (₺36.50 / USD)</option>
-                  <option value="NGN">🇳🇬 NGN - Nigerian Naira (₦1,750 / USD)</option>
-                </select>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAdjustBalance}
+                  className="flex-1 bg-gradient-to-r from-trade-green to-emerald-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg hover:brightness-110 active:scale-95 transition"
+                >
+                  Confirm {balanceAction === 'ADD' ? 'Credit' : 'Debit'}
+                </button>
               </div>
-
-              <div>
-                <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                  Amount ({adjustCurrency || selectedUserForBalance.currency || 'USD'})
-                </label>
-                <input
-                  type="number"
-                  value={adjustAmount}
-                  onChange={(e) => setAdjustAmount(Math.max(1, Number(e.target.value)))}
-                  className={`w-full border rounded-xl px-4 py-2 text-base font-black focus:outline-none ${
-                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Audit Reason</label>
-                <input
-                  type="text"
-                  value={adjustReason}
-                  onChange={(e) => setAdjustReason(e.target.value)}
-                  placeholder="e.g. Deposit manual top-up, VIP reward"
-                  className={`w-full border rounded-xl px-4 py-2 text-xs focus:outline-none ${
-                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400' : 'bg-[#121620] border-[#2e354b] text-white'
-                  }`}
-                />
-              </div>
-            </div>
-
-            <div className="flex space-x-2 pt-3">
-              <button
-                onClick={() => setSelectedUserForBalance(null)}
-                className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition border ${
-                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
-                }`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdjustBalance}
-                className="flex-1 bg-gradient-to-r from-trade-green to-emerald-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg transition"
-              >
-                Confirm {balanceAction === 'ADD' ? 'Credit' : 'Debit'}
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ================= MODAL: EDIT USER LEVEL & KYC ================= */}
       {selectedUserForEdit && (
@@ -2106,18 +2279,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
                     }`}
                   >
-                    <option value="USD">USD ($ - US Dollar)</option>
-                    <option value="EUR">EUR (€ - Euro)</option>
-                    <option value="GBP">GBP (£ - British Pound)</option>
-                    <option value="INR">INR (₹ - Indian Rupee)</option>
-                    <option value="BRL">BRL (R$ - Brazilian Real)</option>
-                    <option value="IDR">IDR (Rp - Indonesian Rupiah)</option>
-                    <option value="JPY">JPY (¥ - Japanese Yen)</option>
-                    <option value="NGN">NGN (₦ - Nigerian Naira)</option>
-                    <option value="TRY">TRY (₺ - Turkish Lira)</option>
-                    <option value="AED">AED (AED - UAE Dirham)</option>
-                    <option value="CAD">CAD (C$ - Canadian Dollar)</option>
-                    <option value="AUD">AUD (A$ - Australian Dollar)</option>
+                    <option value="INR">🇮🇳 INR (₹ - Indian Rupee) - Default</option>
+                    <option value="USD">🇺🇸 USD ($ - US Dollar)</option>
+                    <option value="EUR">🇪🇺 EUR (€ - Euro)</option>
+                    <option value="GBP">🇬🇧 GBP (£ - British Pound)</option>
+                    <option value="BRL">🇧🇷 BRL (R$ - Brazilian Real)</option>
+                    <option value="AED">🇦🇪 AED (AED - UAE Dirham)</option>
                   </select>
                 </div>
                 <div>

@@ -239,7 +239,9 @@ export const App: React.FC = () => {
   // Authenticated Trader Terminal Floor
   return (
     <TradingProvider>
-      <MainLayout />
+      <ErrorBoundary fallbackTitle="Trading Floor">
+        <MainLayout />
+      </ErrorBoundary>
     </TradingProvider>
   );
 };

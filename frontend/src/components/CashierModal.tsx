@@ -45,11 +45,16 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
     fetch(apiUrl(`/api/user/${account.id}/transactions`))
       .then((res) => res.json())
       .then((data) => {
-        if (data?.transactions) {
+        if (data && Array.isArray(data.transactions)) {
           setUserTransactions(data.transactions);
+        } else {
+          setUserTransactions([]);
         }
       })
-      .catch((err) => console.warn('Could not fetch user transactions:', err))
+      .catch((err) => {
+        console.warn('Could not fetch user transactions:', err);
+        setUserTransactions([]);
+      })
       .finally(() => setIsLoadingTxns(false));
   };
 
@@ -458,9 +463,9 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
           >
             <History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>History</span>
-            {userTransactions.filter((t) => t.status === 'PENDING').length > 0 && (
+            {(userTransactions || []).filter((t) => t.status === 'PENDING').length > 0 && (
               <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-1.5 py-0.2 rounded-full">
-                {userTransactions.filter((t) => t.status === 'PENDING').length}
+                {(userTransactions || []).filter((t) => t.status === 'PENDING').length}
               </span>
             )}
           </button>
@@ -1289,7 +1294,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
                 <span className="text-xs">Fetching transactions from vault...</span>
               </div>
-            ) : userTransactions.length === 0 ? (
+            ) : (!userTransactions || userTransactions.length === 0) ? (
               <div className={`p-8 rounded-2xl border text-center space-y-2 ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10141f] border-[#293246]'
               }`}>
@@ -1304,7 +1309,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
               </div>
             ) : (
               <div className="space-y-2.5">
-                {userTransactions.map((tx) => {
+                {(userTransactions || []).map((tx) => {
                   const isDep = tx.type === 'DEPOSIT';
                   const isPending = tx.status === 'PENDING';
                   const isApproved = tx.status === 'APPROVED';

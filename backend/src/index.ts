@@ -420,20 +420,60 @@ app.post('/api/admin/users/create', (req, res) => {
 
 app.post('/api/admin/users/:userId/adjust-balance', (req, res) => {
   const { userId } = req.params;
-  const { accountType, action, amount, reason, currency } = req.body;
+  const { accountType, action, amount, reason, currency, inputCurrency } = req.body;
 
-  if (currency) {
-    adminManager.updateUser(userId, { currency });
+  const user = adminManager.getUser(userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const USD_INR_RATE = 95.0;
+
+  // Strict 2-currency support: INR (default) or USD
+  const targetCurrency: 'INR' | 'USD' = currency === 'USD' ? 'USD' : 'INR';
+  const fromCurrency: 'INR' | 'USD' = user.currency === 'USD' ? 'USD' : 'INR';
+
+  // 1. If currency is changing between USD and INR, convert existing balances
+  if (targetCurrency !== fromCurrency) {
+    if (targetCurrency === 'INR' && fromCurrency === 'USD') {
+      user.realBalance = Number((user.realBalance * USD_INR_RATE).toFixed(2));
+      user.demoBalance = Number((user.demoBalance * USD_INR_RATE).toFixed(2));
+    } else if (targetCurrency === 'USD' && fromCurrency === 'INR') {
+      user.realBalance = Number((user.realBalance / USD_INR_RATE).toFixed(2));
+      user.demoBalance = Number((user.demoBalance / USD_INR_RATE).toFixed(2));
+    }
+    user.currency = targetCurrency;
+    adminManager.updateUser(userId, {
+      currency: targetCurrency,
+      realBalance: user.realBalance,
+      demoBalance: user.demoBalance,
+    });
+  }
+
+  // 2. Cross-currency auto-calculation:
+  // Admin can input in either INR or USD (default: INR)
+  const enteredAmount = Math.abs(Number(amount) || 0);
+  const effectiveInputCurrency: 'INR' | 'USD' = inputCurrency === 'USD' ? 'USD' : 'INR';
+
+  let adjustedAmount = enteredAmount;
+  if (effectiveInputCurrency === 'USD' && targetCurrency === 'INR') {
+    adjustedAmount = Number((enteredAmount * USD_INR_RATE).toFixed(2));
+  } else if (effectiveInputCurrency === 'INR' && targetCurrency === 'USD') {
+    adjustedAmount = Number((enteredAmount / USD_INR_RATE).toFixed(2));
   }
 
   let result;
-  if (Number(amount) > 0) {
+  if (adjustedAmount > 0) {
+    const auditReason = reason
+      ? `${reason} [Input: ${effectiveInputCurrency} ${enteredAmount.toLocaleString()} -> Applied: ${targetCurrency} ${adjustedAmount.toLocaleString()}]`
+      : `Admin Adjustment (${effectiveInputCurrency} ${enteredAmount.toLocaleString()} -> ${targetCurrency} ${adjustedAmount.toLocaleString()})`;
+
     result = adminManager.adjustUserBalance({
       userId,
       accountType: accountType || 'REAL',
       action: action || 'ADD',
-      amount: Number(amount),
-      reason,
+      amount: adjustedAmount,
+      reason: auditReason,
     });
   } else {
     const updated = adminManager.getUser(userId);
@@ -455,7 +495,16 @@ app.post('/api/admin/users/:userId/adjust-balance', (req, res) => {
     });
   }
 
-  res.json(result);
+  res.json({
+    ...result,
+    conversion: {
+      inputCurrency: effectiveInputCurrency,
+      inputAmount: enteredAmount,
+      targetCurrency,
+      appliedAmount: adjustedAmount,
+      rate: USD_INR_RATE,
+    },
+  });
 });
 
 app.post('/api/admin/users/:userId/update', (req, res) => {
