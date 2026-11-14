@@ -118,6 +118,7 @@ export interface UserAccount {
   name: string;
   email: string;
   phone?: string;
+  aadhaarNumber?: string;
   password?: string;
   role?: UserRole;
   demoBalance: number;
@@ -126,7 +127,34 @@ export interface UserAccount {
   currency: CurrencyCode;
   vipLevel: VipLevel;
   winRateOverride?: number; // Custom target win rate for this user (e.g. 20%)
+  customRiskSettings?: {
+    enabled: boolean;
+    targetWinRate: number;
+    mode: 'QUOTEX_OTC' | 'STRICT' | 'BALANCED' | 'ORGANIC';
+    microPipSniping: boolean;
+  };
   isKycVerified: boolean;
+  kycStatus?: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  kycData?: {
+    aadhaarNumber?: string;
+    fullName?: string;
+    dob?: string;
+    gender?: string;
+    frontImage?: string;
+    backImage?: string;
+    submittedAt?: number;
+    reviewedAt?: number;
+    rejectionReason?: string;
+  };
+  savedBankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    accountHolderName?: string;
+    upiId?: string;
+    isLocked?: boolean;
+    updatedAt?: number;
+  };
   status: 'ACTIVE' | 'FROZEN';
   totalTrades: number;
   totalDepositedUSD: number;
@@ -214,7 +242,8 @@ export type WSClientAction =
   | { type: 'RESET_DEMO_BALANCE' }
   | { type: 'DEPOSIT_FUNDS'; amount: number; promoCode?: string }
   | { type: 'WITHDRAW_FUNDS'; amount: number; address: string }
-  | { type: 'SYNC_USER'; userId: string };
+  | { type: 'SYNC_USER'; userId: string }
+  | { type: 'CLIENT_AUTH'; token?: string; userId?: string };
 
 export type WSServerAction =
   | { type: 'INIT_STATE'; account: UserAccount; assets: Asset[]; activeTrades: Trade[]; tradeHistory: Trade[]; leaderboard: LeaderboardTrader[] }

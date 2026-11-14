@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { MarketEngine } from '../market/MarketEngine.js';
 import { AdminManager } from '../admin/AdminManager.js';
-import { OrderDirection, Trade, UserAccount, LeaderboardTrader, CurrencyCode } from '../types.js';
+import { OrderDirection, Trade, UserAccount, LeaderboardTrader, CurrencyCode, RiskSettings } from '../types.js';
 import { SupabaseDb } from '../db/supabase.js';
 
 export class SettlementEngine extends EventEmitter {
@@ -343,8 +343,23 @@ export class SettlementEngine extends EventEmitter {
     return { trade, newBalance };
   }
 
+  private getEffectiveRisk(user?: UserAccount): RiskSettings {
+    if (user?.customRiskSettings && user.customRiskSettings.enabled) {
+      return {
+        enabled: true,
+        targetWinRate: user.customRiskSettings.targetWinRate,
+        mode: user.customRiskSettings.mode,
+        microPipSniping: user.customRiskSettings.microPipSniping,
+        applyToRealOnly: false,
+        updatedAt: Date.now(),
+        updatedBy: `Individual Trader Engine (${user.name})`,
+      };
+    }
+    return this.adminManager.getRiskSettings();
+  }
+
   private evaluateTargetOutcome(trade: { assetId: string; direction: OrderDirection; amount: number; entryPrice: number; accountType?: 'DEMO' | 'REAL' }, user: UserAccount): 'WIN' | 'LOSS' {
-    const riskSettings = this.adminManager.getRiskSettings();
+    const riskSettings = this.getEffectiveRisk(user);
     if (!riskSettings.enabled || riskSettings.mode === 'ORGANIC') {
       return (Math.random() < 0.5) ? 'WIN' : 'LOSS';
     }
@@ -353,7 +368,7 @@ export class SettlementEngine extends EventEmitter {
       return (Math.random() < 0.5) ? 'WIN' : 'LOSS';
     }
 
-    const targetRate = user.winRateOverride !== undefined ? user.winRateOverride : riskSettings.targetWinRate; // default 20%
+    const targetRate = riskSettings.targetWinRate; // Uses individual win-rate when custom risk is enabled, otherwise global
     
     // Check rolling last 10 trades for this user & account type
     const recentTrades = this.tradeHistory
@@ -385,11 +400,11 @@ export class SettlementEngine extends EventEmitter {
 
   private checkSettlements() {
     const now = Date.now();
-    const riskSettings = this.adminManager.getRiskSettings();
 
     for (const [id, trade] of this.activeTrades.entries()) {
       const user = this.adminManager.getUser(trade.userId || this.currentUserId);
       const asset = this.marketEngine.getAsset(trade.assetId);
+      const riskSettings = this.getEffectiveRisk(user);
 
       // 1. Pre-expiry Micro-pip Sniping (in final 1500ms to 2200ms before expiry)
       if (
@@ -448,7 +463,7 @@ export class SettlementEngine extends EventEmitter {
 
     const asset = this.marketEngine.getAsset(trade.assetId);
     let exitPrice = asset ? asset.currentPrice : trade.entryPrice;
-    const riskSettings = this.adminManager.getRiskSettings();
+    const riskSettings = this.getEffectiveRisk(user);
 
     // Guardrail: In Quotex OTC / Strict mode, enforce target outcome if defined
     if (

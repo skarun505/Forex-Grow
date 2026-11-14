@@ -31,6 +31,8 @@ interface ClientSession {
   ws: WebSocket;
   subscribedAsset: string;
   timeframe: number;
+  userId?: string;
+  sessionToken?: string;
 }
 
 const clients = new Map<WebSocket, ClientSession>();
@@ -222,25 +224,35 @@ app.post('/api/auth/login', (req, res) => {
         return true;
       }
     }
+
+    // Check Aadhaar match (12 digits)
+    if (digitsOnly.length === 12) {
+      if (u.aadhaarNumber && u.aadhaarNumber.replace(/\D/g, '') === digitsOnly) {
+        return true;
+      }
+      if (u.kycData?.aadhaarNumber && u.kycData.aadhaarNumber.replace(/\D/g, '') === digitsOnly) {
+        return true;
+      }
+    }
     return false;
   });
 
   if (!found) {
     return res.status(401).json({
-      error: 'Account not found. Client accounts are exclusively issued by Forex Grow Account Managers. Please contact your manager to receive your credentials.'
+      error: 'Account not found. Client accounts are exclusively issued by Forex Grow Account Managers. Please contact your manager or Customer Care to receive your credentials.'
     });
   }
 
   if (found.status === 'FROZEN') {
     return res.status(403).json({
-      error: 'This trading account has been suspended by administration. Please contact your account manager.'
+      error: 'This trading account has been suspended by administration. Please contact Customer Care.'
     });
   }
 
   const expectedPassword = found.password || 'forexgrow123';
   if (rawPass !== expectedPassword) {
     return res.status(401).json({
-      error: 'Incorrect password. Please verify your credentials or contact your manager.'
+      error: 'Incorrect password. Please verify your credentials or contact Customer Care.'
     });
   }
 
@@ -290,7 +302,24 @@ app.post('/api/auth/login', (req, res) => {
   if (accountSessions.size >= MAX_DEVICES_PER_TRADER_ACCOUNT) {
     console.log(`[AUTH] 3rd device login for trader account "${found.name}" (${found.id}). Devices were ${accountSessions.size}/${MAX_DEVICES_PER_TRADER_ACCOUNT}. Auto-logging out previous sessions for this account.`);
 
-    // 1. Broadcast immediate FORCE_LOGOUT strictly to other sessions of THIS specific trader account
+    // 1. Force close all active WebSocket connections for THIS trader account
+    for (const [clientWs, sess] of clients.entries()) {
+      if (sess.userId === found.id && sess.sessionToken !== sessionToken) {
+        try {
+          sendToClient(clientWs, {
+            type: 'FORCE_LOGOUT',
+            targetRole: 'TRADER',
+            targetUserId: found.id,
+            exceptToken: sessionToken,
+            reason: `Account device limit (max 2 devices) reached for ${found.name}. Another device logged in, terminating previous sessions.`,
+            activeCount: 1,
+          });
+          clientWs.close(4001, 'DEVICE_LIMIT_EXCEEDED');
+        } catch (err) {}
+      }
+    }
+
+    // 2. Broadcast immediate FORCE_LOGOUT strictly to other sessions of THIS specific trader account
     broadcast({
       type: 'FORCE_LOGOUT',
       targetRole: 'TRADER',
@@ -300,11 +329,11 @@ app.post('/api/auth/login', (req, res) => {
       activeCount: 1,
     });
 
-    // 2. Invalidate previous active sessions for THIS account only
+    // 3. Invalidate previous active sessions for THIS account only
     accountSessions.clear();
   }
 
-  // 3. Register the new active device session for this trader
+  // 4. Register the new active device session for this trader
   accountSessions.set(sessionToken, {
     token: sessionToken,
     userId: found.id,
@@ -967,6 +996,147 @@ app.post('/api/manager/risk/settings', (req: express.Request, res: express.Respo
   res.json({ success: true, settings: updated });
 });
 
+// ================= INDIVIDUAL RISK ENGINE ENDPOINTS =================
+app.get('/api/manager/users/:userId/risk', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
+  const user = adminManager.getUser(userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    success: true,
+    customRiskSettings: user.customRiskSettings || {
+      enabled: false,
+      targetWinRate: 20,
+      mode: 'QUOTEX_OTC',
+      microPipSniping: true,
+    },
+    globalRiskSettings: adminManager.getRiskSettings(),
+  });
+});
+
+app.post('/api/manager/users/:userId/risk', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
+  const { enabled, targetWinRate, mode, microPipSniping, actorName } = req.body;
+  const result = adminManager.updateUserCustomRisk(
+    userId,
+    { enabled, targetWinRate, mode, microPipSniping },
+    actorName || 'Operations Manager'
+  );
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.get('/api/admin/users/:userId/risk', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
+  const user = adminManager.getUser(userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    success: true,
+    customRiskSettings: user.customRiskSettings || {
+      enabled: false,
+      targetWinRate: 20,
+      mode: 'QUOTEX_OTC',
+      microPipSniping: true,
+    },
+    globalRiskSettings: adminManager.getRiskSettings(),
+  });
+});
+
+app.post('/api/admin/users/:userId/risk', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
+  const { enabled, targetWinRate, mode, microPipSniping, actorName } = req.body;
+  const result = adminManager.updateUserCustomRisk(
+    userId,
+    { enabled, targetWinRate, mode, microPipSniping },
+    actorName || 'Administrator'
+  );
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+// ================= KYC ENDPOINTS (AADHAAR BASED) =================
+app.post('/api/user/kyc/submit', (req: express.Request, res: express.Response) => {
+  const { userId, fullName, aadhaarNumber, dob, gender, frontImage, backImage } = req.body;
+  if (!userId || !fullName || !aadhaarNumber) {
+    return res.status(400).json({ error: 'User ID, Full Legal Name, and 12-digit Aadhaar Number are required.' });
+  }
+  const result = adminManager.submitKycData(String(userId), { fullName, aadhaarNumber, dob, gender, frontImage, backImage });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/manager/users/:id/kyc/review', (req: express.Request, res: express.Response) => {
+  const { isApproved, reason, actorName } = req.body;
+  const result = adminManager.reviewKyc(
+    String(req.params.id),
+    Boolean(isApproved),
+    reason,
+    actorName || 'Operations Manager'
+  );
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/admin/users/:id/kyc/review', (req: express.Request, res: express.Response) => {
+  const { isApproved, reason, actorName } = req.body;
+  const result = adminManager.reviewKyc(
+    String(req.params.id),
+    Boolean(isApproved),
+    reason,
+    actorName || 'Administrator'
+  );
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+// ================= BANK DETAILS LOCK & EDIT =================
+app.post('/api/user/bank-details', (req: express.Request, res: express.Response) => {
+  const { userId, ...details } = req.body;
+  if (!userId) return res.status(400).json({ error: 'User ID is required' });
+  const result = adminManager.saveBankDetails(String(userId), details, false);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/manager/users/:userId/bank-details', (req: express.Request, res: express.Response) => {
+  const result = adminManager.saveBankDetails(String(req.params.userId), req.body, true);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/admin/users/:userId/bank-details', (req: express.Request, res: express.Response) => {
+  const result = adminManager.saveBankDetails(String(req.params.userId), req.body, true);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+// ================= MANAGER PROMO COUPON ENDPOINTS =================
+app.get('/api/manager/coupons', (_req: express.Request, res: express.Response) => {
+  res.json(adminManager.getCoupons());
+});
+
+app.post('/api/manager/coupons', (req: express.Request, res: express.Response) => {
+  const { code, bonusPercentage, maxBonusUSD, minDepositUSD, maxUsage } = req.body;
+  const result = adminManager.createCoupon({
+    code: String(code || '').toUpperCase().trim(),
+    bonusPercentage: Number(bonusPercentage) || 10,
+    maxBonusUSD: Number(maxBonusUSD) || 500,
+    minDepositUSD: Number(minDepositUSD) || 20,
+    maxUsage: Number(maxUsage) || 500,
+  });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/manager/coupons/:id/toggle', (req: express.Request, res: express.Response) => {
+  const result = adminManager.toggleCoupon(String(req.params.id));
+  res.json(result);
+});
+
+app.delete('/api/manager/coupons/:id', (req: express.Request, res: express.Response) => {
+  const success = adminManager.deleteCoupon(String(req.params.id));
+  res.json({ success });
+});
+
 // ================= MANAGER DESK ENDPOINTS =================
 app.get('/api/manager/overview', (req: express.Request, res: express.Response) => {
   res.json(adminManager.getManagerOverview());
@@ -1227,12 +1397,23 @@ settlementEngine.on('leaderboard_updated', (leaderboard) => {
 });
 
 // WebSocket Connection Handler
-wss.on('connection', (ws: WebSocket) => {
+wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
   const defaultAsset = 'EURUSD_OTC';
+  let queryUserId: string | undefined;
+  let queryToken: string | undefined;
+
+  try {
+    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+    queryUserId = url.searchParams.get('userId') || undefined;
+    queryToken = url.searchParams.get('token') || undefined;
+  } catch (e) {}
+
   const session: ClientSession = {
     ws,
     subscribedAsset: defaultAsset,
     timeframe: 5,
+    userId: queryUserId,
+    sessionToken: queryToken,
   };
   clients.set(ws, session);
 
@@ -1269,6 +1450,11 @@ wss.on('connection', (ws: WebSocket) => {
       const action = JSON.parse(raw.toString()) as WSClientAction;
 
       switch (action.type) {
+        case 'CLIENT_AUTH': {
+          if (action.token) session.sessionToken = action.token;
+          if (action.userId) session.userId = action.userId;
+          break;
+        }
         case 'SUBSCRIBE_ASSET': {
           session.subscribedAsset = action.assetId;
           if (action.timeframe) session.timeframe = action.timeframe;

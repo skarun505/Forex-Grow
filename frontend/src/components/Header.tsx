@@ -25,6 +25,7 @@ interface HeaderProps {
   onOpenCashierModal: () => void;
   onOpenLeaderboardModal: () => void;
   onOpenCurrencyModal: () => void;
+  onOpenKycModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCashierModal,
   onOpenLeaderboardModal,
   onOpenCurrencyModal,
+  onOpenKycModal,
 }) => {
   const {
     account,
@@ -162,9 +164,11 @@ export const Header: React.FC<HeaderProps> = ({
                   {account.vipLevel}
                 </span>
               </div>
-              <div className="text-[10px] text-emerald-500 flex items-center space-x-1 font-semibold leading-tight">
+              <div className={`text-[10px] flex items-center space-x-1 font-semibold leading-tight ${
+                account.kycStatus === 'APPROVED' ? 'text-emerald-500' : account.kycStatus === 'PENDING' ? 'text-amber-500' : 'text-gray-400'
+              }`}>
                 <ShieldCheck className="w-2.5 h-2.5" />
-                <span>{account.isKycVerified ? 'Verified' : 'Trader'}</span>
+                <span>{account.kycStatus === 'APPROVED' ? 'Verified KYC' : account.kycStatus === 'PENDING' ? 'KYC In Review' : 'Verify Aadhaar'}</span>
               </div>
             </div>
             <ChevronDown className="w-3 h-3 text-gray-400 hidden sm:block" />
@@ -243,6 +247,32 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>Sound Effects</span>
                   </div>
                   <span className="text-[10px] font-bold text-gray-400">{isMuted ? 'MUTED' : 'ON'}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    onOpenKycModal?.();
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between ${
+                    isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className={`w-3.5 h-3.5 ${
+                      account.kycStatus === 'APPROVED' ? 'text-emerald-500' : account.kycStatus === 'PENDING' ? 'text-amber-500' : 'text-sky-400'
+                    }`} />
+                    <span>Aadhaar Identity KYC</span>
+                  </div>
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                    account.kycStatus === 'APPROVED'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : account.kycStatus === 'PENDING'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'bg-rose-500/20 text-rose-400'
+                  }`}>
+                    {account.kycStatus === 'APPROVED' ? 'VERIFIED' : account.kycStatus || 'UNVERIFIED'}
+                  </span>
                 </button>
 
                 <button

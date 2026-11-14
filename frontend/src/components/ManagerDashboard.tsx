@@ -11,6 +11,7 @@ import {
   VipLevel,
   DepositPaymentSettings,
   RiskSettings,
+  PromoCoupon,
 } from '../types';
 import {
   ShieldCheck,
@@ -44,6 +45,9 @@ import {
   Zap,
   Power,
   Sliders,
+  Tag,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -64,7 +68,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const { theme, assets } = useTrading();
   const isLight = theme === 'light';
 
-  const [activeTab, setActiveTab] = useState<'CASHIER' | 'TRADERS' | 'TRADES' | 'RISK' | 'MARKETS' | 'AUDIT'>('CASHIER');
+  const [activeTab, setActiveTab] = useState<'CASHIER' | 'TRADERS' | 'TRADES' | 'RISK' | 'COUPONS' | 'MARKETS' | 'AUDIT'>('CASHIER');
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({
     enabled: true,
     targetWinRate: 20,
@@ -81,6 +85,25 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [coupons, setCoupons] = useState<PromoCoupon[]>([]);
+  const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
+  const [newCouponCode, setNewCouponCode] = useState('');
+  const [newBonusPct, setNewBonusPct] = useState(10);
+  const [newMaxBonus, setNewMaxBonus] = useState(500);
+  const [newMinDeposit, setNewMinDeposit] = useState(20);
+  const [newMaxUsage, setNewMaxUsage] = useState(500);
+
+  // Individual Risk Engine State
+  const [selectedTraderForRisk, setSelectedTraderForRisk] = useState<UserAccount | null>(null);
+  const [individualRiskEnabled, setIndividualRiskEnabled] = useState(false);
+  const [individualWinRate, setIndividualWinRate] = useState(20);
+  const [individualMode, setIndividualMode] = useState<'QUOTEX_OTC' | 'STRICT' | 'BALANCED' | 'ORGANIC'>('QUOTEX_OTC');
+  const [individualSniping, setIndividualSniping] = useState(true);
+  const [isSavingIndividualRisk, setIsSavingIndividualRisk] = useState(false);
+
+  // Aadhaar KYC Review State
+  const [selectedTraderForKyc, setSelectedTraderForKyc] = useState<UserAccount | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
 
   // Search & Filter States
@@ -320,7 +343,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const fetchManagerData = async () => {
     setIsLoading(true);
     try {
-      const [ovRes, uRes, txRes, trRes, logRes, psRes, riskRes] = await Promise.all([
+      const [ovRes, uRes, txRes, trRes, logRes, psRes, riskRes, cpnRes] = await Promise.all([
         fetch(apiUrl('/api/manager/overview')).then((r) => r.json()),
         fetch(apiUrl('/api/manager/users')).then((r) => r.json()),
         fetch(apiUrl('/api/manager/transactions')).then((r) => r.json()),
@@ -328,6 +351,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
         fetch(apiUrl('/api/manager/audit-logs')).then((r) => r.json()),
         fetch(apiUrl('/api/payment/settings')).then((r) => r.json()).catch(() => null),
         fetch(apiUrl('/api/manager/risk/settings')).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/manager/coupons')).then((r) => r.json()).catch(() => []),
       ]);
 
       setOverview(ovRes);
@@ -340,6 +364,9 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
       }
       if (riskRes?.settings && !isRiskDirtyRef.current) {
         setRiskSettings(riskRes.settings);
+      }
+      if (Array.isArray(cpnRes)) {
+        setCoupons(cpnRes);
       }
     } catch (e) {
       console.error('Failed to fetch manager data', e);
@@ -376,6 +403,122 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
       console.error('Failed to save risk settings:', err);
     } finally {
       setIsSavingRisk(false);
+    }
+  };
+
+    // Coupon Handlers
+  const handleCreateCoupon = async () => {
+    if (!newCouponCode.trim()) return;
+    try {
+      const res = await fetch(apiUrl('/api/manager/coupons'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: newCouponCode.trim().toUpperCase(),
+          bonusPercentage: newBonusPct,
+          maxBonusUSD: newMaxBonus,
+          minDepositUSD: newMinDeposit,
+          maxUsage: newMaxUsage,
+        }),
+      });
+      if (res.ok) {
+        setIsCouponModalOpen(false);
+        setNewCouponCode('');
+        showManagerToast('✅ Promo coupon created successfully!');
+        fetchManagerData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleCoupon = async (id: string, currentActive: boolean) => {
+    try {
+      await fetch(apiUrl(`/api/manager/coupons/${id}/toggle`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !currentActive }),
+      });
+      fetchManagerData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteCoupon = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this promo coupon?')) return;
+    try {
+      await fetch(apiUrl(`/api/manager/coupons/${id}`), { method: 'DELETE' });
+      fetchManagerData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Individual Risk Handlers
+  const openIndividualRiskModal = (u: UserAccount) => {
+    setSelectedTraderForRisk(u);
+    const custom = u.customRiskSettings;
+    setIndividualRiskEnabled(Boolean(custom?.enabled));
+    setIndividualWinRate(custom?.targetWinRate || 20);
+    setIndividualMode(custom?.mode || 'QUOTEX_OTC');
+    setIndividualSniping(custom?.microPipSniping !== false);
+  };
+
+  const handleSaveIndividualRisk = async () => {
+    if (!selectedTraderForRisk) return;
+    setIsSavingIndividualRisk(true);
+    try {
+      const res = await fetch(apiUrl(`/api/manager/users/${selectedTraderForRisk.id}/risk`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: individualRiskEnabled,
+          targetWinRate: individualWinRate,
+          mode: individualMode,
+          microPipSniping: individualSniping,
+          actorName: managerProfile.name,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showManagerToast(`✅ Risk updated for ${selectedTraderForRisk.name}! (${individualRiskEnabled ? `${individualWinRate}% Custom` : 'Global Engine Default'})`);
+        setSelectedTraderForRisk(null);
+        fetchManagerData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSavingIndividualRisk(false);
+    }
+  };
+
+  // Aadhaar KYC Handlers
+  const handleReviewKyc = async (isApproved: boolean) => {
+    if (!selectedTraderForKyc) return;
+    let reason: string | undefined;
+    if (!isApproved) {
+      const input = prompt('Enter rejection reason for Aadhaar document review:', 'Document photo blurry / Aadhaar number mismatch');
+      if (input === null) return;
+      reason = input;
+    }
+    try {
+      const res = await fetch(apiUrl(`/api/manager/users/${selectedTraderForKyc.id}/kyc/review`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isApproved,
+          reason,
+          actorName: managerProfile.name,
+        }),
+      });
+      if (res.ok) {
+        showManagerToast(isApproved ? `✅ Aadhaar verified for ${selectedTraderForKyc.name}!` : `❌ KYC rejected for ${selectedTraderForKyc.name}`);
+        setSelectedTraderForKyc(null);
+        fetchManagerData();
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -727,10 +870,12 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
         </div>
       </header>
 
-      {/* Overview Stat Banner - Responsive INR Primary View */}
-      <div className={`border-b p-3 sm:px-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 ${
-        isLight ? 'bg-white border-slate-200' : 'bg-[#131622] border-[#222838]'
-      }`}>
+      {/* Unified Touch-Scrollable Workspace Container */}
+      <div className="flex-1 overflow-y-auto min-h-0 flex flex-col overscroll-y-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {/* Overview Stat Banner - Responsive INR Primary View */}
+        <div className={`border-b p-3 sm:px-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 shrink-0 ${
+          isLight ? 'bg-white border-slate-200' : 'bg-[#131622] border-[#222838]'
+        }`}>
         {/* Card 1: Pending Deposits */}
         <div className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border ${
           overview?.pendingDeposits && overview.pendingDeposits > 0
@@ -833,6 +978,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
           { id: 'TRADERS', shortLabel: `Traders (${users.length})`, label: 'Traders & KYC', icon: Users, badge: users.length },
           { id: 'TRADES', shortLabel: 'Trades', label: 'Live Trades Desk', icon: Activity },
           { id: 'RISK', shortLabel: 'Risk', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
+          { id: 'COUPONS', shortLabel: `Promos (${coupons.length})`, label: 'Special Promo Codes', icon: Tag, badge: coupons.length },
           { id: 'MARKETS', shortLabel: 'Payouts', label: 'Payout Customizer', icon: Sliders, badge: assets.length },
           { id: 'AUDIT', shortLabel: 'Audit', label: 'Audit Log', icon: FileText },
         ].map((tab) => {
@@ -1281,15 +1427,48 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                         </button>
                       </div>
 
-                      {/* Direct Edit Funds Button */}
-                      <button
-                        type="button"
-                        onClick={() => openDirectBalanceModal(u)}
-                        className="w-full py-1.5 px-3 rounded-xl text-xs font-bold border border-emerald-500/30 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Direct Edit Funds (Live & Demo)</span>
-                      </button>
+                      {/* Review Aadhaar KYC Documents if pending */}
+                      {u.kycStatus === 'PENDING' && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTraderForKyc(u)}
+                          className="w-full py-1.5 px-3 rounded-xl text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition flex items-center justify-center space-x-1.5"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Review Aadhaar Documents</span>
+                        </button>
+                      )}
+
+                      {/* Direct Edit Funds & Individual Risk Buttons */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openDirectBalanceModal(u)}
+                          className="py-1.5 px-3 rounded-xl text-xs font-bold border border-emerald-500/30 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit Funds</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openIndividualRiskModal(u)}
+                          className={`py-1.5 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center space-x-1.5 shadow-sm ${
+                            u.customRiskSettings?.enabled
+                              ? 'border-amber-500/50 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
+                              : isLight
+                              ? 'border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              : 'border-[#2d3850] bg-[#1a2132] hover:bg-[#222b40] text-gray-300'
+                          }`}
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>
+                            {u.customRiskSettings?.enabled
+                              ? `Risk: ${u.customRiskSettings.targetWinRate}%`
+                              : 'Individual Risk'}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1810,7 +1989,96 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
             </div>
           </div>
         )}
+              {/* ================= TAB: SPECIAL PROMO CODES ================= */}
+        {activeTab === 'COUPONS' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className={`text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Active Special Bonus Codes</h3>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Manage promotional codes that boost client deposits</p>
+              </div>
+              <button
+                onClick={() => setIsCouponModalOpen(true)}
+                className="flex items-center space-x-2 bg-gradient-to-r from-trade-green to-emerald-500 hover:from-trade-greenHover hover:to-emerald-400 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-lg transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Special Coupon</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {coupons.map((cpn) => (
+                <div
+                  key={cpn.id}
+                  className={`border rounded-3xl p-5 space-y-3 transition ${
+                    isLight ? 'bg-white shadow-sm' : 'bg-[#161a26]'
+                  } ${
+                    cpn.isActive
+                      ? (isLight ? 'border-slate-200' : 'border-[#262c3e] shadow-md')
+                      : 'border-rose-500/30 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-black text-amber-500 font-mono tracking-wider bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-xl">
+                      {cpn.code}
+                    </span>
+                    <button
+                      onClick={() => handleToggleCoupon(cpn.id, cpn.isActive)}
+                      className={`p-1.5 rounded-lg text-xs font-bold transition ${
+                        cpn.isActive
+                          ? 'text-emerald-500 hover:bg-emerald-500/10'
+                          : (isLight ? 'text-slate-400 hover:bg-slate-100' : 'text-gray-500 hover:bg-white/5')
+                      }`}
+                    >
+                      <Power className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className={`space-y-1.5 text-xs ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                    <div className="flex justify-between">
+                      <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Bonus Percentage:</span>
+                      <span className="font-black text-emerald-500">+{cpn.bonusPercentage}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Max Bonus Cap:</span>
+                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>${cpn.maxBonusUSD}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Min Deposit Required:</span>
+                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>${cpn.minDepositUSD}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Total Redeemed:</span>
+                      <span className={`font-bold ${isLight ? 'text-slate-800' : 'text-gray-200'}`}>
+                        {cpn.usageCount} / {cpn.maxUsage}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={`pt-2 border-t flex items-center justify-between ${
+                    isLight ? 'border-slate-100' : 'border-[#262c3e]'
+                  }`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      cpn.isActive ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
+                    }`}>
+                      {cpn.isActive ? 'Active' : 'Disabled'}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteCoupon(cpn.id)}
+                      className={`p-1 rounded transition ${
+                        isLight ? 'text-slate-400 hover:text-rose-500' : 'text-gray-500 hover:text-rose-400'
+                      }`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
+      </div>
 
       {/* Proof Image Fullscreen Modal */}
       {selectedProofImg && (
@@ -2560,6 +2828,358 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
           </div>
         </div>
       )}
+
+      
+      {isCouponModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-4 transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
+          }`}>
+            <h3 className={`text-base font-bold flex items-center space-x-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              <Tag className="w-5 h-5 text-emerald-500" />
+              <span>Create Special Promo Coupon</span>
+            </h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  Coupon Code (e.g. VIP2026)
+                </label>
+                <input
+                  type="text"
+                  value={newCouponCode}
+                  onChange={(e) => setNewCouponCode(e.target.value.toUpperCase())}
+                  placeholder="CODE NAME"
+                  className={`w-full border rounded-xl px-4 py-2 text-sm font-mono font-bold uppercase focus:outline-none ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-amber-600' : 'bg-[#121620] border-[#2e354b] text-amber-400'
+                  }`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Bonus %</label>
+                  <input
+                    type="number"
+                    value={newBonusPct}
+                    onChange={(e) => setNewBonusPct(Number(e.target.value))}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-black focus:outline-none ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Max Bonus ($)</label>
+                  <input
+                    type="number"
+                    value={newMaxBonus}
+                    onChange={(e) => setNewMaxBonus(Number(e.target.value))}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-black focus:outline-none ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Min Deposit ($)</label>
+                  <input
+                    type="number"
+                    value={newMinDeposit}
+                    onChange={(e) => setNewMinDeposit(Number(e.target.value))}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-black focus:outline-none ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Max Usages</label>
+                  <input
+                    type="number"
+                    value={newMaxUsage}
+                    onChange={(e) => setNewMaxUsage(Number(e.target.value))}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-black focus:outline-none ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-3">
+              <button
+                onClick={() => setIsCouponModalOpen(false)}
+                className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition border ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateCoupon}
+                className="flex-1 bg-gradient-to-r from-trade-green to-emerald-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg transition"
+              >
+                Publish Coupon
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= INDIVIDUAL RISK ENGINE MODAL (ADMIN) ================= */}
+      {selectedTraderForRisk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className={`w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#141926] border-[#283248] text-white'
+          }`}>
+            <div className={`px-5 py-4 border-b flex items-center justify-between ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0f131e] border-[#222a3d]'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Individual Risk Engine: {selectedTraderForRisk.name}</h3>
+                  <p className="text-[11px] text-gray-400">Account #{selectedTraderForRisk.id} • Overrides global platform engine</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedTraderForRisk(null)} className="p-1 rounded-xl text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs overflow-y-auto max-h-[80vh]">
+              <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${
+                individualRiskEnabled
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                  : 'bg-sky-500/10 border-sky-500/20 text-sky-300'
+              }`}>
+                <div>
+                  <div className="font-black text-xs">
+                    {individualRiskEnabled ? '⚡ INDIVIDUAL OVERRIDE ACTIVE' : '🌐 USING GLOBAL PLATFORM RISK'}
+                  </div>
+                  <div className="text-[11px] opacity-90 mt-0.5">
+                    {individualRiskEnabled
+                      ? `Target Win Rate: ${individualWinRate}% strictly for this account.`
+                      : `Currently follows global settings (${riskSettings?.targetWinRate || 20}% win rate).`}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIndividualRiskEnabled(!individualRiskEnabled)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                    individualRiskEnabled ? 'bg-amber-500 text-black shadow-md' : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  {individualRiskEnabled ? 'Active' : 'Enable'}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="font-bold text-gray-300">Target Win Rate: <span className="text-amber-400 font-mono text-sm">{individualWinRate}%</span></label>
+                  <span className="text-[10px] text-gray-400">~{Math.round(individualWinRate / 10)} Wins / {10 - Math.round(individualWinRate / 10)} Losses</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="90"
+                  step="5"
+                  value={individualWinRate}
+                  onChange={(e) => setIndividualWinRate(Number(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                  <span>5% (Heavy House Edge)</span>
+                  <span>20% (Quotex Standard)</span>
+                  <span>50% (Fair 50/50)</span>
+                  <span>90% (Trader Boost)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                {[10, 20, 35, 50].map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setIndividualWinRate(rate)}
+                    className={`py-1.5 rounded-xl border text-xs font-bold transition ${
+                      individualWinRate === rate
+                        ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                        : 'border-[#283248] bg-[#0e121d] text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {rate}%
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-300 block mb-1.5">Execution Algorithm</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'QUOTEX_OTC', label: 'Quotex OTC', sub: 'Micro-pip sniping active' },
+                    { id: 'STRICT', label: 'Strict Probability', sub: 'Hard statistical quota' },
+                    { id: 'BALANCED', label: 'Balanced', sub: 'Smooth win distribution' },
+                    { id: 'ORGANIC', label: 'Organic Fair', sub: 'Neutral market outcome' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setIndividualMode(m.id as any)}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        individualMode === m.id
+                          ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                          : 'border-[#283248] bg-[#0e121d] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="font-bold text-xs">{m.label}</div>
+                      <div className="text-[10px] opacity-75">{m.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-black/25 border border-white/5 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-xs">Hairline Expiry Sniping (1-2 pips)</div>
+                  <div className="text-[10px] text-gray-400">Micro-adjusts price 1.5s before expiry to enforce target win rate</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIndividualSniping(!individualSniping)}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${
+                    individualSniping ? 'bg-amber-500' : 'bg-gray-700'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${
+                    individualSniping ? 'right-1' : 'left-1'
+                  }`} />
+                </button>
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTraderForRisk(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-xs font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingIndividualRisk}
+                  onClick={handleSaveIndividualRisk}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-lg transition active:scale-95 flex items-center justify-center space-x-1.5"
+                >
+                  {isSavingIndividualRisk ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Individual Risk</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= KYC AADHAAR REVIEW MODAL (ADMIN) ================= */}
+      {selectedTraderForKyc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className={`w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#141926] border-[#283248] text-white'
+          }`}>
+            <div className={`px-5 py-4 border-b flex items-center justify-between ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0f131e] border-[#222a3d]'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Aadhaar Document Review: {selectedTraderForKyc.name}</h3>
+                  <p className="text-[11px] text-gray-400">Account #{selectedTraderForKyc.id} • Master Verification</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedTraderForKyc(null)} className="p-1 rounded-xl text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs overflow-y-auto">
+              <div className="p-3.5 rounded-2xl bg-black/25 border border-white/5 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Legal Name:</span>
+                  <span className="font-bold text-white">{selectedTraderForKyc.kycData?.fullName || selectedTraderForKyc.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Aadhaar Number:</span>
+                  <span className="font-mono font-bold text-amber-400">{selectedTraderForKyc.aadhaarNumber || selectedTraderForKyc.kycData?.aadhaarNumber || 'Not submitted'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Date of Birth:</span>
+                  <span className="font-bold text-white">{selectedTraderForKyc.kycData?.dob || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Gender:</span>
+                  <span className="font-bold text-white">{selectedTraderForKyc.kycData?.gender || 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Front</span>
+                  <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                    {selectedTraderForKyc.kycData?.frontImage ? (
+                      <img src={selectedTraderForKyc.kycData.frontImage} alt="Front" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-gray-500 text-[10px]">No image attached</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Back</span>
+                  <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                    {selectedTraderForKyc.kycData?.backImage ? (
+                      <img src={selectedTraderForKyc.kycData.backImage} alt="Back" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-gray-500 text-[10px]">No image attached</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => handleReviewKyc(false)}
+                  className="flex-1 py-3 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition"
+                >
+                  Reject KYC
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReviewKyc(true)}
+                  className="flex-1 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg transition active:scale-95"
+                >
+                  Approve Aadhaar KYC
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Floating Manager Toast Notification */}
       {managerNotification && (

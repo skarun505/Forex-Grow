@@ -191,6 +191,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
   // New Coupon Modal State
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
+    // Individual Risk Engine State
+  const [selectedTraderForRisk, setSelectedTraderForRisk] = useState<UserAccount | null>(null);
+  const [individualRiskEnabled, setIndividualRiskEnabled] = useState(false);
+  const [individualWinRate, setIndividualWinRate] = useState(20);
+  const [individualMode, setIndividualMode] = useState<'QUOTEX_OTC' | 'STRICT' | 'BALANCED' | 'ORGANIC'>('QUOTEX_OTC');
+  const [individualSniping, setIndividualSniping] = useState(true);
+  const [isSavingIndividualRisk, setIsSavingIndividualRisk] = useState(false);
+
+  // Aadhaar KYC Review State
+  const [selectedTraderForKyc, setSelectedTraderForKyc] = useState<UserAccount | null>(null);
+
+  const openIndividualRiskModal = (u: UserAccount) => {
+    setSelectedTraderForRisk(u);
+    const custom = u.customRiskSettings;
+    setIndividualRiskEnabled(Boolean(custom?.enabled));
+    setIndividualWinRate(custom?.targetWinRate || 20);
+    setIndividualMode(custom?.mode || 'QUOTEX_OTC');
+    setIndividualSniping(custom?.microPipSniping !== false);
+  };
+
+  const handleSaveIndividualRisk = async () => {
+    if (!selectedTraderForRisk) return;
+    setIsSavingIndividualRisk(true);
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${selectedTraderForRisk.id}/risk`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: individualRiskEnabled,
+          targetWinRate: individualWinRate,
+          mode: individualMode,
+          microPipSniping: individualSniping,
+          actorName: 'Administrator',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ Individual risk saved for ${selectedTraderForRisk.name}! (${individualRiskEnabled ? `${individualWinRate}% Custom` : 'Global Engine Default'})`);
+        setSelectedTraderForRisk(null);
+        fetchAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSavingIndividualRisk(false);
+    }
+  };
+
+  const handleReviewKyc = async (isApproved: boolean) => {
+    if (!selectedTraderForKyc) return;
+    let reason: string | undefined;
+    if (!isApproved) {
+      const input = prompt('Enter rejection reason for Aadhaar document review:', 'Document photo blurry / Aadhaar number mismatch');
+      if (input === null) return;
+      reason = input;
+    }
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${selectedTraderForKyc.id}/kyc/review`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isApproved,
+          reason,
+          actorName: 'Administrator',
+        }),
+      });
+      if (res.ok) {
+        alert(isApproved ? `✅ Aadhaar verified for ${selectedTraderForKyc.name}!` : `❌ KYC rejected for ${selectedTraderForKyc.name}`);
+        setSelectedTraderForKyc(null);
+        fetchAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newBonusPct, setNewBonusPct] = useState<number>(50);
   const [newMaxBonus, setNewMaxBonus] = useState<number>(500);
@@ -804,9 +880,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         </div>
       </header>
 
-      {/* Admin KPI Top Highlights - Responsive INR Primary View */}
-      {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 p-3 sm:p-6 pb-2">
+      {/* Unified Touch-Scrollable Workspace Container */}
+      <div className="flex-1 overflow-y-auto min-h-0 flex flex-col overscroll-y-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {/* Admin KPI Top Highlights - Responsive INR Primary View */}
+        {overview && (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 p-3 sm:p-6 pb-2 shrink-0">
           {/* 1. Total Traders */}
           <div className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a26] border-[#262c3e] text-white'
@@ -883,10 +961,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         </div>
       )}
 
-      {/* Admin Tabs - Mobile Horizontally Scrollable with short labels */}
-      <div className={`flex space-x-1.5 sm:space-x-2 px-3 sm:px-6 pt-2 sm:pt-3 border-b overflow-x-auto scrollbar-none flex-nowrap ${
-        isLight ? 'border-slate-200' : 'border-[#262c3e]'
-      }`}>
+        {/* Admin Tabs - Sticky under header when scrolling */}
+        <div className={`sticky top-0 z-20 flex space-x-1.5 sm:space-x-2 px-3 sm:px-6 pt-2 sm:pt-3 border-b overflow-x-auto scrollbar-none flex-nowrap backdrop-blur-md shrink-0 ${
+          isLight ? 'bg-white/95 border-slate-200' : 'bg-[#121620]/95 border-[#262c3e]'
+        }`}>
         {[
           { id: 'OVERVIEW', shortLabel: 'Summary', label: 'Platform Summary', icon: TrendingUp },
           { id: 'USERS', shortLabel: `Traders (${users.length})`, label: 'Traders & Balances', icon: Users, badge: users.length },
@@ -926,7 +1004,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       </div>
 
       {/* Tab Panels */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-36">
+      <div className="p-4 sm:p-6 pb-36">
         {/* ================= TAB 1: OVERVIEW ================= */}
         {activeTab === 'OVERVIEW' && (
           <div className="space-y-6">
@@ -1320,12 +1398,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right space-x-2">
+                          {u.kycStatus === 'PENDING' && (
+                            <button
+                              onClick={() => setSelectedTraderForKyc(u)}
+                              className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-black transition"
+                            >
+                              Review Aadhaar
+                            </button>
+                          )}
                           <button
                             onClick={() => openDirectBalanceModal(u)}
                             className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-bold transition flex-inline items-center gap-1"
                             title="Directly edit Real and Demo balances with 1-click presets"
                           >
-                            Direct Edit Funds
+                            Edit Funds
+                          </button>
+                          <button
+                            onClick={() => openIndividualRiskModal(u)}
+                            className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                              u.customRiskSettings?.enabled
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                : 'bg-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                            }`}
+                            title="Configure individual target win-rate & algorithm for this trader"
+                          >
+                            {u.customRiskSettings?.enabled ? `Risk: ${u.customRiskSettings.targetWinRate}%` : 'Individual Risk'}
                           </button>
                           <button
                             onClick={() => setSelectedUserForEdit(u)}
@@ -2677,6 +2774,261 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           </div>
         )}
       </div>
+
+            </div>
+
+      {/* ================= INDIVIDUAL RISK ENGINE MODAL (ADMIN) ================= */}
+      {selectedTraderForRisk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className={`w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#141926] border-[#283248] text-white'
+          }`}>
+            <div className={`px-5 py-4 border-b flex items-center justify-between ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0f131e] border-[#222a3d]'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Individual Risk Engine: {selectedTraderForRisk.name}</h3>
+                  <p className="text-[11px] text-gray-400">Account #{selectedTraderForRisk.id} • Overrides global platform engine</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedTraderForRisk(null)} className="p-1 rounded-xl text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs overflow-y-auto max-h-[80vh]">
+              <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${
+                individualRiskEnabled
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                  : 'bg-sky-500/10 border-sky-500/20 text-sky-300'
+              }`}>
+                <div>
+                  <div className="font-black text-xs">
+                    {individualRiskEnabled ? '⚡ INDIVIDUAL OVERRIDE ACTIVE' : '🌐 USING GLOBAL PLATFORM RISK'}
+                  </div>
+                  <div className="text-[11px] opacity-90 mt-0.5">
+                    {individualRiskEnabled
+                      ? `Target Win Rate: ${individualWinRate}% strictly for this account.`
+                      : `Currently follows global settings (${riskSettings?.targetWinRate || 20}% win rate).`}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIndividualRiskEnabled(!individualRiskEnabled)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                    individualRiskEnabled ? 'bg-amber-500 text-black shadow-md' : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  {individualRiskEnabled ? 'Active' : 'Enable'}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="font-bold text-gray-300">Target Win Rate: <span className="text-amber-400 font-mono text-sm">{individualWinRate}%</span></label>
+                  <span className="text-[10px] text-gray-400">~{Math.round(individualWinRate / 10)} Wins / {10 - Math.round(individualWinRate / 10)} Losses</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="90"
+                  step="5"
+                  value={individualWinRate}
+                  onChange={(e) => setIndividualWinRate(Number(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                  <span>5% (Heavy House Edge)</span>
+                  <span>20% (Quotex Standard)</span>
+                  <span>50% (Fair 50/50)</span>
+                  <span>90% (Trader Boost)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                {[10, 20, 35, 50].map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setIndividualWinRate(rate)}
+                    className={`py-1.5 rounded-xl border text-xs font-bold transition ${
+                      individualWinRate === rate
+                        ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                        : 'border-[#283248] bg-[#0e121d] text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {rate}%
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="font-bold text-gray-300 block mb-1.5">Execution Algorithm</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'QUOTEX_OTC', label: 'Quotex OTC', sub: 'Micro-pip sniping active' },
+                    { id: 'STRICT', label: 'Strict Probability', sub: 'Hard statistical quota' },
+                    { id: 'BALANCED', label: 'Balanced', sub: 'Smooth win distribution' },
+                    { id: 'ORGANIC', label: 'Organic Fair', sub: 'Neutral market outcome' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setIndividualMode(m.id as any)}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        individualMode === m.id
+                          ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                          : 'border-[#283248] bg-[#0e121d] text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="font-bold text-xs">{m.label}</div>
+                      <div className="text-[10px] opacity-75">{m.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-black/25 border border-white/5 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-xs">Hairline Expiry Sniping (1-2 pips)</div>
+                  <div className="text-[10px] text-gray-400">Micro-adjusts price 1.5s before expiry to enforce target win rate</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIndividualSniping(!individualSniping)}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${
+                    individualSniping ? 'bg-amber-500' : 'bg-gray-700'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${
+                    individualSniping ? 'right-1' : 'left-1'
+                  }`} />
+                </button>
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTraderForRisk(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-xs font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingIndividualRisk}
+                  onClick={handleSaveIndividualRisk}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-lg transition active:scale-95 flex items-center justify-center space-x-1.5"
+                >
+                  {isSavingIndividualRisk ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Individual Risk</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= KYC AADHAAR REVIEW MODAL (ADMIN) ================= */}
+      {selectedTraderForKyc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className={`w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#141926] border-[#283248] text-white'
+          }`}>
+            <div className={`px-5 py-4 border-b flex items-center justify-between ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0f131e] border-[#222a3d]'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Aadhaar Document Review: {selectedTraderForKyc.name}</h3>
+                  <p className="text-[11px] text-gray-400">Account #{selectedTraderForKyc.id} • Master Verification</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedTraderForKyc(null)} className="p-1 rounded-xl text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs overflow-y-auto">
+              <div className="p-3.5 rounded-2xl bg-black/25 border border-white/5 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Legal Name:</span>
+                  <span className="font-bold text-white">{selectedTraderForKyc.kycData?.fullName || selectedTraderForKyc.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Aadhaar Number:</span>
+                  <span className="font-mono font-bold text-amber-400">{selectedTraderForKyc.aadhaarNumber || selectedTraderForKyc.kycData?.aadhaarNumber || 'Not submitted'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Date of Birth:</span>
+                  <span className="font-bold text-white">{selectedTraderForKyc.kycData?.dob || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Gender:</span>
+                  <span className="font-bold text-white">{selectedTraderForKyc.kycData?.gender || 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Front</span>
+                  <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                    {selectedTraderForKyc.kycData?.frontImage ? (
+                      <img src={selectedTraderForKyc.kycData.frontImage} alt="Front" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-gray-500 text-[10px]">No image attached</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Back</span>
+                  <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                    {selectedTraderForKyc.kycData?.backImage ? (
+                      <img src={selectedTraderForKyc.kycData.backImage} alt="Back" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-gray-500 text-[10px]">No image attached</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => handleReviewKyc(false)}
+                  className="flex-1 py-3 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition"
+                >
+                  Reject KYC
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReviewKyc(true)}
+                  className="flex-1 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg transition active:scale-95"
+                >
+                  Approve Aadhaar KYC
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL: EASIEST DIRECT BALANCE EDITOR ================= */}
       {selectedUserForBalance && (

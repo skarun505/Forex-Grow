@@ -19,7 +19,8 @@ import {
   X,
   Copy,
   Check,
-  UserCheck
+  UserCheck,
+  Zap
 } from 'lucide-react';
 
 interface LoginPageProps {
@@ -126,6 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
 
         if (data.token) {
           localStorage.setItem('forexgrow_auth_token', data.token);
+          sessionStorage.setItem('forexgrow_tab_token', data.token);
         }
 
         if (mode === 'ADMIN') {
@@ -340,7 +342,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                 {/* Email or Phone Input */}
                 <div>
                   <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                    {mode === 'TRADER' ? 'Email ID or Mobile Number' : 'Administrator / Manager Email'}
+                    {mode === 'TRADER' ? 'Email ID, Mobile Number or 12-digit Aadhaar' : 'Administrator / Manager Email'}
                   </label>
                   <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
                     isLight 
@@ -363,7 +365,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                           ? 'admin@forexgrow.com' 
                           : mode === 'MANAGER' 
                           ? 'manager@forexgrow.com' 
-                          : 'trader@forexgrow.com or +91 98765 43210'
+                          : 'Email, Mobile (+91...) or 12-digit Aadhaar'
                       }
                       className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
                         isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
@@ -477,6 +479,114 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                   )}
                 </button>
               </form>
+
+              {/* Quick Test Logins for easy 1-tap fill testing */}
+              {mode === 'TRADER' ? (
+                <div className="pt-2">
+                  <div className="flex items-center justify-between text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
+                    <span>Quick Test Logins</span>
+                    <span className="text-emerald-400 font-extrabold text-[9px] bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">1-Tap Fill</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIdentifier('alex.rivera@quotex.pro');
+                        setPassword('forexgrow123');
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                        isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#0f1420] hover:bg-[#151c2e] border-[#222a3d]'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <div className="overflow-hidden">
+                        <div className="text-[11px] font-bold truncate">Trader (Email)</div>
+                        <div className="text-[10px] text-gray-400 truncate">alex.rivera@quotex.pro</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIdentifier('+15559876543');
+                        setPassword('forexgrow123');
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                        isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#0f1420] hover:bg-[#151c2e] border-[#222a3d]'
+                      }`}
+                    >
+                      <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <div className="overflow-hidden">
+                        <div className="text-[11px] font-bold truncate">Trader (Phone)</div>
+                        <div className="text-[10px] text-gray-400 truncate">+15559876543</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIdentifier('7845 1290 3341');
+                        setPassword('forexgrow123');
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                        isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#0f1420] hover:bg-[#151c2e] border-[#222a3d]'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <div className="overflow-hidden">
+                        <div className="text-[11px] font-bold truncate">Trader (Aadhaar)</div>
+                        <div className="text-[10px] text-gray-400 truncate">7845 1290 3341</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              ) : mode === 'MANAGER' ? (
+                <div className="pt-2">
+                  <div className="flex items-center justify-between text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
+                    <span>Quick Test Login</span>
+                    <span className="text-sky-400 font-extrabold text-[9px] bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">1-Tap Fill</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdentifier('manager@forexgrow.com');
+                      setPassword('manager123');
+                    }}
+                    className={`w-full p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                      isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#0f1420] hover:bg-[#151c2e] border-[#222a3d]'
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                    <div className="overflow-hidden">
+                      <div className="text-[11px] font-bold truncate">Operations Manager (Sarah Connor)</div>
+                      <div className="text-[10px] text-gray-400 truncate">manager@forexgrow.com • manager123</div>
+                    </div>
+                  </button>
+                </div>
+              ) : (
+                <div className="pt-2">
+                  <div className="flex items-center justify-between text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
+                    <span>Quick Test Login</span>
+                    <span className="text-purple-400 font-extrabold text-[9px] bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">1-Tap Fill</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdentifier('admin@forexgrow.com');
+                      setPassword('admin123');
+                    }}
+                    className={`w-full p-2.5 rounded-xl border text-left transition flex items-center space-x-2 ${
+                      isLight ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-[#0f1420] hover:bg-[#151c2e] border-[#222a3d]'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
+                    <div className="overflow-hidden">
+                      <div className="text-[11px] font-bold truncate">Master Admin</div>
+                      <div className="text-[10px] text-gray-400 truncate">admin@forexgrow.com • admin123</div>
+                    </div>
+                  </button>
+                </div>
+              )}
 
               {/* Mode-specific Notices */}
               {mode === 'TRADER' ? (

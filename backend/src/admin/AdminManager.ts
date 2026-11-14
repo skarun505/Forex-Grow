@@ -67,21 +67,48 @@ export class AdminManager extends EventEmitter {
     try {
       const dbUsers = await SupabaseDb.loadUsers();
       if (dbUsers.length > 0) {
+        const purgedIds = new Set(['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04']);
         for (const u of dbUsers) {
+          if (purgedIds.has(u.id)) continue;
+
+          // Preserve seeded password, phone, role, bank details, risk settings
+          const existing = this.users.get(u.id);
+          const merged: UserAccount = {
+            ...(existing || {}),
+            ...u,
+            password: existing?.password || u.password || 'forexgrow123',
+            phone: existing?.phone || u.phone,
+            role: existing?.role || u.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : 'TRADER'),
+            aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber,
+            kycStatus: existing?.kycStatus || u.kycStatus || 'APPROVED',
+            savedBankDetails: existing?.savedBankDetails || u.savedBankDetails,
+            customRiskSettings: existing?.customRiskSettings || u.customRiskSettings,
+          };
+
           // Normalize primary currency to INR as requested
-          if (u.id === 'usr_quotex_vip_99') {
-            u.currency = 'INR';
-            if (u.realBalance > 500000) u.realBalance = 10000.00;
-            if (u.demoBalance > 500000) u.demoBalance = 10000.00;
-            u.activeAccountType = 'REAL';
-            await SupabaseDb.saveUser(u);
-          } else if (u.id === 'usr_manager_ops_01') {
-            u.currency = 'INR';
-            if (u.realBalance > 500000) u.realBalance = 100000.00;
-            if (u.demoBalance > 500000) u.demoBalance = 10000.00;
-            await SupabaseDb.saveUser(u);
+          if (merged.id === 'usr_quotex_vip_99') {
+            merged.currency = 'INR';
+            if (merged.realBalance > 50000 || merged.realBalance === 0) merged.realBalance = 10000.00;
+            if (merged.demoBalance > 50000 || merged.demoBalance === 0) merged.demoBalance = 10000.00;
+            merged.activeAccountType = 'REAL';
+            merged.role = 'TRADER';
+            merged.isKycVerified = true;
+            merged.kycStatus = 'APPROVED';
+            if (!merged.aadhaarNumber) merged.aadhaarNumber = '7845 1290 3341';
+            await SupabaseDb.saveUser(merged);
+          } else if (merged.id === 'usr_admin_001') {
+            merged.realBalance = 0;
+            merged.demoBalance = 0;
+            merged.role = 'ADMIN';
+            await SupabaseDb.saveUser(merged);
+          } else if (merged.id === 'usr_manager_ops_01') {
+            merged.currency = 'INR';
+            merged.realBalance = 0;
+            merged.demoBalance = 0;
+            merged.role = 'MANAGER';
+            await SupabaseDb.saveUser(merged);
           }
-          this.users.set(u.id, u);
+          this.users.set(merged.id, merged);
         }
       } else {
         for (const u of this.users.values()) {
@@ -91,11 +118,18 @@ export class AdminManager extends EventEmitter {
 
       const dbTxns = await SupabaseDb.loadTransactions();
       if (dbTxns.length > 0) {
-        this.transactions = dbTxns;
+        this.transactions = dbTxns.filter(t => t.userId === 'usr_quotex_vip_99' || !['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04'].includes(t.userId));
       }
 
       const dbCoupons = await SupabaseDb.loadCoupons();
       if (dbCoupons.length > 0) {
+        const existingCodes = new Set(dbCoupons.map((c: any) => c.code));
+        for (const seeded of this.coupons) {
+          if (!existingCodes.has(seeded.code)) {
+            dbCoupons.push(seeded);
+            SupabaseDb.saveCoupon(seeded);
+          }
+        }
         this.coupons = dbCoupons;
       }
     } catch (e: any) {
@@ -104,7 +138,7 @@ export class AdminManager extends EventEmitter {
   }
 
   private seedInitialData() {
-    // Super Admin Account
+    // Super Admin Account (Zero balance as requested for operational purity)
     const superAdmin: UserAccount = {
       id: 'usr_admin_001',
       name: 'Super Admin',
@@ -112,41 +146,67 @@ export class AdminManager extends EventEmitter {
       phone: '+15550001111',
       password: 'admin123',
       role: 'ADMIN',
-      demoBalance: 100000.00,
-      realBalance: 50000.00,
+      demoBalance: 0.00,
+      realBalance: 0.00,
       activeAccountType: 'REAL',
       currency: 'USD',
       vipLevel: 'VIP',
       isKycVerified: true,
+      kycStatus: 'APPROVED',
       status: 'ACTIVE',
-      totalTrades: 500,
-      totalDepositedUSD: 50000.00,
+      totalTrades: 0,
+      totalDepositedUSD: 0.00,
       createdAt: Date.now() - 365 * 86400000,
     };
     this.users.set(superAdmin.id, superAdmin);
 
-    // Primary VIP Trader
+    // Primary VIP Trader: Alex Rivera (Sole active trader retained for launch testing)
     const primaryUser: UserAccount = {
       id: 'usr_quotex_vip_99',
       name: 'Alex Rivera',
       email: 'alex.rivera@quotex.pro',
       phone: '+15559876543',
+      aadhaarNumber: '7845 1290 3341',
       password: 'forexgrow123',
-      role: 'ADMIN',
+      role: 'TRADER',
       demoBalance: 10000.00,
       realBalance: 10000.00,
       activeAccountType: 'REAL',
       currency: 'INR',
       vipLevel: 'VIP',
       isKycVerified: true,
+      kycStatus: 'APPROVED',
+      kycData: {
+        aadhaarNumber: '7845 1290 3341',
+        fullName: 'Alex Rivera',
+        dob: '1995-08-14',
+        gender: 'Male',
+        submittedAt: Date.now() - 86400000 * 20,
+        reviewedAt: Date.now() - 86400000 * 19,
+      },
+      savedBankDetails: {
+        bankName: 'HDFC Bank',
+        accountNumber: '50100492817263',
+        ifscCode: 'HDFC0001042',
+        accountHolderName: 'Alex Rivera',
+        upiId: 'alexrivera@okhdfcbank',
+        isLocked: true,
+        updatedAt: Date.now() - 86400000 * 15,
+      },
+      customRiskSettings: {
+        enabled: false,
+        targetWinRate: 20,
+        mode: 'QUOTEX_OTC',
+        microPipSniping: true,
+      },
       status: 'ACTIVE',
       totalTrades: 34,
-      totalDepositedUSD: 1250.00,
+      totalDepositedUSD: 105.26,
       createdAt: Date.now() - 30 * 86400000,
     };
     this.users.set(primaryUser.id, primaryUser);
 
-    // Operations Manager Account
+    // Operations Manager Account: Sarah Connor (Zero balance as requested)
     const opsManager: UserAccount = {
       id: 'usr_manager_ops_01',
       name: 'Sarah Connor',
@@ -154,12 +214,13 @@ export class AdminManager extends EventEmitter {
       phone: '+15550002222',
       password: 'manager123',
       role: 'MANAGER',
-      demoBalance: 10000.00,
-      realBalance: 100000.00,
+      demoBalance: 0.00,
+      realBalance: 0.00,
       activeAccountType: 'REAL',
       currency: 'INR',
       vipLevel: 'PRO',
       isKycVerified: true,
+      kycStatus: 'APPROVED',
       status: 'ACTIVE',
       totalTrades: 0,
       totalDepositedUSD: 0,
@@ -167,145 +228,80 @@ export class AdminManager extends EventEmitter {
     };
     this.users.set(opsManager.id, opsManager);
 
-    // Additional mock platform traders
-    const mockUsers: UserAccount[] = [
-      {
-        id: 'usr_sat_01',
-        name: 'Satoshi Nakamoto',
-        email: 'sat@block.org',
-        demoBalance: 15400.00,
-        realBalance: 14285.40,
-        activeAccountType: 'REAL',
-        currency: 'USD',
-        vipLevel: 'VIP',
-        isKycVerified: true,
-        status: 'ACTIVE',
-        totalTrades: 218,
-        totalDepositedUSD: 5000.00,
-      },
-      {
-        id: 'usr_whale_02',
-        name: 'Crypto Whale 9',
-        email: 'whale9@crypto.net',
-        demoBalance: 10000.00,
-        realBalance: 9840.10,
-        activeAccountType: 'REAL',
-        currency: 'USD',
-        vipLevel: 'VIP',
-        isKycVerified: true,
-        status: 'ACTIVE',
-        totalTrades: 145,
-        totalDepositedUSD: 3500.00,
-      },
-      {
-        id: 'usr_elena_03',
-        name: 'Elena Vance',
-        email: 'elena.v@invest.de',
-        demoBalance: 8200.00,
-        realBalance: 2450.00,
-        activeAccountType: 'REAL',
-        currency: 'EUR',
-        vipLevel: 'PRO',
-        isKycVerified: true,
-        status: 'ACTIVE',
-        totalTrades: 72,
-        totalDepositedUSD: 2000.00,
-      },
-      {
-        id: 'usr_raj_04',
-        name: 'Raj Patel',
-        email: 'raj.p@trader.in',
-        demoBalance: 12000.00,
-        realBalance: 650.00,
-        activeAccountType: 'DEMO',
-        currency: 'INR',
-        vipLevel: 'STANDARD',
-        isKycVerified: false,
-        status: 'ACTIVE',
-        totalTrades: 49,
-        totalDepositedUSD: 500.00,
-      },
-    ];
-
-    for (const u of mockUsers) {
-      this.users.set(u.id, u);
-    }
-
-    // Default Coupons
+    // Standard Seed Coupons (Requested: 10k, 50k, 100k, 500k, 1M with 5%, 10%, 12%, 15%, 20%)
     this.coupons = [
       {
-        id: 'cpn_1',
-        code: 'WELCOME50',
-        bonusPercentage: 50,
-        maxBonusUSD: 500,
-        minDepositUSD: 20,
-        usageCount: 148,
+        id: 'cpn_10k',
+        code: 'GROW10K',
+        bonusPercentage: 5,
+        maxBonusUSD: 100,
+        minDepositUSD: 105, // ~₹10,000 INR
+        usageCount: 0,
         maxUsage: 1000,
         isActive: true,
-        createdAt: Date.now() - 3600000 * 24 * 7,
+        createdAt: Date.now(),
       },
       {
-        id: 'cpn_2',
-        code: 'VIP100',
-        bonusPercentage: 100,
-        maxBonusUSD: 1000,
-        minDepositUSD: 250,
-        usageCount: 42,
-        maxUsage: 200,
-        isActive: true,
-        createdAt: Date.now() - 3600000 * 24 * 3,
-      },
-      {
-        id: 'cpn_3',
-        code: 'CRYPTO30',
-        bonusPercentage: 30,
-        maxBonusUSD: 300,
-        minDepositUSD: 50,
-        usageCount: 89,
+        id: 'cpn_50k',
+        code: 'GROW50K',
+        bonusPercentage: 10,
+        maxBonusUSD: 500,
+        minDepositUSD: 526, // ~₹50,000 INR
+        usageCount: 0,
         maxUsage: 500,
         isActive: true,
-        createdAt: Date.now() - 3600000 * 24 * 5,
+        createdAt: Date.now(),
+      },
+      {
+        id: 'cpn_100k',
+        code: 'GROW100K',
+        bonusPercentage: 12,
+        maxBonusUSD: 1200,
+        minDepositUSD: 1052, // ~₹100,000 INR
+        usageCount: 0,
+        maxUsage: 500,
+        isActive: true,
+        createdAt: Date.now(),
+      },
+      {
+        id: 'cpn_500k',
+        code: 'GROW500K',
+        bonusPercentage: 15,
+        maxBonusUSD: 7500,
+        minDepositUSD: 5263, // ~₹500,000 INR
+        usageCount: 0,
+        maxUsage: 250,
+        isActive: true,
+        createdAt: Date.now(),
+      },
+      {
+        id: 'cpn_1m',
+        code: 'GROW1M',
+        bonusPercentage: 20,
+        maxBonusUSD: 20000,
+        minDepositUSD: 10526, // ~₹1,000,000 INR
+        usageCount: 0,
+        maxUsage: 100,
+        isActive: true,
+        createdAt: Date.now(),
       },
     ];
 
-    // Seed Initial Transactions
+    // Seed Initial Transactions (Only approved test transaction for Alex Rivera)
     this.transactions = [
       {
-        id: 'tx_101',
+        id: 'tx_init_01',
         userId: 'usr_quotex_vip_99',
         userName: 'Alex Rivera',
         type: 'DEPOSIT',
-        amount: 250.00,
-        currency: 'USD',
-        method: 'USDT (TRC-20)',
-        address: 'TX9QxN7m48aLkVmY2ZqQ3v7JkP1m8RtW5n',
-        promoCode: 'WELCOME50',
-        status: 'APPROVED',
-        timestamp: Date.now() - 1000 * 60 * 60 * 2,
-      },
-      {
-        id: 'tx_102',
-        userId: 'usr_elena_03',
-        userName: 'Elena Vance',
-        type: 'WITHDRAWAL',
-        amount: 300.00,
-        currency: 'USD',
-        method: 'Tether TRC-20',
-        address: 'TY5WqP9k21aBcVmZ8RqQ1v4JkP9m2RtX7m',
-        status: 'PENDING',
-        timestamp: Date.now() - 1000 * 60 * 25,
-      },
-      {
-        id: 'tx_103',
-        userId: 'usr_raj_04',
-        userName: 'Raj Patel',
-        type: 'DEPOSIT',
-        amount: 100.00,
+        amount: 10000.00,
+        amountUSD: 105.26,
         currency: 'INR',
         method: 'UPI Instant Payout',
-        address: 'raj@okaxis',
-        status: 'PENDING',
-        timestamp: Date.now() - 1000 * 60 * 8,
+        address: 'alexrivera@okhdfcbank',
+        utrNumber: '202611140921',
+        status: 'APPROVED',
+        timestamp: Date.now() - 3600000 * 24,
       },
     ];
   }
@@ -471,6 +467,153 @@ export class AdminManager extends EventEmitter {
     if (updates.realBalance !== undefined) user.realBalance = updates.realBalance;
     if (updates.demoBalance !== undefined) user.demoBalance = updates.demoBalance;
     if (updates.activeAccountType !== undefined) user.activeAccountType = updates.activeAccountType;
+
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+    return { success: true, user: { ...user } };
+  }
+
+  public updateUserCustomRisk(
+    userId: string,
+    risk: {
+      enabled: boolean;
+      targetWinRate: number;
+      mode: 'QUOTEX_OTC' | 'STRICT' | 'BALANCED' | 'ORGANIC';
+      microPipSniping: boolean;
+    },
+    actorName: string = 'Desk Operator'
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+
+    user.customRiskSettings = {
+      enabled: Boolean(risk.enabled),
+      targetWinRate: Math.max(5, Math.min(95, Number(risk.targetWinRate) || 20)),
+      mode: risk.mode || 'QUOTEX_OTC',
+      microPipSniping: Boolean(risk.microPipSniping),
+    };
+    user.winRateOverride = user.customRiskSettings.enabled ? user.customRiskSettings.targetWinRate : undefined;
+
+    this.addAuditLog(
+      'sys_risk',
+      actorName,
+      'MANAGER',
+      'UPDATE_INDIVIDUAL_RISK',
+      user.id,
+      user.name,
+      `Individual risk configured: ${user.customRiskSettings.enabled ? 'ACTIVE' : 'INACTIVE'} (Target: ${user.customRiskSettings.targetWinRate}%, Mode: ${user.customRiskSettings.mode}, Sniping: ${user.customRiskSettings.microPipSniping})`
+    );
+
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+    return { success: true, user: { ...user } };
+  }
+
+  public submitKycData(
+    userId: string,
+    data: {
+      fullName: string;
+      aadhaarNumber: string;
+      dob?: string;
+      gender?: string;
+      frontImage?: string;
+      backImage?: string;
+    }
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+
+    const cleanAadhaar = data.aadhaarNumber.replace(/\D/g, '');
+    if (cleanAadhaar.length !== 12) {
+      return { success: false, error: 'Aadhaar number must contain exactly 12 digits' };
+    }
+
+    const formattedAadhaar = `${cleanAadhaar.slice(0, 4)} ${cleanAadhaar.slice(4, 8)} ${cleanAadhaar.slice(8, 12)}`;
+    user.aadhaarNumber = formattedAadhaar;
+    user.kycStatus = 'PENDING';
+    user.kycData = {
+      aadhaarNumber: formattedAadhaar,
+      fullName: data.fullName.trim(),
+      dob: data.dob,
+      gender: data.gender,
+      frontImage: data.frontImage,
+      backImage: data.backImage,
+      submittedAt: Date.now(),
+    };
+
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+    return { success: true, user: { ...user } };
+  }
+
+  public reviewKyc(
+    userId: string,
+    isApproved: boolean,
+    reason?: string,
+    actorName: string = 'Desk Manager'
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+
+    user.isKycVerified = isApproved;
+    user.kycStatus = isApproved ? 'APPROVED' : 'REJECTED';
+    if (!user.kycData) {
+      user.kycData = {
+        aadhaarNumber: user.aadhaarNumber || '7845 1290 3341',
+        fullName: user.name,
+      };
+    }
+    user.kycData.reviewedAt = Date.now();
+    if (!isApproved) {
+      user.kycData.rejectionReason = reason || 'Aadhaar documents unclear or details mismatched';
+    }
+
+    this.addAuditLog(
+      'sys_kyc',
+      actorName,
+      'MANAGER',
+      isApproved ? 'APPROVE_KYC' : 'REJECT_KYC',
+      user.id,
+      user.name,
+      isApproved ? 'Aadhaar identity verification approved' : `KYC rejected: ${reason || 'Document mismatch'}`
+    );
+
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+    return { success: true, user: { ...user } };
+  }
+
+  public saveBankDetails(
+    userId: string,
+    bankDetails: {
+      bankName?: string;
+      accountNumber?: string;
+      ifscCode?: string;
+      accountHolderName?: string;
+      upiId?: string;
+    },
+    isStaffOverride: boolean = false
+  ): { success: boolean; user?: UserAccount; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+
+    // If already locked and not staff override, reject edit
+    if (user.savedBankDetails?.isLocked && !isStaffOverride) {
+      return {
+        success: false,
+        error: 'Bank details are verified & locked for account security. Please contact Customer Care to make changes.',
+      };
+    }
+
+    user.savedBankDetails = {
+      bankName: bankDetails.bankName?.trim() || user.savedBankDetails?.bankName,
+      accountNumber: bankDetails.accountNumber?.trim() || user.savedBankDetails?.accountNumber,
+      ifscCode: bankDetails.ifscCode?.trim()?.toUpperCase() || user.savedBankDetails?.ifscCode,
+      accountHolderName: bankDetails.accountHolderName?.trim() || user.savedBankDetails?.accountHolderName,
+      upiId: bankDetails.upiId?.trim() || user.savedBankDetails?.upiId,
+      isLocked: true, // Always locked once saved!
+      updatedAt: Date.now(),
+    };
 
     this.emit('user_updated', user);
     SupabaseDb.saveUser(user);

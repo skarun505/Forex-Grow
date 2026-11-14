@@ -22,7 +22,9 @@ import {
   Info,
   Clock,
   History,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  MessageCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -113,17 +115,30 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
       .catch((err) => console.warn('Could not fetch payment settings:', err));
   }, [isOpen]);
 
-  // Withdrawal Form State
+  // Withdrawal Form State & Bank Details Lock
+  const savedBank = account.savedBankDetails;
+  const isBankDetailsLocked = !!(savedBank?.isLocked || (savedBank?.accountNumber && savedBank?.accountNumber.trim()) || (savedBank?.upiId && savedBank?.upiId.trim()));
+
   const [withdrawAmountInput, setWithdrawAmountInput] = useState<string>(Math.round(20 * curr.rateAgainstUSD).toString());
   const [withdrawType, setWithdrawType] = useState<'UPI' | 'BANK'>('UPI');
-  const [withdrawUpiId, setWithdrawUpiId] = useState('');
-  const [bankHolderName, setBankHolderName] = useState(account.name || '');
-  const [bankAccountNumber, setBankAccountNumber] = useState('');
-  const [bankIfsc, setBankIfsc] = useState('');
-  const [bankName, setBankName] = useState('');
+  const [withdrawUpiId, setWithdrawUpiId] = useState(savedBank?.upiId || '');
+  const [bankHolderName, setBankHolderName] = useState(savedBank?.accountHolderName || account.name || '');
+  const [bankAccountNumber, setBankAccountNumber] = useState(savedBank?.accountNumber || '');
+  const [bankIfsc, setBankIfsc] = useState(savedBank?.ifscCode || '');
+  const [bankName, setBankName] = useState(savedBank?.bankName || '');
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccessData, setWithdrawSuccessData] = useState<{ reference: string; amount: number } | null>(null);
+
+  useEffect(() => {
+    if (savedBank) {
+      if (savedBank.upiId) setWithdrawUpiId(savedBank.upiId);
+      if (savedBank.accountHolderName) setBankHolderName(savedBank.accountHolderName);
+      if (savedBank.accountNumber) setBankAccountNumber(savedBank.accountNumber);
+      if (savedBank.ifscCode) setBankIfsc(savedBank.ifscCode);
+      if (savedBank.bankName) setBankName(savedBank.bankName);
+    }
+  }, [savedBank]);
 
   const activeUpiId = paymentSettings.upiId || 'forexgrow@icici';
   const numericDeposit = Number(depositAmountInput) || 0;
@@ -354,6 +369,22 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
       const data = await response.json();
       if (data.success) {
+        // Automatically save and lock bank details upon first successful withdrawal request
+        try {
+          fetch(apiUrl('/api/user/bank-details'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: account.id,
+              bankName: bankName.trim(),
+              accountNumber: bankAccountNumber.trim(),
+              ifscCode: bankIfsc.trim().toUpperCase(),
+              accountHolderName: bankHolderName.trim(),
+              upiId: withdrawUpiId.trim(),
+            }),
+          }).catch(() => {});
+        } catch (err) {}
+
         setWithdrawSuccessData({
           reference: data.reference || 'FG-WDR-' + Math.floor(100000 + Math.random() * 900000),
           amount: numericWithdraw,
@@ -476,7 +507,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
           {/* ================= DEPOSIT TAB ================= */}
           {activeTab === 'DEPOSIT' && (
             depositSuccessData ? (
-              /* Success Pop-up: Waiting for Payment Verification */
+              /* Success Pop-up: Waiting for Confirmation */
               <div className="py-6 sm:py-8 flex flex-col items-center text-center space-y-4 animate-in zoom-in-95">
                 <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400 animate-pulse">
                   <Clock className="w-9 h-9" />
@@ -484,10 +515,10 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
                 <div className="space-y-1">
                   <h3 className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                    Waiting for Payment Verification
+                    Waiting for Confirmation
                   </h3>
                   <div className="inline-block bg-amber-500/15 border border-amber-500/30 text-amber-500 font-extrabold text-xs px-3.5 py-1 rounded-full uppercase tracking-wide">
-                    ⏳ Awaiting Admin / Manager Approval
+                    ⏳ Waiting for Confirmation
                   </div>
                 </div>
 
@@ -521,15 +552,39 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 </div>
 
                 <p className={`text-xs max-w-md leading-relaxed ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
-                  Your payment receipt and UTR reference have been forwarded to the verification desk. Once an <strong>Administrator</strong> or <strong>Desk Manager</strong> verifies and approves your transaction, the funds will automatically reflect in your live trading account balance.
+                  Your payment receipt and UTR reference have been forwarded to the verification desk. Your transaction is <strong>Waiting for Confirmation</strong>. Once Customer Care verifies your deposit, the funds will immediately reflect in your live trading account balance.
                 </p>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const msg = `Hello Forex Grow Customer Care,\n\nI have made a deposit and need urgent confirmation:\nTrader: ${account.name} (${account.id})\nDeposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()}\nRef: ${depositSuccessData?.reference || 'N/A'}\nUTR: ${utrNumber || 'N/A'}\n\nPlease verify and credit my account.`;
+                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
+                >
+                  <MessageCircle className="w-4 h-4 fill-current" />
+                  <span>Contact Payments Team on WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const msg = `Hello Forex Grow Customer Care,\n\nI have requested a payout and need urgent assistance:\nTrader: ${account.name} (${account.id})\nWithdrawal Amount: ${curr.symbol}${numericWithdraw.toLocaleString()}\nRef: ${withdrawSuccessData?.reference || 'N/A'}\nDestination: ${withdrawType === 'UPI' ? withdrawUpiId : bankAccountNumber}\n\nPlease confirm payout release.`;
+                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
+                >
+                  <MessageCircle className="w-4 h-4 fill-current" />
+                  <span>Contact Payments Team on WhatsApp</span>
+                </button>
 
                 <div className="w-full max-w-md flex flex-col sm:flex-row gap-2.5">
                   <button
                     onClick={() => {
                       fetchUserTransactions();
                       setActiveTab('HISTORY');
-                      setDepositSuccessData(null);
+                      setWithdrawSuccessData(null);
                     }}
                     className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-3 px-4 rounded-2xl text-xs transition"
                   >
@@ -968,10 +1023,10 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
                 <div className="space-y-1">
                   <h3 className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                    Withdrawal Request Submitted!
+                    Waiting for Confirmation
                   </h3>
                   <div className="inline-block bg-amber-500/15 border border-amber-500/30 text-amber-500 font-extrabold text-xs px-3 py-1 rounded-full uppercase tracking-wide">
-                    ⏳ Within 24 Working Hours
+                    ⏳ Waiting for Confirmation
                   </div>
                 </div>
 
@@ -992,20 +1047,44 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   </div>
                   <div className="flex justify-between">
                     <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Payout Status:</span>
-                    <span className="text-amber-500 font-black">PENDING FINANCE APPROVAL</span>
+                    <span className="text-amber-500 font-black">WAITING FOR CONFIRMATION</span>
                   </div>
                 </div>
 
                 <p className={`text-xs max-w-md leading-relaxed ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
-                  Within <strong>24 working hours</strong>, your withdrawal will be deposited into your account once approved by our finance team. Your dashboard status will update to <strong>SUCCESSFUL</strong>.
+                  Your withdrawal request is currently <strong>Waiting for Confirmation</strong> by Customer Care. Within 24 working hours, funds will be released to your registered account.
                 </p>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const msg = `Hello Forex Grow Customer Care,\n\nI have made a deposit and need urgent confirmation:\nTrader: ${account.name} (${account.id})\nDeposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()}\nRef: ${depositSuccessData?.reference || 'N/A'}\nUTR: ${utrNumber || 'N/A'}\n\nPlease verify and credit my account.`;
+                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
+                >
+                  <MessageCircle className="w-4 h-4 fill-current" />
+                  <span>Contact Payments Team on WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const msg = `Hello Forex Grow Customer Care,\n\nI have requested a payout and need urgent assistance:\nTrader: ${account.name} (${account.id})\nWithdrawal Amount: ${curr.symbol}${numericWithdraw.toLocaleString()}\nRef: ${withdrawSuccessData?.reference || 'N/A'}\nDestination: ${withdrawType === 'UPI' ? withdrawUpiId : bankAccountNumber}\n\nPlease confirm payout release.`;
+                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
+                >
+                  <MessageCircle className="w-4 h-4 fill-current" />
+                  <span>Contact Payments Team on WhatsApp</span>
+                </button>
 
                 <div className="w-full max-w-md flex flex-col sm:flex-row gap-2.5">
                   <button
                     onClick={() => {
                       fetchUserTransactions();
                       setActiveTab('HISTORY');
-                      setDepositSuccessData(null);
+                      setWithdrawSuccessData(null);
                     }}
                     className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-3 px-4 rounded-2xl text-xs transition"
                   >
@@ -1113,6 +1192,27 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   </div>
                 </div>
 
+                {/* Bank Details Lock Notice */}
+                {isBankDetailsLocked && (
+                  <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      <Lock className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>Bank details verified & locked. To update, please contact Customer Care.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const msg = `Hello Forex Grow Customer Care,\n\nI need to update my verified bank/UPI payout details.\nTrader: ${account.name} (${account.id})\n\nPlease assist me.`;
+                        window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                      }}
+                      className="shrink-0 px-2.5 py-1.5 rounded-xl bg-[#25D366] text-black font-black text-[10px] flex items-center space-x-1 shadow hover:bg-[#20ba5a] transition"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                      <span>Contact Care</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Account Details Input */}
                 {withdrawType === 'UPI' ? (
                   <div>
@@ -1123,7 +1223,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                       type="text"
                       value={withdrawUpiId}
                       onChange={(e) => setWithdrawUpiId(e.target.value)}
-                      placeholder="e.g. yourname@okhdfcbank"
+                      placeholder="e.g. yourname@okhdfcbank" disabled={isBankDetailsLocked}
                       className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none ${
                         isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                       }`}
@@ -1139,7 +1239,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                         type="text"
                         value={bankHolderName}
                         onChange={(e) => setBankHolderName(e.target.value)}
-                        placeholder="As registered in your bank"
+                        placeholder="As registered in your bank" disabled={isBankDetailsLocked}
                         className={`w-full border rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-none ${
                           isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                         }`}
@@ -1155,7 +1255,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                           type="text"
                           value={bankAccountNumber}
                           onChange={(e) => setBankAccountNumber(e.target.value)}
-                          placeholder="Account Number"
+                          placeholder="Account Number" disabled={isBankDetailsLocked}
                           className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono font-bold focus:outline-none ${
                             isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                           }`}
@@ -1169,7 +1269,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                           type="text"
                           value={bankIfsc}
                           onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-                          placeholder="e.g. HDFC0001234"
+                          placeholder="e.g. HDFC0001234" disabled={isBankDetailsLocked}
                           className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono font-bold uppercase focus:outline-none ${
                             isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                           }`}
@@ -1185,7 +1285,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                         type="text"
                         value={bankName}
                         onChange={(e) => setBankName(e.target.value)}
-                        placeholder="e.g. HDFC Bank, SBI, ICICI"
+                        placeholder="e.g. HDFC Bank, SBI, ICICI" disabled={isBankDetailsLocked}
                         className={`w-full border rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-none ${
                           isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                         }`}
@@ -1346,7 +1446,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                 : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                             }`}>
-                              {isPending ? '⏳ Awaiting Verification' : isApproved ? '✅ Approved & Credited' : '❌ Rejected'}
+                              {isPending ? '⏳ Waiting for Confirmation' : isApproved ? '✅ Approved & Credited' : '❌ Rejected'}
                             </span>
                           </div>
 

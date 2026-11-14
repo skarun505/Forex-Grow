@@ -187,16 +187,38 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   useEffect(() => {
-    const wsUrl = getWsUrl();
     let socket: WebSocket;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
 
     const connect = () => {
-      socket = new WebSocket(wsUrl);
+      let userId = '';
+      try {
+        const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+        if (savedUserRaw) {
+          const parsed = JSON.parse(savedUserRaw);
+          if (parsed?.id) userId = parsed.id;
+        }
+      } catch (e) {}
+
+      const tabToken = sessionStorage.getItem('forexgrow_tab_token') || localStorage.getItem('forexgrow_auth_token') || '';
+      const baseWsUrl = getWsUrl();
+      const delim = baseWsUrl.includes('?') ? '&' : '?';
+      const authenticatedWsUrl = `${baseWsUrl}${delim}userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(tabToken)}`;
+
+      socket = new WebSocket(authenticatedWsUrl);
       wsRef.current = socket;
 
       socket.onopen = () => {
         setIsConnected(true);
+
+        if (tabToken || userId) {
+          socket.send(JSON.stringify({
+            type: 'CLIENT_AUTH',
+            token: tabToken,
+            userId,
+          }));
+        }
+
         const activeAsset = selectedAssetIdRef.current || getSessionAsset();
         const activeTf = typeof timeframeRef.current === 'number'
           ? timeframeRef.current
@@ -221,8 +243,21 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         setIsConnected(false);
+
+        // Code 4001: Server-enforced eviction when 3rd device signs into same trader account
+        if (event.code === 4001) {
+          const reason = 'Account session terminated: Device limit (max 2 devices) reached. Another device signed into this trading account.';
+          sessionStorage.setItem('quotex_forced_logout_reason', reason);
+          localStorage.removeItem('quotex_trader_user');
+          localStorage.removeItem('quotex_current_user');
+          localStorage.removeItem('forexgrow_auth_token');
+          sessionStorage.removeItem('forexgrow_tab_token');
+          window.location.href = '/login';
+          return;
+        }
+
         reconnectTimeout = setTimeout(connect, 2000);
       };
 
@@ -494,11 +529,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 } catch {}
               }
 
-              // If this device is the one that just signed in, ignore the eviction
+              // If this tab is the device that just signed in, ignore the eviction
               if (action.exceptToken) {
                 try {
-                  const currentToken = localStorage.getItem('forexgrow_auth_token');
-                  if (currentToken && currentToken === action.exceptToken) {
+                  const myTabToken = sessionStorage.getItem('forexgrow_tab_token');
+                  if (myTabToken && myTabToken === action.exceptToken) {
                     break;
                   }
                 } catch {}
@@ -512,6 +547,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 localStorage.removeItem('quotex_trader_user');
                 localStorage.removeItem('quotex_current_user');
                 localStorage.removeItem('forexgrow_auth_token');
+                sessionStorage.removeItem('forexgrow_tab_token');
               } catch {}
               setTimeout(() => {
                 window.location.href = '/login';
