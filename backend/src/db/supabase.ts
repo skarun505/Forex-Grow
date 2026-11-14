@@ -143,7 +143,8 @@ export class SupabaseDb {
         duration: row.duration,
         entryPrice: parseFloat(row.entry_price),
         exitPrice: row.exit_price ? parseFloat(row.exit_price) : undefined,
-        entryTime: parseInt(row.entry_time, 10),
+        openTime: parseInt(row.open_time || row.entry_time, 10) || Date.now(),
+        entryTime: parseInt(row.entry_time || row.open_time, 10) || Date.now(),
         expiryTime: parseInt(row.expiry_time, 10),
         status: row.status,
         payout: parseFloat(row.payout),
@@ -167,13 +168,13 @@ export class SupabaseDb {
         duration: trade.duration,
         entry_price: trade.entryPrice,
         exit_price: trade.exitPrice,
-        entry_time: trade.entryTime,
+        entry_time: trade.openTime || trade.entryTime || Date.now(),
         expiry_time: trade.expiryTime,
         status: trade.status,
         payout: trade.payout,
         profit: trade.profit,
         account_type: trade.accountType || 'DEMO',
-        created_at: new Date(trade.entryTime || Date.now()).toISOString(),
+        created_at: new Date(trade.openTime || trade.entryTime || Date.now()).toISOString(),
       });
     } catch (err: any) {
       console.error('Failed to save trade to Supabase:', err.message);

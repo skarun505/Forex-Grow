@@ -57,12 +57,13 @@ export class SettlementEngine extends EventEmitter {
       const dbTrades = await SupabaseDb.loadTrades();
       if (dbTrades.length > 0) {
         for (const t of dbTrades) {
-          if (t.status === 'ACTIVE') {
+          if (t.status === 'OPEN' || t.status === 'ACTIVE') {
             this.activeTrades.set(t.id, t);
           } else {
             this.tradeHistory.push(t);
           }
         }
+        this.tradeHistory.sort((a, b) => (b.openTime || 0) - (a.openTime || 0));
       }
     } catch (e: any) {
       console.warn('Supabase trades load warning:', e.message);

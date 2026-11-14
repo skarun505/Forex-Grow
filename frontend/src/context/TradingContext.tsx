@@ -194,17 +194,16 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
           switch (action.type) {
             case 'INIT_STATE':
-              let mergedAccount = action.account;
+              setAccount(action.account);
               try {
                 const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
                 if (savedUserRaw) {
                   const saved = JSON.parse(savedUserRaw);
-                  if (saved && saved.id) {
-                    mergedAccount = { ...action.account, ...saved };
-                  }
+                  const synced = { ...saved, ...action.account };
+                  localStorage.setItem('quotex_trader_user', JSON.stringify(synced));
+                  localStorage.setItem('quotex_current_user', JSON.stringify(synced));
                 }
               } catch (e) {}
-              setAccount(mergedAccount);
               setAssets(action.assets);
               setActiveTrades(action.activeTrades);
               setTradeHistory(action.tradeHistory);

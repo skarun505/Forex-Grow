@@ -465,6 +465,12 @@ export class AdminManager extends EventEmitter {
     return [...this.transactions];
   }
 
+  public getTransactionsForUser(userId: string): Transaction[] {
+    return this.transactions.filter(
+      (tx) => tx.userId === userId || (!tx.userId && userId === 'usr_quotex_vip_99')
+    );
+  }
+
   public addTransaction(tx: Omit<Transaction, 'id' | 'timestamp'>): Transaction {
     const newTx: Transaction = {
       ...tx,

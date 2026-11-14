@@ -79,6 +79,12 @@ app.get('/api/account', (req, res) => {
   res.json(settlementEngine.getAccount());
 });
 
+app.get('/api/user/:userId/transactions', (req, res) => {
+  const { userId } = req.params;
+  const txns = adminManager.getTransactionsForUser(userId);
+  res.json({ success: true, transactions: txns });
+});
+
 // ================= USER AUTHENTICATION ENDPOINTS =================
 app.post('/api/auth/login', (req, res) => {
   const { identifier, email, phone, password } = req.body;
@@ -986,12 +992,14 @@ wss.on('connection', (ws: WebSocket) => {
           if (action.userId) {
             const user = settlementEngine.setCurrentUserId(action.userId);
             if (user) {
+              const { activeTrades, tradeHistory } = settlementEngine.getTradesForUser(action.userId);
               sendToClient(ws, {
-                type: 'BALANCE_UPDATE',
-                demoBalance: user.demoBalance,
-                realBalance: user.realBalance,
-                activeAccountType: user.activeAccountType,
-                currency: user.currency,
+                type: 'INIT_STATE',
+                account: user,
+                assets: marketEngine.getAssets(),
+                activeTrades,
+                tradeHistory,
+                leaderboard: settlementEngine.getLeaderboard(),
               });
             }
           }

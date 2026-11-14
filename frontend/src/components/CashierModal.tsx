@@ -20,7 +20,9 @@ import {
   Building2, 
   Smartphone,
   Info,
-  Clock
+  Clock,
+  History,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -33,7 +35,29 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const { account, theme } = useTrading();
   const isLight = theme === 'light';
 
-  const [activeTab, setActiveTab] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
+  const [activeTab, setActiveTab] = useState<'DEPOSIT' | 'WITHDRAW' | 'HISTORY'>('DEPOSIT');
+  const [userTransactions, setUserTransactions] = useState<any[]>([]);
+  const [isLoadingTxns, setIsLoadingTxns] = useState(false);
+
+  const fetchUserTransactions = () => {
+    if (!account.id) return;
+    setIsLoadingTxns(true);
+    fetch(apiUrl(`/api/user/${account.id}/transactions`))
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.transactions) {
+          setUserTransactions(data.transactions);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch user transactions:', err))
+      .finally(() => setIsLoadingTxns(false));
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchUserTransactions();
+    }
+  }, [isOpen, account.id]);
 
   // Dynamic Bank and UPI Settings fetched from Server
   const [paymentSettings, setPaymentSettings] = useState<DepositPaymentSettings>({
@@ -379,8 +403,8 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
           </button>
         </div>
 
-        {/* Deposit vs Withdraw Tabs */}
-        <div className={`grid grid-cols-2 border-b ${
+        {/* Deposit vs Withdraw vs History Tabs */}
+        <div className={`grid grid-cols-3 border-b ${
           isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#10141f] border-[#293246]'
         }`}>
           <button
@@ -389,7 +413,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
               setDepositSuccessData(null);
               setWithdrawSuccessData(null);
             }}
-            className={`py-3.5 text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-2 transition ${
+            className={`py-3.5 text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-1.5 transition ${
               activeTab === 'DEPOSIT'
                 ? isLight 
                   ? 'border-b-2 border-emerald-600 text-emerald-600 bg-white' 
@@ -397,8 +421,8 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 : isLight ? 'text-slate-500 hover:text-slate-800' : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <ArrowDownCircle className="w-4 h-4" />
-            <span>Deposit (UPI / QR)</span>
+            <ArrowDownCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Deposit</span>
           </button>
           <button
             onClick={() => {
@@ -406,7 +430,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
               setDepositSuccessData(null);
               setWithdrawSuccessData(null);
             }}
-            className={`py-3.5 text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-2 transition ${
+            className={`py-3.5 text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-1.5 transition ${
               activeTab === 'WITHDRAW'
                 ? isLight 
                   ? 'border-b-2 border-emerald-600 text-emerald-600 bg-white' 
@@ -414,8 +438,31 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 : isLight ? 'text-slate-500 hover:text-slate-800' : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <ArrowUpCircle className="w-4 h-4" />
-            <span>Withdraw Profit</span>
+            <ArrowUpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Withdraw</span>
+          </button>
+          <button
+            onClick={() => {
+              fetchUserTransactions();
+              setActiveTab('HISTORY');
+              setDepositSuccessData(null);
+              setWithdrawSuccessData(null);
+            }}
+            className={`py-3.5 text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center justify-center space-x-1.5 transition ${
+              activeTab === 'HISTORY'
+                ? isLight 
+                  ? 'border-b-2 border-emerald-600 text-emerald-600 bg-white' 
+                  : 'border-b-2 border-emerald-400 text-emerald-400 bg-[#151a26]'
+                : isLight ? 'text-slate-500 hover:text-slate-800' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>History</span>
+            {userTransactions.filter((t) => t.status === 'PENDING').length > 0 && (
+              <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                {userTransactions.filter((t) => t.status === 'PENDING').length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -472,12 +519,24 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   Your payment receipt and UTR reference have been forwarded to the verification desk. Once an <strong>Administrator</strong> or <strong>Desk Manager</strong> verifies and approves your transaction, the funds will automatically reflect in your live trading account balance.
                 </p>
 
-                <button
-                  onClick={onClose}
-                  className="w-full max-w-md bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black py-3.5 px-6 rounded-2xl shadow-xl shadow-emerald-500/20 transition transform active:scale-95"
-                >
-                  Return to Trading Floor
-                </button>
+                <div className="w-full max-w-md flex flex-col sm:flex-row gap-2.5">
+                  <button
+                    onClick={() => {
+                      fetchUserTransactions();
+                      setActiveTab('HISTORY');
+                      setDepositSuccessData(null);
+                    }}
+                    className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-3 px-4 rounded-2xl text-xs transition"
+                  >
+                    View Status in History →
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black py-3 px-4 rounded-2xl shadow-xl shadow-emerald-500/20 transition transform active:scale-95 text-xs"
+                  >
+                    Return to Floor
+                  </button>
+                </div>
               </div>
             ) : (
               /* Deposit Form */
@@ -936,12 +995,24 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   Within <strong>24 working hours</strong>, your withdrawal will be deposited into your account once approved by our finance team. Your dashboard status will update to <strong>SUCCESSFUL</strong>.
                 </p>
 
-                <button
-                  onClick={onClose}
-                  className="w-full max-w-md bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black py-3.5 px-6 rounded-2xl shadow-xl shadow-emerald-500/20 transition transform active:scale-95"
-                >
-                  Return to Trading Floor
-                </button>
+                <div className="w-full max-w-md flex flex-col sm:flex-row gap-2.5">
+                  <button
+                    onClick={() => {
+                      fetchUserTransactions();
+                      setActiveTab('HISTORY');
+                      setDepositSuccessData(null);
+                    }}
+                    className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 font-bold py-3 px-4 rounded-2xl text-xs transition"
+                  >
+                    View Status in History →
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black py-3 px-4 rounded-2xl shadow-xl shadow-emerald-500/20 transition transform active:scale-95 text-xs"
+                  >
+                    Return to Floor
+                  </button>
+                </div>
               </div>
             ) : (
               /* Withdraw Form */
@@ -1183,6 +1254,126 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                     {isSubmittingWithdraw ? 'Submitting Request...' : `Request Payout of ${curr.symbol}${numericWithdraw.toLocaleString()}`}
                   </span>
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= TRANSACTIONS HISTORY TAB ================= */}
+        {activeTab === 'HISTORY' && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Deposit & Payout History
+                </h3>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                  Permanent live verification log for account #{account.id}
+                </p>
+              </div>
+              <button
+                onClick={fetchUserTransactions}
+                disabled={isLoadingTxns}
+                className={`p-2 rounded-xl border flex items-center space-x-1.5 text-xs font-bold transition ${
+                  isLight ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100' : 'bg-[#1a2130] border-[#293246] text-gray-300 hover:text-white'
+                }`}
+                title="Refresh status"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTxns ? 'animate-spin text-emerald-400' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {isLoadingTxns ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-2 text-gray-400">
+                <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
+                <span className="text-xs">Fetching transactions from vault...</span>
+              </div>
+            ) : userTransactions.length === 0 ? (
+              <div className={`p-8 rounded-2xl border text-center space-y-2 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10141f] border-[#293246]'
+              }`}>
+                <History className="w-8 h-8 text-gray-500 mx-auto" />
+                <p className="text-xs text-gray-400">No deposit or payout requests found yet.</p>
+                <button
+                  onClick={() => setActiveTab('DEPOSIT')}
+                  className="mt-2 text-xs font-bold text-emerald-400 hover:underline"
+                >
+                  Make your first deposit →
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {userTransactions.map((tx) => {
+                  const isDep = tx.type === 'DEPOSIT';
+                  const isPending = tx.status === 'PENDING';
+                  const isApproved = tx.status === 'APPROVED';
+
+                  return (
+                    <div
+                      key={tx.id}
+                      className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
+                        isPending
+                          ? 'border-amber-500/40 bg-amber-500/5'
+                          : isApproved
+                          ? 'border-emerald-500/30 bg-emerald-500/5'
+                          : isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10141f] border-[#293246]'
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          isDep
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : 'bg-sky-500/15 text-sky-400'
+                        }`}>
+                          {isDep ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <div className="flex items-center space-x-2">
+                            <span className={`text-xs font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {isDep ? 'Deposit' : 'Withdrawal'}
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                              isPending
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
+                                : isApproved
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            }`}>
+                              {isPending ? '⏳ Awaiting Verification' : isApproved ? '✅ Approved & Credited' : '❌ Rejected'}
+                            </span>
+                          </div>
+
+                          <div className="text-[11px] text-gray-400 flex flex-wrap items-center gap-x-2">
+                            <span>Ref: <strong className="font-mono text-gray-300">{tx.reference || tx.id}</strong></span>
+                            {tx.utrNumber && <span>• UTR: <strong className="font-mono text-gray-300">{tx.utrNumber}</strong></span>}
+                            <span>• {new Date(tx.timestamp || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+
+                          {tx.method && (
+                            <div className="text-[10px] text-gray-500">
+                              Via: {tx.method}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <div className={`text-base font-black mono-num ${
+                          isDep ? 'text-emerald-400' : 'text-sky-400'
+                        }`}>
+                          {isDep ? '+' : '-'}{curr.symbol}{tx.amount?.toLocaleString()} {tx.currency || account.currency}
+                        </div>
+                        {tx.amountUSD && (
+                          <div className="text-[10px] text-gray-400 mono-num">
+                            ≈ ${tx.amountUSD?.toFixed(2)} USD
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
