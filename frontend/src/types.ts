@@ -93,6 +93,7 @@ export interface Trade {
   profit?: number;
   status: TradeStatus;
   accountType?: 'DEMO' | 'REAL';
+  currency?: CurrencyCode;
   targetOutcome?: 'WIN' | 'LOSS';
   snipedAtExpiry?: boolean;
 }

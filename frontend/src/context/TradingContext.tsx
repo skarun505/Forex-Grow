@@ -46,6 +46,16 @@ interface TradingContextType {
 
 const TradingContext = createContext<TradingContextType | null>(null);
 
+const getSessionCurrency = (): CurrencyCode => {
+  try {
+    const session = sessionStorage.getItem('quotex_session_currency');
+    if (session && ['INR', 'USD', 'EUR', 'GBP', 'BRL', 'IDR', 'JPY', 'NGN', 'TRY', 'AED', 'CAD', 'AUD'].includes(session)) {
+      return session as CurrencyCode;
+    }
+  } catch {}
+  return 'INR'; // Default currency is INR
+};
+
 export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [account, setAccount] = useState<UserAccount>({
@@ -55,7 +65,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     demoBalance: 10000.0,
     realBalance: 500.0,
     activeAccountType: 'DEMO',
-    currency: 'USD',
+    currency: getSessionCurrency(),
     vipLevel: 'VIP',
     isKycVerified: true,
     status: 'ACTIVE',
@@ -193,17 +203,42 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const action = JSON.parse(event.data) as WSServerAction;
 
           switch (action.type) {
-            case 'INIT_STATE':
-              setAccount(action.account);
+            case 'INIT_STATE': {
+              let effectiveCurrency: CurrencyCode = 'INR';
+              try {
+                const sessionCurrency = sessionStorage.getItem('quotex_session_currency') as CurrencyCode | null;
+                if (sessionCurrency) {
+                  // User has active session currency in this tab: retain across page refreshes!
+                  effectiveCurrency = sessionCurrency;
+                } else {
+                  // Reopened after tab was closed: reset to default currency (INR)
+                  effectiveCurrency = (action.account.currency as CurrencyCode) || 'INR';
+                }
+              } catch {
+                effectiveCurrency = (action.account.currency as CurrencyCode) || 'INR';
+              }
+
+              const mergedAccount = {
+                ...action.account,
+                currency: effectiveCurrency,
+              };
+
+              setAccount(mergedAccount);
               try {
                 const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
                 if (savedUserRaw) {
                   const saved = JSON.parse(savedUserRaw);
-                  const synced = { ...saved, ...action.account };
+                  const synced = { ...saved, ...mergedAccount };
                   localStorage.setItem('quotex_trader_user', JSON.stringify(synced));
                   localStorage.setItem('quotex_current_user', JSON.stringify(synced));
                 }
               } catch (e) {}
+
+              // If tab session currency differs from backend account currency, sync backend
+              if (effectiveCurrency !== action.account.currency && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: 'SWITCH_CURRENCY', currency: effectiveCurrency }));
+              }
+
               setAssets(action.assets);
               setActiveTrades(action.activeTrades);
               setTradeHistory(action.tradeHistory);
@@ -211,6 +246,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const found = action.assets.find((a) => a.id === selectedAssetIdRef.current);
               if (found) setCurrentPrice(found.currentPrice);
               break;
+            }
 
             case 'TICK':
               if (action.tick.assetId === selectedAssetIdRef.current) {
@@ -314,12 +350,18 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             case 'BALANCE_UPDATE':
               setAccount((prev) => {
+                let currentSessionCurrency = prev.currency;
+                try {
+                  const sess = sessionStorage.getItem('quotex_session_currency') as CurrencyCode | null;
+                  if (sess) currentSessionCurrency = sess;
+                } catch {}
+
                 const updated = {
                   ...prev,
                   demoBalance: action.demoBalance,
                   realBalance: action.realBalance,
                   activeAccountType: action.activeAccountType || prev.activeAccountType,
-                  currency: action.currency || prev.currency,
+                  currency: currentSessionCurrency || action.currency || prev.currency || 'INR',
                 };
                 try {
                   const stored = localStorage.getItem('quotex_trader_user');
@@ -442,6 +484,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const switchCurrency = (currency: CurrencyCode) => {
+    try {
+      sessionStorage.setItem('quotex_session_currency', currency);
+    } catch {}
     setAccount((prev) => ({ ...prev, currency }));
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const msg: WSClientAction = { type: 'SWITCH_CURRENCY', currency };

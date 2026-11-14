@@ -2554,13 +2554,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                                 <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{t.accountType}</span>
                               </div>
                               <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                                Amount: {formatCurrency(t.amount, 'USD')} · Entry: {t.entryPrice} · Exit: {t.exitPrice ?? '-'}
+                                Amount: {formatCurrency(t.amount, (selectedUserForTrades?.currency as any) || 'INR')} · Entry: {t.entryPrice} · Exit: {t.exitPrice ?? '-'}
                                 {t.profit !== undefined && (
-                                  <span className={t.profit >= 0 ? ' text-emerald-500' : ' text-rose-500'}>
-                                    {' '}· P&L: {t.profit >= 0 ? '+' : ''}{formatCurrency(t.profit, 'USD')}
+                                  <span className={t.profit >= 0 ? ' text-emerald-500 font-bold' : ' text-rose-500 font-bold'}>
+                                    {' '}· P&L: {t.profit >= 0 ? '+' : ''}{formatCurrency(t.profit, (selectedUserForTrades?.currency as any) || 'INR')}
                                   </span>
                                 )}
-                                {' '}· {new Date(t.openTime).toLocaleTimeString()}
+                                {' '}· {new Date(t.openTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </div>
                             </div>
                             <button

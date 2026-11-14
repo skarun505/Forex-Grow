@@ -319,6 +319,7 @@ export class SettlementEngine extends EventEmitter {
       expiryTime: now + duration * 1000,
       status: 'OPEN',
       accountType: user.activeAccountType,
+      currency: user.currency || 'INR',
       targetOutcome: this.evaluateTargetOutcome({
         assetId: asset.id,
         direction,

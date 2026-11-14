@@ -68,7 +68,7 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
                 : (isLight ? 'border-transparent text-slate-500 hover:text-slate-800' : 'border-transparent text-gray-400 hover:text-gray-200')
             }`}
           >
-            <span>History ({account.activeAccountType === 'DEMO' ? 'Demo' : 'Real'})</span>
+            <span>History ({account.activeAccountType === 'DEMO' ? 'Demo' : 'Real'} · {account.currency})</span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] ${
               isLight ? 'bg-slate-100 text-slate-700' : 'bg-[#222838] text-gray-300'
             }`}>
@@ -195,6 +195,8 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
                 const tie = trade.status === 'TIE';
                 const tradeAsset = assets.find((a) => a.id === trade.assetId);
                 const dec = tradeAsset?.decimalPlaces ?? 4;
+                const activeCurrency = account.currency || trade.currency || 'INR';
+                const tradeTime = new Date(trade.openTime || (trade as any).entryTime || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                 return (
                   <div
@@ -205,35 +207,42 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
                   >
                     <div className="flex items-center space-x-3">
                       {won ? (
-                        <CheckCircle2 className="w-4 h-4 text-trade-green" />
+                        <CheckCircle2 className="w-4 h-4 text-trade-green shrink-0" />
                       ) : tie ? (
-                        <Clock className="w-4 h-4 text-amber-500" />
+                        <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                       ) : (
-                        <XCircle className="w-4 h-4 text-trade-red" />
+                        <XCircle className="w-4 h-4 text-trade-red shrink-0" />
                       )}
                       <span className={`font-bold ${isLight ? 'text-slate-800' : 'text-white'}`}>{trade.assetId}</span>
                       <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
                         trade.direction === 'UP' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
                       }`}>
-                        {trade.direction} {formatCurrency(trade.amount, account.currency)}
+                        {trade.direction} {formatCurrency(trade.amount, activeCurrency)}
                       </span>
                       <span className={`font-mono hidden sm:inline ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
                         {trade.entryPrice.toFixed(dec)} → {trade.exitPrice !== undefined ? trade.exitPrice.toFixed(dec) : '-'}
+                        <span className="mx-1.5 opacity-40">•</span>
+                        <span>{tradeTime}</span>
                       </span>
                     </div>
 
-                    <div className="font-bold mono-num">
-                      {won ? (
-                        <span className="text-trade-green">
-                          +{formatCurrency(trade.profit ?? 0, account.currency)}
-                        </span>
-                      ) : tie ? (
-                        <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>{formatCurrency(0, account.currency)} (Tie)</span>
-                      ) : (
-                        <span className="text-trade-red">
-                          -{formatCurrency(trade.amount, account.currency)}
-                        </span>
-                      )}
+                    <div className="text-right shrink-0">
+                      <div className="font-bold mono-num">
+                        {won ? (
+                          <span className="text-trade-green font-black">
+                            +{formatCurrency(trade.profit ?? 0, activeCurrency)}
+                          </span>
+                        ) : tie ? (
+                          <span className={isLight ? 'text-slate-500' : 'text-gray-400 font-bold'}>{formatCurrency(0, activeCurrency)} (Tie)</span>
+                        ) : (
+                          <span className="text-trade-red font-black">
+                            -{formatCurrency(trade.amount, activeCurrency)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-mono text-gray-500">
+                        {activeCurrency}
+                      </div>
                     </div>
                   </div>
                 );
