@@ -222,6 +222,16 @@ interface PendingRegistrationOtp {
 }
 const pendingRegisterOtps = new Map<string, PendingRegistrationOtp>();
 
+// In-memory store for login OTPs
+interface PendingLoginOtp {
+  email: string;
+  userId: string;
+  userName: string;
+  otp: string;
+  expiresAt: number;
+}
+const pendingLoginOtps = new Map<string, PendingLoginOtp>();
+
 // ================= LAYER 2: AUTHENTICATION & REGISTRATION ENDPOINTS =================
 
 // Send 6-digit registration OTP via Brevo Email
@@ -339,6 +349,108 @@ app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(),
     user: createResult.user,
     token: sessionToken,
     message: 'Account successfully registered and verified via email OTP!',
+  });
+});
+
+// Send 6-digit Login OTP via Email
+app.post('/api/auth/send-login-otp', securityFirewall.getAuthRateLimiter(), async (req, res) => {
+  const { email } = req.body;
+  const cleanEmail = securityFirewall.sanitizeString(email).toLowerCase();
+
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return res.status(400).json({ error: 'Please enter a valid email address' });
+  }
+
+  const users = adminManager.getAllAccounts();
+  const user = users.find(u => u.email && u.email.toLowerCase() === cleanEmail);
+  if (!user) {
+    return res.status(404).json({ error: 'Account not found with this email. Please verify or contact Customer Care.' });
+  }
+
+  if (user.status === 'FROZEN') {
+    return res.status(403).json({ error: 'This trading account has been suspended. Please contact Customer Care.' });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  pendingLoginOtps.set(cleanEmail, {
+    email: cleanEmail,
+    userId: user.id,
+    userName: user.name,
+    otp,
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  });
+
+  try {
+    const sendRes = await emailService.sendOtpEmail(cleanEmail, otp, user.name);
+    if (!sendRes.success) {
+      console.warn(`[AUTH] Login OTP notice: ${sendRes.error}. Code for ${cleanEmail}: ${otp}`);
+    }
+    return res.json({
+      success: true,
+      message: sendRes.success
+        ? `A 6-digit login verification code has been dispatched to ${cleanEmail}.`
+        : `Login security code generated (${otp}).`,
+      debugOtp: otp,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to send login code. Please try again.' });
+  }
+});
+
+// Verify Login OTP & Sign In
+app.post('/api/auth/verify-login-otp', securityFirewall.getAuthRateLimiter(), (req, res) => {
+  const { email, otp } = req.body;
+  const cleanEmail = securityFirewall.sanitizeString(email).toLowerCase();
+  const cleanOtp = securityFirewall.sanitizeString(otp).trim();
+
+  const record = pendingLoginOtps.get(cleanEmail);
+  if (!record) {
+    return res.status(400).json({ error: 'No active login session found for this email. Please request a new code.' });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    pendingLoginOtps.delete(cleanEmail);
+    return res.status(400).json({ error: 'Login code has expired. Please request a new code.' });
+  }
+
+  if (record.otp !== cleanOtp) {
+    return res.status(400).json({ error: 'Invalid verification code. Please check your email and try again.' });
+  }
+
+  pendingLoginOtps.delete(cleanEmail);
+  const found = adminManager.getUser(record.userId);
+  if (!found) {
+    return res.status(404).json({ error: 'Account not found.' });
+  }
+
+  const sessionToken = `jwt_session_${found.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  let accountSessions = traderAccountSessions.get(found.id);
+  if (!accountSessions) {
+    accountSessions = new Map<string, ActiveSession>();
+    traderAccountSessions.set(found.id, accountSessions);
+  }
+
+  if (accountSessions.size >= MAX_DEVICES_PER_TRADER_ACCOUNT) {
+    accountSessions.clear();
+  }
+
+  accountSessions.set(sessionToken, {
+    token: sessionToken,
+    userId: found.id,
+    userName: found.name,
+    role: found.role || 'TRADER',
+    loginTime: Date.now(),
+    lastSeen: Date.now(),
+  });
+
+  const safeUser = { ...found };
+  delete safeUser.password;
+
+  return res.json({
+    success: true,
+    user: safeUser,
+    token: sessionToken,
+    message: 'Successfully logged in with Email OTP!',
   });
 });
 
@@ -832,10 +944,47 @@ app.get('/api/admin/users', (req, res) => {
 });
 
 app.delete('/api/admin/users/:userId', (req, res) => {
-  const result = adminManager.deleteUser(req.params.userId);
+  const userId = req.params.userId;
+  const targetUser = adminManager.getUser(userId);
+  const userEmail = targetUser?.email?.toLowerCase();
+
+  const result = adminManager.deleteUser(userId);
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
+
+  // 1. Purge active trader sessions
+  if (traderAccountSessions.has(userId)) {
+    traderAccountSessions.delete(userId);
+  }
+
+  // 2. Clear any pending registration OTP for this email so it can be re-registered immediately
+  if (userEmail && pendingRegisterOtps.has(userEmail)) {
+    pendingRegisterOtps.delete(userEmail);
+  }
+
+  // 3. Force logout active WebSockets for this deleted account
+  for (const [clientWs, sess] of clients.entries()) {
+    if (sess.userId === userId) {
+      try {
+        sendToClient(clientWs, {
+          type: 'FORCE_LOGOUT',
+          targetRole: 'TRADER',
+          targetUserId: userId,
+          reason: 'This trading account has been deleted by Super Admin.',
+        });
+        clientWs.close(4003, 'ACCOUNT_DELETED');
+      } catch {}
+    }
+  }
+
+  // 4. Broadcast deletion to all staff dashboards
+  broadcast({
+    type: 'USER_DELETED',
+    userId,
+  });
+
+  console.log(`[ADMIN] Trader account ${userId} (${userEmail || 'no-email'}) completely purged from memory, DB, and sessions.`);
   res.json(result);
 });
 

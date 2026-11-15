@@ -4086,7 +4086,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     min="0"
                     step="10"
                     value={newUserRealBal}
-                    onChange={(e) => setNewUserRealBal(Number(e.target.value))}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setNewUserRealBal(val);
+                      const autoTier = val >= 500000 ? 'VIP' : val >= 100000 ? 'PRO' : 'STANDARD';
+                      setNewUserVip(autoTier);
+                    }}
                     className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none ${
                       isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
                     }`}

@@ -33,6 +33,22 @@ export class AdminManager extends EventEmitter {
     updatedBy: 'System Initializer',
   };
 
+  /**
+   * Automatic VIP Tier calculation based on real funds:
+   * STANDARD: below 1 Lakh INR (< 100,000 / < $1,200)
+   * PRO: 1 Lakh to 5 Lakh INR (100,000 - 499,999.99 / $1,200 - $5,999.99)
+   * VIP: 5 Lakh INR and above (>= 500,000 / >= $6,000)
+   */
+  public static calculateVipLevel(realBalance: number, currency: string = 'INR'): 'STANDARD' | 'PRO' | 'VIP' {
+    const isUsd = currency === 'USD';
+    const proThreshold = isUsd ? 1200 : 100000;
+    const vipThreshold = isUsd ? 6000 : 500000;
+
+    if (realBalance >= vipThreshold) return 'VIP';
+    if (realBalance >= proThreshold) return 'PRO';
+    return 'STANDARD';
+  }
+
   public getRiskSettings(): RiskSettings {
     return { ...this.riskSettings };
   }
@@ -417,6 +433,7 @@ export class AdminManager extends EventEmitter {
       const newBal = Number((user.realBalance + change).toFixed(2));
       if (newBal < 0) return { success: false, error: 'Balance cannot be negative' };
       user.realBalance = newBal;
+      user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
     }
 
     this.emit('user_updated', user);
@@ -458,6 +475,9 @@ export class AdminManager extends EventEmitter {
       }
     }
 
+    const realBal = Number(params.realBalance ?? 0.00);
+    const autoVip = AdminManager.calculateVipLevel(realBal, params.currency ?? 'INR');
+
     const newUser: UserAccount = {
       id: `usr_${uuidv4().slice(0, 8)}`,
       name: params.name.trim(),
@@ -466,10 +486,10 @@ export class AdminManager extends EventEmitter {
       password: params.password?.trim() || 'Trader@2026',
       role: params.role || 'TRADER',
       demoBalance: Number(params.demoBalance ?? 10000.00),
-      realBalance: Number(params.realBalance ?? 0.00),
+      realBalance: realBal,
       activeAccountType: params.activeAccountType ?? 'DEMO',
       currency: params.currency ?? 'INR',
-      vipLevel: params.vipLevel ?? 'STANDARD',
+      vipLevel: params.vipLevel || autoVip,
       isKycVerified: Boolean(params.isKycVerified ?? false),
       status: params.status ?? 'ACTIVE',
       totalTrades: 0,
@@ -519,7 +539,12 @@ export class AdminManager extends EventEmitter {
     }
     if (updates.status !== undefined) user.status = updates.status;
     if (updates.currency !== undefined) user.currency = updates.currency;
-    if (updates.realBalance !== undefined) user.realBalance = updates.realBalance;
+    if (updates.realBalance !== undefined) {
+      user.realBalance = updates.realBalance;
+      if (updates.vipLevel === undefined) {
+        user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
+      }
+    }
     if (updates.demoBalance !== undefined) user.demoBalance = updates.demoBalance;
     if (updates.activeAccountType !== undefined) user.activeAccountType = updates.activeAccountType;
 
@@ -810,6 +835,7 @@ export class AdminManager extends EventEmitter {
       }
 
       user.realBalance = Number((user.realBalance + finalCredited).toFixed(2));
+      user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
       const usdAdded = tx.amountUSD || (tx.currency === 'INR' ? tx.amount / USD_INR_RATE : tx.amount);
       user.totalDepositedUSD = Number((user.totalDepositedUSD + usdAdded).toFixed(2));
       this.emit('user_updated', user);
@@ -854,6 +880,7 @@ export class AdminManager extends EventEmitter {
         refundAmount = Number((tx.amount / USD_INR_RATE).toFixed(2));
       }
       user.realBalance = Number((user.realBalance + refundAmount).toFixed(2));
+      user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
       this.emit('user_updated', user);
       SupabaseDb.saveUser(user);
     }

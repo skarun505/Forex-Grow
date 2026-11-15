@@ -2536,7 +2536,13 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                       <input
                         type="number"
                         value={newClientRealBal}
-                        onChange={(e) => setNewClientRealBal(e.target.value)}
+                        onChange={(e) => {
+                          const valStr = e.target.value;
+                          setNewClientRealBal(valStr);
+                          const num = Number(valStr) || 0;
+                          const autoTier: VipLevel = num >= 500000 ? 'VIP' : num >= 100000 ? 'PRO' : 'STANDARD';
+                          setNewClientVip(autoTier);
+                        }}
                         className={`w-full px-2.5 py-2 rounded-xl text-xs font-mono border focus:outline-none ${
                           isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-emerald-400'
                         }`}
@@ -2546,7 +2552,10 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <div>
-                      <label className="text-[11px] font-bold block mb-1 text-gray-300">VIP Tier</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-gray-300">VIP Tier</label>
+                        <span className="text-[9px] text-amber-400 font-mono">Auto-Tiering</span>
+                      </div>
                       <select
                         value={newClientVip}
                         onChange={(e) => setNewClientVip(e.target.value as VipLevel)}
@@ -2554,10 +2563,13 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                           isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#0f131d] border-[#252c40] text-white'
                         }`}
                       >
-                        <option value="STANDARD">STANDARD</option>
-                        <option value="PRO">PRO</option>
-                        <option value="VIP">VIP</option>
+                        <option value="STANDARD">STANDARD (&lt;1L)</option>
+                        <option value="PRO">PRO (≥1L)</option>
+                        <option value="VIP">VIP (≥5L)</option>
                       </select>
+                      <span className="text-[9px] text-gray-400 block mt-0.5">
+                        {newClientVip === 'VIP' ? '👑 VIP: +4% payout bonus' : newClientVip === 'PRO' ? '⚡ PRO: +2% payout bonus' : 'Standard payout rate'}
+                      </span>
                     </div>
 
                     <div className="flex items-center pt-5 pl-2">

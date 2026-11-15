@@ -256,12 +256,13 @@ export type WSServerAction =
   | { type: 'SENTIMENT_UPDATE'; sentiment: Sentiment }
   | { type: 'TRADE_OPENED'; trade: Trade; newBalance: number }
   | { type: 'TRADE_SETTLED'; trade: Trade; newBalance: number }
-  | { type: 'BALANCE_UPDATE'; userId?: string; demoBalance: number; realBalance: number; activeAccountType?: 'DEMO' | 'REAL'; currency?: CurrencyCode; isKycVerified?: boolean; kycStatus?: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' }
+  | { type: 'BALANCE_UPDATE'; userId?: string; demoBalance: number; realBalance: number; activeAccountType?: 'DEMO' | 'REAL'; currency?: CurrencyCode; vipLevel?: 'STANDARD' | 'PRO' | 'VIP'; isKycVerified?: boolean; kycStatus?: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' }
   | { type: 'TRANSACTION_SUCCESS'; userId?: string; message: string; demoBalance: number; realBalance: number }
   | { type: 'ASSETS_UPDATE'; assets: Asset[] }
   | { type: 'LEADERBOARD_UPDATE'; leaderboard: LeaderboardTrader[] }
   | { type: 'TRADE_DELETED'; tradeId: string; userId?: string }
   | { type: 'USER_HISTORY_CLEARED'; userId?: string }
+  | { type: 'USER_DELETED'; userId: string }
   | { type: 'FORCE_LOGOUT'; reason: string; activeCount?: number; targetRole?: 'TRADER' | 'ALL'; targetUserId?: string; exceptToken?: string }
   | { type: 'SESSION_CONCURRENCY_UPDATE'; activeCount: number; maxLimit: number; targetRole?: 'TRADER' | 'ALL'; targetUserId?: string }
   | { type: 'ERROR'; message: string };

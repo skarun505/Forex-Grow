@@ -29,6 +29,50 @@ interface HeaderProps {
   onOpenProfileModal?: () => void;
 }
 
+const TierArrowIcon: React.FC<{ tier: 'STANDARD' | 'PRO' | 'VIP'; isDemo: boolean; className?: string }> = ({
+  tier,
+  isDemo,
+  className = "w-3.5 h-3.5 shrink-0"
+}) => {
+  if (isDemo) {
+    return <Send className={`${className} rotate-[-30deg] text-amber-400`} />;
+  }
+
+  if (tier === 'VIP') {
+    // Royal VIP Prestige Crown Arrow in Radiant Gold
+    return (
+      <svg
+        className={`${className} text-amber-400 fill-amber-400/40 drop-shadow-[0_0_8px_rgba(245,158,11,0.7)]`}
+        viewBox="0 0 24 24"
+        fill="currentColor"
+      >
+        <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+      </svg>
+    );
+  }
+
+  if (tier === 'PRO') {
+    // Supersonic Dual-Chevron Surge Arrow in Electric Cyan
+    return (
+      <svg
+        className={`${className} text-cyan-400 fill-cyan-400/30 drop-shadow-[0_0_6px_rgba(34,211,238,0.7)]`}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <polyline points="13 17 18 12 13 7" />
+        <polyline points="6 17 11 12 6 7" />
+      </svg>
+    );
+  }
+
+  // STANDARD Tier Arrow: Classic Quotex Angled Paper-Plane Arrow in Crisp Emerald
+  return <Send className={`${className} rotate-[-30deg] text-emerald-400`} />;
+};
+
 export const Header: React.FC<HeaderProps> = ({
   onOpenAssetModal,
   onOpenCashierModal,
@@ -74,6 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const activeBalance = account.activeAccountType === 'DEMO' ? account.demoBalance : account.realBalance;
+  const effectiveTier = (account.vipLevel || 'STANDARD') as 'STANDARD' | 'PRO' | 'VIP';
   const currencyConfig = CURRENCY_CONFIGS[account.currency] || CURRENCY_CONFIGS.USD;
   const initials = account.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -145,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center space-x-1.5 sm:space-x-2.5">
-        {/* Quotex-Style Live / Demo Dropdown Trigger */}
+        {/* Quotex-Style Live / Demo Dropdown Trigger with Dynamic Tier Arrow */}
         <div className="relative" ref={accountDropdownRef}>
           <button
             type="button"
@@ -155,7 +200,15 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             className={`flex items-center space-x-1.5 sm:space-x-2 border px-2.5 sm:px-3 py-1.5 rounded-xl sm:rounded-2xl transition shadow-sm ${
               account.activeAccountType === 'REAL'
-                ? isLight
+                ? effectiveTier === 'VIP'
+                  ? isLight
+                    ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 shadow-amber-500/10'
+                    : 'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-900/40 shadow-amber-500/15'
+                  : effectiveTier === 'PRO'
+                  ? isLight
+                    ? 'bg-cyan-50 border-cyan-300 text-cyan-900 hover:bg-cyan-100 shadow-cyan-500/10'
+                    : 'bg-cyan-950/40 border-cyan-500/50 text-cyan-300 hover:bg-cyan-900/40 shadow-cyan-500/15'
+                  : isLight
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
                   : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/40'
                 : isLight
@@ -164,15 +217,22 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
             title="Click to switch between Live and Demo account, or refill demo funds"
           >
-            <Send className={`w-3.5 h-3.5 rotate-[-30deg] shrink-0 ${
-              account.activeAccountType === 'REAL' ? 'text-emerald-400' : 'text-amber-400'
-            }`} />
+            <TierArrowIcon tier={effectiveTier} isDemo={account.activeAccountType === 'DEMO'} />
             <span className="text-[10px] sm:text-[11px] font-black tracking-wider uppercase">
               {account.activeAccountType === 'REAL' ? 'LIVE' : 'DEMO'}
             </span>
             <span className="text-xs sm:text-sm font-black mono-num">
               {isBalanceHidden ? '••••••' : formatCurrency(activeBalance, account.currency)}
             </span>
+            {account.activeAccountType === 'REAL' && effectiveTier !== 'STANDARD' && (
+              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded uppercase ${
+                effectiveTier === 'VIP'
+                  ? 'bg-amber-500/25 border border-amber-500/50 text-amber-300 shadow-sm'
+                  : 'bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 shadow-sm'
+              }`}>
+                {effectiveTier}
+              </span>
+            )}
             <ChevronDown className={`w-3 h-3 opacity-70 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
           </button>
 
@@ -181,20 +241,32 @@ export const Header: React.FC<HeaderProps> = ({
             <div className={`absolute right-0 mt-2 w-80 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 ${
               isLight ? 'bg-white border-slate-200 text-slate-800 shadow-slate-300/60' : 'bg-[#151924] border-[#273044] text-white'
             }`}>
-              {/* Top Banner Card: Standard / VIP profit badge + Eye toggle */}
+              {/* Top Banner Card: Standard / Pro / VIP profit badge + Eye toggle */}
               <div className={`flex items-center justify-between p-2.5 rounded-xl border mb-3.5 ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#1c2233] border-white/5'
               }`}>
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                    <Send className="w-3.5 h-3.5 rotate-[-30deg]" />
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                    effectiveTier === 'VIP'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : effectiveTier === 'PRO'
+                      ? 'bg-cyan-500/20 text-cyan-400'
+                      : 'bg-emerald-500/20 text-emerald-400'
+                  }`}>
+                    <TierArrowIcon tier={effectiveTier} isDemo={false} className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none">
-                      {account.vipLevel === 'VIP' ? 'VIP STATUS:' : 'STANDARD:'}
+                      {effectiveTier === 'VIP' ? 'VIP STATUS:' : effectiveTier === 'PRO' ? 'PRO STATUS:' : 'STANDARD STATUS:'}
                     </div>
-                    <div className="text-xs font-black text-emerald-400 mt-0.5">
-                      {account.vipLevel === 'VIP' ? '+2% profit' : '+0% profit'}
+                    <div className={`text-xs font-black mt-0.5 ${
+                      effectiveTier === 'VIP'
+                        ? 'text-amber-400'
+                        : effectiveTier === 'PRO'
+                        ? 'text-cyan-400'
+                        : 'text-emerald-400'
+                    }`}>
+                      {effectiveTier === 'VIP' ? '+4% profit' : effectiveTier === 'PRO' ? '+2% profit' : '+0% profit'}
                     </div>
                   </div>
                 </div>

@@ -46,6 +46,22 @@ interface TradingContextType {
 
 const TradingContext = createContext<TradingContextType | null>(null);
 
+/**
+ * Automatic VIP Tier calculation based on real funds:
+ * STANDARD: below 1 Lakh INR (< 100,000 / < $1,200)
+ * PRO: 1 Lakh to 5 Lakh INR (100,000 - 499,999.99 / $1,200 - $5,999.99)
+ * VIP: 5 Lakh INR and above (>= 500,000 / >= $6,000)
+ */
+export const calculateVipLevel = (realBalance: number, currency: string = 'INR'): 'STANDARD' | 'PRO' | 'VIP' => {
+  const isUsd = currency === 'USD';
+  const proThreshold = isUsd ? 1200 : 100000;
+  const vipThreshold = isUsd ? 6000 : 500000;
+
+  if (realBalance >= vipThreshold) return 'VIP';
+  if (realBalance >= proThreshold) return 'PRO';
+  return 'STANDARD';
+};
+
 const getSessionCurrency = (): CurrencyCode => {
   try {
     const session = sessionStorage.getItem('quotex_session_currency');
@@ -288,6 +304,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const mergedAccount = {
                 ...action.account,
                 currency: effectiveCurrency,
+                vipLevel: action.account.vipLevel || calculateVipLevel(action.account.realBalance, effectiveCurrency),
               };
 
               setAccount(mergedAccount);
@@ -427,12 +444,16 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   if (sess) currentSessionCurrency = sess;
                 } catch {}
 
+                const effCurr = currentSessionCurrency || action.currency || prev.currency || 'INR';
+                const effVip = action.vipLevel || calculateVipLevel(action.realBalance, effCurr);
+
                 const updated = {
                   ...prev,
                   demoBalance: action.demoBalance,
                   realBalance: action.realBalance,
                   activeAccountType: action.activeAccountType || prev.activeAccountType,
-                  currency: currentSessionCurrency || action.currency || prev.currency || 'INR',
+                  currency: effCurr,
+                  vipLevel: effVip,
                   isKycVerified: action.isKycVerified !== undefined ? action.isKycVerified : prev.isKycVerified,
                   kycStatus: action.kycStatus !== undefined ? action.kycStatus : (action.isKycVerified === false ? 'NOT_SUBMITTED' : prev.kycStatus),
                   kycData: action.isKycVerified === false ? undefined : prev.kycData,
@@ -467,6 +488,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   ...prev,
                   demoBalance: action.demoBalance,
                   realBalance: action.realBalance,
+                  vipLevel: calculateVipLevel(action.realBalance, prev.currency),
                 };
                 try {
                   const stored = localStorage.getItem('quotex_trader_user');

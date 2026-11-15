@@ -17,6 +17,7 @@ import {
   X,
   Copy,
   Check,
+  CheckCircle,
   UserCheck
 } from 'lucide-react';
 
@@ -40,6 +41,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+
+  // Email OTP Login States
+  const [authMethod, setAuthMethod] = useState<'PASSWORD' | 'OTP'>('PASSWORD');
+  const [otpStep, setOtpStep] = useState<'INPUT_EMAIL' | 'ENTER_OTP'>('INPUT_EMAIL');
+  const [loginOtpCode, setLoginOtpCode] = useState('');
+  const [loginDebugOtp, setLoginDebugOtp] = useState<string | null>(null);
+  const [otpSuccessNotice, setOtpSuccessNotice] = useState<string | null>(null);
 
   // Re-sync credentials if mode changes
   useEffect(() => {
@@ -126,6 +134,76 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
       }
     } catch (err) {
       setErrorMsg('Unable to connect to trading auth server. Please check your network connection.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendLoginOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setOtpSuccessNotice(null);
+
+    const cleanEmail = identifier.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMsg('Please enter a valid email address to receive your login code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/auth/send-login-otp'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMsg(data.error || 'Failed to send login code');
+        return;
+      }
+      setOtpStep('ENTER_OTP');
+      setLoginOtpCode('');
+      setLoginDebugOtp(data.debugOtp || null);
+      setOtpSuccessNotice(data.message || `A 6-digit login verification code was sent to ${cleanEmail}`);
+    } catch {
+      setErrorMsg('Unable to connect to auth server');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!loginOtpCode.trim() || loginOtpCode.trim().length < 6) {
+      setErrorMsg('Please enter the full 6-digit verification code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/auth/verify-login-otp'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: identifier.trim().toLowerCase(), otp: loginOtpCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMsg(data.error || 'Invalid or expired verification code');
+        return;
+      }
+
+      if (data.token) {
+        localStorage.setItem('forexgrow_auth_token', data.token);
+        sessionStorage.setItem('forexgrow_tab_token', data.token);
+      }
+      localStorage.setItem('quotex_trader_user', JSON.stringify(data.user));
+      localStorage.setItem('quotex_current_user', JSON.stringify(data.user));
+      onLoginSuccess(data.user);
+    } catch {
+      setErrorMsg('Failed to verify login code');
     } finally {
       setIsLoading(false);
     }
@@ -294,148 +372,306 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                 </div>
               )}
 
-              {/* Login Form */}
-              <form onSubmit={handleLogin} className="space-y-4">
-                {/* Email or Phone Input */}
-                <div>
-                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                    {mode === 'TRADER' ? 'Email Address or Mobile Number' : 'Administrator / Manager Email'}
-                  </label>
-                  <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
-                    isLight 
-                      ? 'bg-slate-50 border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20' 
-                      : 'bg-[#0a0d14] border-[#222a3d] focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/10'
-                  }`}>
-                    {isPhoneIdentifier ? (
-                      <Phone className="w-4 h-4 text-emerald-400 mr-2.5 shrink-0" />
-                    ) : (
-                      <Mail className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
-                    )}
-                    <input
-                      type="text"
-                      required
-                      autoFocus
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder={
-                        mode === 'ADMIN' 
-                          ? 'admin@forexgrow.com' 
-                          : mode === 'MANAGER' 
-                          ? 'raksha@forexgrow.com' 
-                          : 'Email or Mobile Number (+91...)'
-                      }
-                      className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
-                        isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
-                      }`}
-                    />
-                    {identifier && (
-                      <button
-                        type="button"
-                        onClick={() => setIdentifier('')}
-                        className="text-gray-400 hover:text-gray-200 text-xs px-1"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  <span className={`text-[10px] block mt-1 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>
-                    {isPhoneIdentifier 
-                      ? 'Mobile Number detected (direct login • no OTP required)' 
-                      : mode === 'TRADER' 
-                      ? 'Email address or international mobile number' 
-                      : 'Official desk administrator email'}
-                  </span>
+              {/* Trader Auth Mode Tabs: Password vs Email OTP */}
+              {mode === 'TRADER' && (
+                <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-2xl border mb-4 text-xs font-bold ${
+                  isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0a0d14] border-[#222a3d]'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMethod('PASSWORD');
+                      setErrorMsg(null);
+                      setOtpSuccessNotice(null);
+                    }}
+                    className={`py-2 rounded-xl transition flex items-center justify-center space-x-1.5 ${
+                      authMethod === 'PASSWORD'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Password Login</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMethod('OTP');
+                      setErrorMsg(null);
+                      setOtpSuccessNotice(null);
+                    }}
+                    className={`py-2 rounded-xl transition flex items-center justify-center space-x-1.5 ${
+                      authMethod === 'OTP'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Email OTP Login</span>
+                  </button>
                 </div>
+              )}
 
-                {/* Password Input */}
-                <div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                      Password
-                    </label>
-                    {mode === 'TRADER' && (
-                      <button
-                        type="button"
-                        onClick={() => setIsContactModalOpen(true)}
-                        className="text-[11px] text-emerald-500 hover:underline font-semibold"
-                      >
-                        Forgot Password?
-                      </button>
-                    )}
-                  </div>
-                  <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
-                    isLight 
-                      ? 'bg-slate-50 border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20' 
-                      : 'bg-[#0a0d14] border-[#222a3d] focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/10'
-                  }`}>
-                    <Lock className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter password"
-                      className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
-                        isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="text-gray-400 hover:text-gray-200 transition p-1"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+              {otpSuccessNotice && (
+                <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs p-3 rounded-2xl flex items-center space-x-2 animate-in fade-in mb-3">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>{otpSuccessNotice}</span>
                 </div>
+              )}
 
-                {/* Remember Me */}
-                <div className="flex items-center justify-between text-xs pt-1">
-                  <label className="flex items-center space-x-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
-                    />
-                    <span className={isLight ? 'text-slate-600' : 'text-gray-300'}>Remember session</span>
-                  </label>
-                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    Direct Login • No OTP
-                  </span>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className={`w-full disabled:opacity-50 text-slate-950 font-black py-4 px-6 rounded-2xl shadow-xl transition transform active:scale-[0.99] flex items-center justify-center space-x-2 ${
-                    mode === 'ADMIN'
-                      ? 'bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-500 hover:from-purple-300 hover:to-indigo-300 shadow-purple-500/25'
-                      : mode === 'MANAGER'
-                      ? 'bg-gradient-to-r from-sky-400 via-teal-400 to-emerald-400 hover:from-sky-300 hover:to-teal-300 shadow-sky-500/25'
-                      : 'bg-[#00c679] hover:bg-[#00e089] shadow-emerald-500/25'
-                  }`}
-                >
-                  {isLoading ? (
-                    <span className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Authenticating Credentials...</span>
-                    </span>
-                  ) : (
-                    <>
-                      <span>
-                        {mode === 'ADMIN' 
-                          ? 'Enter Super Admin Dashboard' 
-                          : mode === 'MANAGER' 
-                          ? 'Enter Manager Desk' 
-                          : 'Enter Trading Floor'}
+              {authMethod === 'OTP' && mode === 'TRADER' ? (
+                /* Email OTP Login Flow */
+                otpStep === 'INPUT_EMAIL' ? (
+                  <form onSubmit={handleSendLoginOtp} className="space-y-4">
+                    <div>
+                      <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                        Your Registered Email Address *
+                      </label>
+                      <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
+                        isLight 
+                          ? 'bg-slate-50 border-slate-200 focus-within:border-emerald-500' 
+                          : 'bg-[#0a0d14] border-[#222a3d] focus-within:border-emerald-500/60'
+                      }`}>
+                        <Mail className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
+                        <input
+                          type="email"
+                          required
+                          autoFocus
+                          value={identifier}
+                          onChange={(e) => setIdentifier(e.target.value)}
+                          placeholder="e.g. trader@example.com"
+                          className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
+                            isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
+                          }`}
+                        />
+                      </div>
+                      <span className={`text-[10px] block mt-1 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>
+                        A 6-digit one-time code will be dispatched to this email address.
                       </span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </form>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full disabled:opacity-50 text-slate-950 font-black py-4 px-6 rounded-2xl shadow-xl transition transform active:scale-[0.99] flex items-center justify-center space-x-2 bg-[#00c679] hover:bg-[#00e089] shadow-emerald-500/25"
+                    >
+                      {isLoading ? (
+                        <span>Sending 6-Digit Code...</span>
+                      ) : (
+                        <>
+                          <span>Send 6-Digit Login Code</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center space-y-1">
+                      <span className="text-xs text-gray-300">Code dispatched to:</span>
+                      <div className="font-mono font-bold text-amber-400 text-xs">
+                        {identifier.trim()}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={`text-xs font-bold block mb-1 text-center ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                        Enter 6-Digit Email Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        autoFocus
+                        placeholder="• • • • • •"
+                        value={loginOtpCode}
+                        onChange={(e) => setLoginOtpCode(e.target.value.replace(/\D/g, ''))}
+                        className="w-full tracking-[8px] text-center text-xl font-mono font-black py-3 rounded-2xl border focus:outline-none bg-[#0a0d14] border-[#222a3d] text-emerald-400"
+                      />
+                      {loginDebugOtp && (
+                        <button
+                          type="button"
+                          onClick={() => setLoginOtpCode(loginDebugOtp)}
+                          className="text-[11px] text-amber-400 hover:text-amber-300 font-mono underline block mx-auto mt-2"
+                        >
+                          ⚡ Auto-fill Security Code ({loginDebugOtp})
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full disabled:opacity-50 text-slate-950 font-black py-4 px-6 rounded-2xl shadow-xl transition transform active:scale-[0.99] flex items-center justify-center space-x-2 bg-[#00c679] hover:bg-[#00e089] shadow-emerald-500/25"
+                    >
+                      {isLoading ? (
+                        <span>Verifying Code...</span>
+                      ) : (
+                        <>
+                          <span>Verify &amp; Enter Floor</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+
+                    <div className="text-center pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtpStep('INPUT_EMAIL');
+                          setErrorMsg(null);
+                        }}
+                        className="text-xs text-gray-400 hover:text-white underline"
+                      >
+                        ← Change Email Address
+                      </button>
+                    </div>
+                  </form>
+                )
+              ) : (
+                /* Standard Password Login Form */
+                <form onSubmit={handleLogin} className="space-y-4">
+                  {/* Email or Phone Input */}
+                  <div>
+                    <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      {mode === 'TRADER' ? 'Email Address or Mobile Number' : 'Administrator / Manager Email'}
+                    </label>
+                    <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
+                      isLight 
+                        ? 'bg-slate-50 border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20' 
+                        : 'bg-[#0a0d14] border-[#222a3d] focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/10'
+                    }`}>
+                      {isPhoneIdentifier ? (
+                        <Phone className="w-4 h-4 text-emerald-400 mr-2.5 shrink-0" />
+                      ) : (
+                        <Mail className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
+                      )}
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder={
+                          mode === 'ADMIN' 
+                            ? 'admin@forexgrow.com' 
+                            : mode === 'MANAGER' 
+                            ? 'raksha@forexgrow.com' 
+                            : 'Email or Mobile Number (+91...)'
+                        }
+                        className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
+                          isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
+                        }`}
+                      />
+                      {identifier && (
+                        <button
+                          type="button"
+                          onClick={() => setIdentifier('')}
+                          className="text-gray-400 hover:text-gray-200 text-xs px-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <span className={`text-[10px] block mt-1 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>
+                      {isPhoneIdentifier 
+                        ? 'Mobile Number detected (direct login • no OTP required)' 
+                        : mode === 'TRADER' 
+                        ? 'Email address or international mobile number' 
+                        : 'Official desk administrator email'}
+                    </span>
+                  </div>
+
+                  {/* Password Input */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                        Password
+                      </label>
+                      {mode === 'TRADER' && (
+                        <button
+                          type="button"
+                          onClick={() => setIsContactModalOpen(true)}
+                          className="text-[11px] text-emerald-500 hover:underline font-semibold"
+                        >
+                          Forgot Password?
+                        </button>
+                      )}
+                    </div>
+                    <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
+                      isLight 
+                        ? 'bg-slate-50 border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20' 
+                        : 'bg-[#0a0d14] border-[#222a3d] focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/10'
+                    }`}>
+                      <Lock className="w-4 h-4 text-gray-400 mr-2.5 shrink-0" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password"
+                        className={`w-full bg-transparent text-sm focus:outline-none font-medium ${
+                          isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-500'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-gray-400 hover:text-gray-200 transition p-1"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Remember Me */}
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <label className="flex items-center space-x-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                      />
+                      <span className={isLight ? 'text-slate-600' : 'text-gray-300'}>Remember session</span>
+                    </label>
+                    <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      Direct Login • Fast Entry
+                    </span>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className={`w-full disabled:opacity-50 text-slate-950 font-black py-4 px-6 rounded-2xl shadow-xl transition transform active:scale-[0.99] flex items-center justify-center space-x-2 ${
+                      mode === 'ADMIN'
+                        ? 'bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-500 hover:from-purple-300 hover:to-indigo-300 shadow-purple-500/25'
+                        : mode === 'MANAGER'
+                        ? 'bg-gradient-to-r from-sky-400 via-teal-400 to-emerald-400 hover:from-sky-300 hover:to-teal-300 shadow-sky-500/25'
+                        : 'bg-[#00c679] hover:bg-[#00e089] shadow-emerald-500/25'
+                    }`}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                        <span>Authenticating Credentials...</span>
+                      </span>
+                    ) : (
+                      <>
+                        <span>
+                          {mode === 'ADMIN' 
+                            ? 'Enter Super Admin Dashboard' 
+                            : mode === 'MANAGER' 
+                            ? 'Enter Manager Desk' 
+                            : 'Enter Trading Floor'}
+                        </span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
 
               {/* Mode-specific Notices */}
               {mode === 'TRADER' ? (

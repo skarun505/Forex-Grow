@@ -520,6 +520,7 @@ export class SettlementEngine extends EventEmitter {
         user.demoBalance = Number((user.demoBalance + returnedFunds).toFixed(2));
       } else {
         user.realBalance = Number((user.realBalance + returnedFunds).toFixed(2));
+        user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
       }
     } else if (tie) {
       trade.status = 'TIE';
@@ -528,6 +529,7 @@ export class SettlementEngine extends EventEmitter {
         user.demoBalance = Number((user.demoBalance + trade.amount).toFixed(2));
       } else {
         user.realBalance = Number((user.realBalance + trade.amount).toFixed(2));
+        user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
       }
     } else {
       trade.status = 'LOST';
