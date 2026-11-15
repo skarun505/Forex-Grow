@@ -79,22 +79,5 @@
     "totalTrades": 0,
     "totalDepositedUSD": 0,
     "createdAt": 1789553736606
-  },
-  {
-    "id": "usr_216b1d65",
-    "name": "Retest User",
-    "email": "retest_trader@example.com",
-    "demoBalance": 10000,
-    "realBalance": 0,
-    "activeAccountType": "DEMO",
-    "currency": "INR",
-    "vipLevel": "STANDARD",
-    "isKycVerified": false,
-    "status": "ACTIVE",
-    "totalTrades": 0,
-    "totalDepositedUSD": 0,
-    "password": "forexgrow123",
-    "role": "TRADER",
-    "kycStatus": "APPROVED"
   }
 ]

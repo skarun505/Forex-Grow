@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 interface HeaderProps {
-  onOpenAssetModal: () => void;
+  onOpenAssetModal?: () => void;
   onOpenCashierModal: () => void;
   onOpenLeaderboardModal: () => void;
   onOpenCurrencyModal: () => void;
@@ -75,7 +75,6 @@ const TierArrowIcon: React.FC<{ tier: 'STANDARD' | 'PRO' | 'VIP'; isDemo: boolea
 };
 
 export const Header: React.FC<HeaderProps> = ({
-  onOpenAssetModal,
   onOpenCashierModal,
   onOpenLeaderboardModal,
   onOpenCurrencyModal,
@@ -84,7 +83,6 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const {
     account,
-    selectedAsset,
     isConnected,
     switchAccount,
     resetDemoBalance,
@@ -174,46 +172,13 @@ export const Header: React.FC<HeaderProps> = ({
     <header className={`h-14 sm:h-16 border-b px-3 sm:px-5 flex items-center justify-between z-30 select-none transition-colors ${
       isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#151a26] border-[#293246] text-white'
     }`}>
-      {/* Brand & Asset Pill */}
-      <div className="flex items-center space-x-2 sm:space-x-5">
-        <div className="hidden sm:flex items-center space-x-2">
-          <ForexGrowLogo
-            size="sm"
-            variant="trader"
-            badgeText={effectiveTier !== 'STANDARD' ? effectiveTier : undefined}
-            subtitle={isConnected ? 'Live Market' : 'Connecting...'}
-          />
-        </div>
-
-        {/* Selected Asset Button */}
-        {selectedAsset && (
-          <button
-            onClick={onOpenAssetModal}
-            className={`flex items-center space-x-1.5 sm:space-x-3 transition border px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl text-left group shadow-sm ${
-              isLight 
-                ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-800' 
-                : 'bg-[#1c2333] hover:bg-[#252e42] border-[#293246] text-white'
-            }`}
-          >
-            <div>
-              <div className="text-xs font-bold group-hover:text-emerald-500 transition flex items-center space-x-1 truncate max-w-[90px] xs:max-w-[130px] sm:max-w-[160px]">
-                <span className="truncate">{selectedAsset.name}</span>
-                {selectedAsset.isRealFeed && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
-                )}
-              </div>
-              <div className={`text-[9px] sm:text-[10px] font-mono hidden sm:block ${
-                isLight ? 'text-slate-500' : 'text-gray-400'
-              }`}>
-                {selectedAsset.category.toUpperCase()} {selectedAsset.isRealFeed ? '• LIVE FEED' : '• OTC'}
-              </div>
-            </div>
-            <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-[11px] sm:text-xs font-extrabold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl">
-              +{selectedAsset.payout}%
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 group-hover:text-emerald-500 transition" />
-          </button>
-        )}
+      {/* Brand Logo Only (Currency pair selector is on the chart canvas) */}
+      <div className="flex items-center space-x-2">
+        <ForexGrowLogo
+          size="sm"
+          variant="trader"
+          subtitle={isConnected ? 'Live Market' : 'Connecting...'}
+        />
       </div>
 
       {/* Right Controls */}

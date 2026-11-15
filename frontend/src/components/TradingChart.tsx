@@ -554,11 +554,18 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
         <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
       </button>
 
-      {/* Desktop Top Floating Info & Asset Banner */}
-      <div className="hidden sm:flex absolute top-4 left-5 z-20 items-center space-x-4 bg-[#1e2333]/90 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/5 shadow-2xl">
+      {/* Desktop Top Floating Info & Asset Banner (Click to switch currency pair) */}
+      <div 
+        onClick={onOpenAssetModal}
+        className="hidden sm:flex absolute top-4 left-5 z-20 items-center space-x-4 bg-[#1e2333]/90 hover:bg-[#252e42] cursor-pointer transition backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/5 hover:border-emerald-500/30 shadow-2xl group"
+        title="Click to change currency pair / market"
+      >
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-xs text-gray-300 font-bold">{selectedAsset?.name || 'Asset'}</span>
+            <span className="text-xs text-gray-300 group-hover:text-emerald-400 font-bold transition flex items-center space-x-1">
+              <span>{selectedAsset?.name || 'Asset'}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400 group-hover:text-emerald-400 transition" />
+            </span>
             {selectedAsset?.isRealFeed && (
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-1.5 py-0.2 rounded uppercase tracking-wider animate-pulse">
                 LIVE
