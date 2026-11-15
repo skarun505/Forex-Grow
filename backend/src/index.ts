@@ -269,21 +269,31 @@ app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), a
     expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes validity
   });
 
+  // Dispatch verification email with fast timeout so UI is never blocked
+  let emailSent = false;
   try {
-    const sendRes = await emailService.sendOtpEmail(cleanEmail, otp, cleanName);
-    if (!sendRes.success) {
-      console.warn(`[AUTH] Email sending notice: ${sendRes.error}. Verification OTP for ${cleanEmail}: ${otp}`);
+    const sendPromise = emailService.sendOtpEmail(cleanEmail, otp, cleanName);
+    const timeoutPromise = new Promise<{ success: boolean; error?: string }>((resolve) =>
+      setTimeout(() => resolve({ success: false, error: 'TIMEOUT_FALLTHROUGH' }), 2000)
+    );
+    const result = await Promise.race([sendPromise, timeoutPromise]);
+    emailSent = result.success;
+    if (!emailSent) {
+      sendPromise.then(r => {
+        if (r.success) console.log(`[AUTH] Background verification OTP email sent to ${cleanEmail}`);
+      }).catch(e => console.warn(`[AUTH] Background email send notice:`, e?.message));
     }
-    return res.json({
-      success: true,
-      message: sendRes.success
-        ? `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox.`
-        : `Verification code generated (${otp}). Brevo IP authorization is pending.`,
-      debugOtp: otp,
-    });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to dispatch verification email. Please try again.' });
+    console.warn('[AUTH] Immediate email dispatch catch:', err?.message);
   }
+
+  return res.json({
+    success: true,
+    message: emailSent
+      ? `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox.`
+      : `Verification code generated (${otp}). Brevo IP authorization is pending.`,
+    debugOtp: otp,
+  });
 });
 
 // Verify OTP & Activate Trader Account
@@ -383,21 +393,31 @@ app.post('/api/auth/send-login-otp', securityFirewall.getAuthRateLimiter(), asyn
     expiresAt: Date.now() + 5 * 60 * 1000,
   });
 
+  // Dispatch login OTP email with fast timeout so UI is never blocked
+  let emailSent = false;
   try {
-    const sendRes = await emailService.sendOtpEmail(cleanEmail, otp, user.name);
-    if (!sendRes.success) {
-      console.warn(`[AUTH] Login OTP notice: ${sendRes.error}. Code for ${cleanEmail}: ${otp}`);
+    const sendPromise = emailService.sendOtpEmail(cleanEmail, otp, user.name);
+    const timeoutPromise = new Promise<{ success: boolean; error?: string }>((resolve) =>
+      setTimeout(() => resolve({ success: false, error: 'TIMEOUT_FALLTHROUGH' }), 2000)
+    );
+    const result = await Promise.race([sendPromise, timeoutPromise]);
+    emailSent = result.success;
+    if (!emailSent) {
+      sendPromise.then(r => {
+        if (r.success) console.log(`[AUTH] Background login OTP email sent to ${cleanEmail}`);
+      }).catch(e => console.warn(`[AUTH] Background email send notice:`, e?.message));
     }
-    return res.json({
-      success: true,
-      message: sendRes.success
-        ? `A 6-digit login verification code has been dispatched to ${cleanEmail}.`
-        : `Login security code generated (${otp}).`,
-      debugOtp: otp,
-    });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to send login code. Please try again.' });
+    console.warn('[AUTH] Immediate login email attempt catch:', err?.message);
   }
+
+  return res.json({
+    success: true,
+    message: emailSent
+      ? `A 6-digit login verification code has been dispatched to ${cleanEmail}.`
+      : `Login security code generated (${otp}).`,
+    debugOtp: otp,
+  });
 });
 
 // Verify Login OTP & Sign In

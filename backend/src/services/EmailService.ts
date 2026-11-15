@@ -49,6 +49,9 @@ class EmailService {
         host: this.config.smtpHost,
         port: this.config.smtpPort,
         secure: false, // TLS
+        connectionTimeout: 3000,
+        greetingTimeout: 3000,
+        socketTimeout: 3000,
         auth: {
           user: this.config.smtpUser,
           pass: this.config.smtpPass,
@@ -71,10 +74,14 @@ class EmailService {
     this.refreshConfig();
     const { to, subject, html, text } = options;
     let lastError = 'No email transport configured';
+    let brevoIpBlocked = false;
 
     // 1. Try Brevo REST API if API Key is available
     if (this.config.apiKey) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
         const res = await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
           headers: {
@@ -91,7 +98,9 @@ class EmailService {
             htmlContent: html,
             textContent: text || subject,
           }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
 
         const data: any = await res.json();
         if (res.ok) {
@@ -100,6 +109,7 @@ class EmailService {
         } else {
           lastError = data.message || JSON.stringify(data);
           if (data.code === 'unauthorized' || (data.message && data.message.includes('unrecognised IP address'))) {
+            brevoIpBlocked = true;
             console.error(`[EMAIL ALERT] ⚠️ Brevo rejected request due to IP Restriction! To fix: Open https://app.brevo.com/security/authorised_ips and disable IP restrictions to allow Render cloud IPs.`);
           } else {
             console.warn('[EMAIL] Brevo REST API error:', data);
@@ -107,12 +117,12 @@ class EmailService {
         }
       } catch (err: any) {
         lastError = err.message;
-        console.warn('[EMAIL] Failed sending via Brevo API:', err.message);
+        console.warn('[EMAIL] Brevo API attempt finished:', err.message);
       }
     }
 
-    // 2. Try SMTP Transporter (Brevo SMTP Relay)
-    if (this.transporter && this.config.smtpPass) {
+    // 2. Try SMTP Transporter (Brevo SMTP Relay) ONLY if IP was not blocked by Brevo API
+    if (!brevoIpBlocked && this.transporter && this.config.smtpPass) {
       try {
         const info = await this.transporter.sendMail({
           from: `"${this.config.senderName}" <${this.config.senderEmail}>`,
@@ -136,6 +146,9 @@ class EmailService {
       try {
         const gmailTransporter = nodemailer.createTransport({
           service: 'gmail',
+          connectionTimeout: 3000,
+          greetingTimeout: 3000,
+          socketTimeout: 3000,
           auth: {
             user: gmailUser,
             pass: gmailPass,
