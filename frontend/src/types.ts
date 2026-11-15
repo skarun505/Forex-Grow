@@ -142,6 +142,7 @@ export interface UserAccount {
     gender?: string;
     frontImage?: string;
     backImage?: string;
+    hasDocuments?: boolean;
     submittedAt?: number;
     reviewedAt?: number;
     rejectionReason?: string;

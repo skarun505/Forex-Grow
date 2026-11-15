@@ -429,14 +429,26 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className={`p-2 rounded-xl transition ${
-              isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <a
+              href={`https://wa.me/919876543210?text=${encodeURIComponent(`Hello Forex Grow Customer Care,\n\nI need assistance with Cashier / Deposit / Withdrawal.\nTrader Name: ${account.name}\nAccount ID: ${account.id}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm"
+              title="Chat with Customer Care on WhatsApp"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="hidden sm:inline">Customer Care</span>
+            </a>
+            <button
+              onClick={onClose}
+              className={`p-2 rounded-xl transition ${
+                isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Deposit vs Withdraw vs History Tabs */}

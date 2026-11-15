@@ -224,16 +224,6 @@ app.post('/api/auth/login', (req, res) => {
         return true;
       }
     }
-
-    // Check Aadhaar match (12 digits)
-    if (digitsOnly.length === 12) {
-      if (u.aadhaarNumber && u.aadhaarNumber.replace(/\D/g, '') === digitsOnly) {
-        return true;
-      }
-      if (u.kycData?.aadhaarNumber && u.kycData.aadhaarNumber.replace(/\D/g, '') === digitsOnly) {
-        return true;
-      }
-    }
     return false;
   });
 

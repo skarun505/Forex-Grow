@@ -15,7 +15,6 @@ import { ManagerDashboard } from './components/ManagerDashboard';
 import { LoginPage } from './components/LoginPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { KycModal } from './components/KycModal';
-import { WhatsAppSupportButton } from './components/WhatsAppSupportButton';
 
 const MainLayout: React.FC = () => {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -115,9 +114,6 @@ const MainLayout: React.FC = () => {
         isOpen={isKycModalOpen}
         onClose={() => setIsKycModalOpen(false)}
       />
-
-      {/* Floating 1-Click WhatsApp Support for Instant Assistance */}
-      <WhatsAppSupportButton />
 
       {/* Trade Settlement Celebration / Outcome Modal */}
       <TradeResultModal />

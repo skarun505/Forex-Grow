@@ -518,6 +518,7 @@ export class AdminManager extends EventEmitter {
       gender?: string;
       frontImage?: string;
       backImage?: string;
+      hasDocuments?: boolean;
     }
   ): { success: boolean; user?: UserAccount; error?: string } {
     const user = this.users.get(userId);
@@ -538,6 +539,7 @@ export class AdminManager extends EventEmitter {
       gender: data.gender,
       frontImage: data.frontImage,
       backImage: data.backImage,
+      hasDocuments: Boolean(data.hasDocuments || data.frontImage),
       submittedAt: Date.now(),
     };
 

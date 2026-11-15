@@ -95,8 +95,7 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
           aadhaarNumber,
           dob,
           gender,
-          frontImage: frontImage || undefined,
-          backImage: backImage || undefined,
+          hasDocuments: Boolean(frontImage && backImage),
         }),
       });
 

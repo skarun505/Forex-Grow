@@ -2985,29 +2985,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Front</span>
-                  <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
-                    {selectedTraderForKyc.kycData?.frontImage ? (
-                      <img src={selectedTraderForKyc.kycData.frontImage} alt="Front" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-gray-500 text-[10px]">No image attached</span>
-                    )}
+              {selectedTraderForKyc.kycData?.frontImage || selectedTraderForKyc.kycData?.backImage ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Front</span>
+                    <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                      {selectedTraderForKyc.kycData?.frontImage ? (
+                        <img src={selectedTraderForKyc.kycData.frontImage} alt="Front" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-gray-500 text-[10px]">No image attached</span>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Back</span>
-                  <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
-                    {selectedTraderForKyc.kycData?.backImage ? (
-                      <img src={selectedTraderForKyc.kycData.backImage} alt="Back" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-gray-500 text-[10px]">No image attached</span>
-                    )}
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Back</span>
+                    <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                      {selectedTraderForKyc.kycData?.backImage ? (
+                        <img src={selectedTraderForKyc.kycData.backImage} alt="Back" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-gray-500 text-[10px]">No image attached</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-emerald-400">Aadhaar Front & Back Documents Uploaded</div>
+                    <div className="text-[10px] text-gray-400">Trader uploaded documents on device. Verify the 12-digit Aadhaar number above to approve KYC.</div>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-2 flex items-center space-x-2">
                 <button
