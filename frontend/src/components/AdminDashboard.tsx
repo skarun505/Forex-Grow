@@ -164,7 +164,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [createdSlip, setCreatedSlip] = useState<any | null>(null);
   const [newUserCurrency, setNewUserCurrency] = useState<string>('INR');
   const [newUserAccountType, setNewUserAccountType] = useState<'DEMO' | 'REAL'>('DEMO');
-  const [newUserDemoBal, setNewUserDemoBal] = useState<number>(10000);
+  const [newUserDemoBal, setNewUserDemoBal] = useState<number>(700000);
   const [newUserRealBal, setNewUserRealBal] = useState<number>(0);
   const [newUserVip, setNewUserVip] = useState<'STANDARD' | 'PRO' | 'VIP'>('STANDARD');
   const [newUserKyc, setNewUserKyc] = useState<boolean>(true);
@@ -173,7 +173,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   // User Balance Adjustment Modal State (Easiest Direct Balance Edit)
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<UserAccount | null>(null);
   const [directRealBalance, setDirectRealBalance] = useState<number>(0);
-  const [directDemoBalance, setDirectDemoBalance] = useState<number>(10000);
+  const [directDemoBalance, setDirectDemoBalance] = useState<number>(700000);
   const [directCurrency, setDirectCurrency] = useState<'INR' | 'USD'>('INR');
   const [directAccountType, setDirectAccountType] = useState<'DEMO' | 'REAL'>('REAL');
   const [directNote, setDirectNote] = useState<string>('Admin VIP Balance Update');
@@ -3435,14 +3435,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
                 {/* Demo Quick Reset Chips */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {[10000, 50000, 100000].map((preset) => (
+                  {[50000, 100000, 700000].map((preset) => (
                     <button
                       key={preset}
                       type="button"
                       onClick={() => setDirectDemoBalance(preset)}
                       className="px-2 py-1 text-[11px] font-bold rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 transition"
                     >
-                      Reset {preset >= 1000 ? `${preset / 1000}k` : preset}
+                      Reset {preset >= 100000 ? `${preset / 100000} Lakh` : `${preset / 1000}k`}
                     </button>
                   ))}
                   <button

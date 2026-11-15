@@ -139,7 +139,7 @@ export class SettlementEngine extends EventEmitter {
       id: 'usr_quotex_vip_99',
       name: 'Alex Rivera',
       email: 'alex.rivera@quotex.pro',
-      demoBalance: 10000.00,
+      demoBalance: 700000.00,
       realBalance: 10000.00,
       activeAccountType: 'REAL',
       currency: 'INR',
@@ -177,7 +177,7 @@ export class SettlementEngine extends EventEmitter {
   public resetDemoBalance(): UserAccount {
     const user = this.adminManager.getUser(this.currentUserId);
     if (user) {
-      user.demoBalance = 10000.00;
+      user.demoBalance = 700000.00;
       SupabaseDb.saveUser(user);
       return { ...user };
     }

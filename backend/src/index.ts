@@ -262,7 +262,7 @@ app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), a
     phone: cleanPhone,
     password: password || 'forexgrow123',
     currency: currency === 'USD' ? 'USD' : 'INR',
-    demoBalance: demoBalance !== undefined ? Number(demoBalance) : 10000,
+    demoBalance: demoBalance !== undefined ? Number(demoBalance) : 700000,
     realBalance: realBalance !== undefined ? Number(realBalance) : 0,
     vipLevel: vipLevel || 'STANDARD',
     otp,
@@ -307,7 +307,7 @@ app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(),
   }
 
   const finalRealBal = realBalance !== undefined ? Number(realBalance) : (record.realBalance ?? 0);
-  const finalDemoBal = demoBalance !== undefined ? Number(demoBalance) : (record.demoBalance ?? 10000);
+  const finalDemoBal = demoBalance !== undefined ? Number(demoBalance) : (record.demoBalance ?? 700000);
   const finalVip = vipLevel || record.vipLevel || 'STANDARD';
   const finalKyc = isKycVerified !== undefined ? Boolean(isKycVerified) : false;
 

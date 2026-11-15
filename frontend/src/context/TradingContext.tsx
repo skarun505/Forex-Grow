@@ -96,7 +96,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     id: 'usr_quotex_vip_99',
     name: 'Alex Rivera',
     email: 'alex.rivera@quotex.pro',
-    demoBalance: 10000.0,
+    demoBalance: 700000.0,
     realBalance: 10000.0,
     activeAccountType: 'REAL',
     currency: getSessionCurrency(),

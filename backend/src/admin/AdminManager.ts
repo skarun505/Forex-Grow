@@ -343,7 +343,7 @@ export class AdminManager extends EventEmitter {
       aadhaarNumber: '7845 1290 3341',
       password: 'forexgrow123',
       role: 'TRADER',
-      demoBalance: 10000.00,
+      demoBalance: 700000.00,
       realBalance: 10000.00,
       activeAccountType: 'REAL',
       currency: 'INR',
@@ -631,7 +631,7 @@ export class AdminManager extends EventEmitter {
       phone: params.phone?.trim() || undefined,
       password: params.password?.trim() || 'Trader@2026',
       role: params.role || 'TRADER',
-      demoBalance: Number(params.demoBalance ?? 10000.00),
+      demoBalance: Number(params.demoBalance ?? 700000.00),
       realBalance: realBal,
       activeAccountType: params.activeAccountType ?? 'DEMO',
       currency: params.currency ?? 'INR',
@@ -1102,7 +1102,7 @@ export class AdminManager extends EventEmitter {
   ): { success: boolean; user?: UserAccount; error?: string } {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
-    user.demoBalance = 10000.00;
+    user.demoBalance = 700000.00;
     this.addAuditLog(
       actor?.id || 'mgr_sys',
       actor?.name || 'Operations Desk',
@@ -1110,7 +1110,7 @@ export class AdminManager extends EventEmitter {
       'RESET_DEMO_BALANCE',
       user.id,
       user.name,
-      'Demo balance reset to $10,000.00'
+      'Demo balance reset to ₹7,00,000.00'
     );
     this.emit('user_updated', user);
     this.persistUser(user);

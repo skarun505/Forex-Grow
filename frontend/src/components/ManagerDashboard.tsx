@@ -187,7 +187,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [newClientPhone, setNewClientPhone] = useState('');
   const [newClientPassword, setNewClientPassword] = useState('Trader@2026');
   const [newClientCurrency, setNewClientCurrency] = useState<CurrencyCode>('INR');
-  const [newClientDemoBal, setNewClientDemoBal] = useState('10000');
+  const [newClientDemoBal, setNewClientDemoBal] = useState('700000');
   const [newClientRealBal, setNewClientRealBal] = useState('0');
   const [newClientVip, setNewClientVip] = useState<VipLevel>('STANDARD');
   const [newClientKyc, setNewClientKyc] = useState(false);
@@ -213,7 +213,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   // User Balance Adjustment Modal State (Easiest Direct Balance Edit)
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<UserAccount | null>(null);
   const [directRealBalance, setDirectRealBalance] = useState<number>(0);
-  const [directDemoBalance, setDirectDemoBalance] = useState<number>(10000);
+  const [directDemoBalance, setDirectDemoBalance] = useState<number>(700000);
   const [directCurrency, setDirectCurrency] = useState<'INR' | 'USD'>('INR');
   const [directAccountType, setDirectAccountType] = useState<'DEMO' | 'REAL'>('REAL');
   const [isSavingBalance, setIsSavingBalance] = useState<boolean>(false);
@@ -634,7 +634,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   };
 
   const handleResetDemo = async (userId: string) => {
-    if (!confirm('Reset this trader demo balance back to $10,000?')) return;
+    if (!confirm('Reset this trader demo balance back to ₹7,00,000?')) return;
     try {
       const res = await fetch(apiUrl(`/api/manager/users/${userId}/reset-demo`), {
         method: 'POST',
@@ -712,7 +712,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
           phone: newClientPhone.trim() || undefined,
           password: newClientPassword.trim(),
           currency: newClientCurrency,
-          demoBalance: Number(newClientDemoBal) || 10000,
+          demoBalance: Number(newClientDemoBal) || 700000,
           realBalance: Number(newClientRealBal) || 0,
           vipLevel: newClientVip,
         }),
@@ -752,7 +752,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
         body: JSON.stringify({
           email: newClientEmail.trim(),
           otp: clientOtpCode.trim(),
-          demoBalance: Number(newClientDemoBal) || 10000,
+          demoBalance: Number(newClientDemoBal) || 700000,
           realBalance: Number(newClientRealBal) || 0,
           vipLevel: newClientVip,
           isKycVerified: newClientKyc,
@@ -1506,7 +1506,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                         {/* Reset Demo */}
                         <button
                           onClick={() => handleResetDemo(u.id)}
-                          title="Reset Demo to $10,000"
+                          title="Reset Demo to ₹7,00,000"
                           className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
                             isLight ? 'hover:bg-slate-100 border-slate-200 text-slate-700' : 'hover:bg-white/10 border-white/10 text-gray-300'
                           }`}
@@ -3007,14 +3007,14 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
                 {/* Demo Quick Reset Chips */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {[10000, 50000, 100000].map((preset) => (
+                  {[50000, 100000, 700000].map((preset) => (
                     <button
                       key={preset}
                       type="button"
                       onClick={() => setDirectDemoBalance(preset)}
                       className="px-2 py-1 text-[11px] font-bold rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 transition"
                     >
-                      Reset {preset >= 1000 ? `${preset / 1000}k` : preset}
+                      Reset {preset >= 100000 ? `${preset / 100000} Lakh` : `${preset / 1000}k`}
                     </button>
                   ))}
                   <button
