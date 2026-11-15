@@ -239,8 +239,13 @@ export class AdminManager extends EventEmitter {
             customRiskSettings: existing?.customRiskSettings || u.customRiskSettings,
             // Keep existing realBalance if locally updated
             realBalance: existing?.realBalance !== undefined ? existing.realBalance : u.realBalance,
-            demoBalance: existing?.demoBalance !== undefined ? existing.demoBalance : u.demoBalance,
+            demoBalance: existing?.demoBalance !== undefined && existing.demoBalance !== 10000 ? existing.demoBalance : (u.demoBalance === 10000 ? 700000.00 : (u.demoBalance ?? 700000.00)),
           };
+
+          // Migrate any legacy 10,000 demo balances to the official default of 7 Lakh (700,000)
+          if (merged.role === 'TRADER' && (merged.demoBalance === 10000 || !merged.demoBalance)) {
+            merged.demoBalance = 700000.00;
+          }
 
           // Normalize primary currency to INR as requested; NEVER overwrite balance with 10000!
           if (merged.id === 'usr_quotex_vip_99') {

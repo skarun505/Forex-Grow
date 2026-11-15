@@ -362,6 +362,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   };
 
   // Payout Adjustments State
+  const getAdminHeaders = () => {
+    const token = localStorage.getItem('forexgrow_auth_token') || sessionStorage.getItem('forexgrow_tab_token') || '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  };
+
   const [payoutEdits, setPayoutEdits] = useState<Record<string, number>>({});
 
   // Search Filters
@@ -371,18 +379,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const fetchAdminData = async () => {
     setIsLoading(true);
     try {
+      const headers = getAdminHeaders();
       const [ovRes, uRes, txRes, cpnRes, psRes, riskRes] = await Promise.all([
-        fetch(apiUrl('/api/admin/overview')).then((r) => r.json()),
-        fetch(apiUrl('/api/admin/users')).then((r) => r.json()),
-        fetch(apiUrl('/api/admin/transactions')).then((r) => r.json()),
-        fetch(apiUrl('/api/admin/coupons')).then((r) => r.json()),
-        fetch(apiUrl('/api/payment/settings')).then((r) => r.json()).catch(() => null),
-        fetch(apiUrl('/api/admin/risk/settings')).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/admin/overview'), { headers }).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/admin/users'), { headers }).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/admin/transactions'), { headers }).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/admin/coupons'), { headers }).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/payment/settings'), { headers }).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/admin/risk/settings'), { headers }).then((r) => r.json()).catch(() => null),
       ]);
-      setOverview(ovRes);
-      setUsers(uRes);
-      setTransactions(txRes);
-      setCoupons(cpnRes);
+
+      // If token expired or access forbidden, clear stale session and redirect to admin login
+      if (uRes?.code === 'FORBIDDEN_ROOT' || (uRes && !Array.isArray(uRes) && uRes.error)) {
+        localStorage.removeItem('quotex_admin_user');
+        localStorage.removeItem('forexgrow_auth_token');
+        window.history.pushState({}, '', '/admin');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        return;
+      }
+
+      setOverview(ovRes && !ovRes.error ? ovRes : null);
+      setUsers(Array.isArray(uRes) ? uRes : []);
+      setTransactions(Array.isArray(txRes) ? txRes : []);
+      setCoupons(Array.isArray(cpnRes) ? cpnRes : []);
       if (psRes?.settings) {
         setPaymentSettings(psRes.settings);
       }
@@ -443,7 +462,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const openDirectBalanceModal = (u: UserAccount) => {
     setSelectedUserForBalance(u);
     setDirectRealBalance(u.realBalance ?? 0);
-    setDirectDemoBalance(u.demoBalance ?? 10000);
+    setDirectDemoBalance(u.demoBalance ?? 700000);
     setDirectCurrency((u.currency as 'INR' | 'USD') || 'INR');
     setDirectAccountType(u.activeAccountType || 'REAL');
     setDirectNote('Admin Funds Adjustment');
@@ -854,15 +873,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     }
   };
 
-  const filteredUsers = users.filter(
+  const safeUsers = Array.isArray(users) ? users : [];
+  const safeTransactions = Array.isArray(transactions) ? transactions : [];
+  const safeCoupons = Array.isArray(coupons) ? coupons : [];
+
+  const filteredUsers = safeUsers.filter(
     (u) =>
-      u.role === 'TRADER' &&
-      (u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.id.toLowerCase().includes(userSearch.toLowerCase()))
+      u && u.role === 'TRADER' &&
+      ((u.name || '').toLowerCase().includes(userSearch.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(userSearch.toLowerCase()) ||
+      (u.id || '').toLowerCase().includes(userSearch.toLowerCase()))
   );
 
-  const filteredTransactions = transactions.filter(
+  const filteredTransactions = safeTransactions.filter(
     (t) => paymentFilter === 'ALL' || t.status === paymentFilter
   );
 
@@ -1096,11 +1119,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         }`}>
         {[
           { id: 'OVERVIEW', shortLabel: 'Summary', label: 'Platform Summary', icon: TrendingUp },
-          { id: 'USERS', shortLabel: `Traders (${users.filter(u => u.role === 'TRADER').length})`, label: 'Traders & Balances', icon: Users, badge: users.filter(u => u.role === 'TRADER').length },
+          { id: 'USERS', shortLabel: `Traders (${safeUsers.filter(u => u.role === 'TRADER').length})`, label: 'Traders & Balances', icon: Users, badge: safeUsers.filter(u => u.role === 'TRADER').length },
           { id: 'CASHFLOW', shortLabel: 'Cashflow', label: 'Cashflow & Date Analytics', icon: BarChart3 },
           { id: 'PAYMENTS', shortLabel: `Cashier (${overview?.pendingTransactionsCount || 0})`, label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
           { id: 'RISK', shortLabel: 'Risk Engine', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
-          { id: 'COUPONS', shortLabel: 'Coupons', label: 'Special Promo Coupons', icon: Tag, badge: coupons.length },
+          { id: 'COUPONS', shortLabel: 'Coupons', label: 'Special Promo Coupons', icon: Tag, badge: safeCoupons.length },
           { id: 'MARKETS', shortLabel: 'Payouts', label: 'Asset Payout Customizer', icon: Sliders, badge: assets.length },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -1232,7 +1255,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   </div>
 
                   <div className="space-y-2.5">
-                    {transactions
+                    {safeTransactions
                       .filter((t) => t.status === 'PENDING')
                       .slice(0, 3)
                       .map((tx) => {
@@ -1301,7 +1324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                           </div>
                         );
                       })}
-                    {transactions.filter((t) => t.status === 'PENDING').length === 0 && (
+                    {safeTransactions.filter((t) => t.status === 'PENDING').length === 0 && (
                       <div className={`text-xs text-center py-8 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>
                         No pending transactions requiring manual review!
                       </div>
@@ -1633,7 +1656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         {/* ================= TAB: CASHFLOW & CUSTOM DATE ANALYTICS DASHBOARD ================= */}
         {activeTab === 'CASHFLOW' && (() => {
           // 1. Filter Transactions by Custom Date Range, Trader, Type, and Status
-          const filteredCashflow = transactions.filter((t) => {
+          const filteredCashflow = safeTransactions.filter((t) => {
             const d = new Date(t.timestamp);
             const txDate = `${d.getFullYear()}-${padDate(d.getMonth() + 1)}-${padDate(d.getDate())}`;
             if (cashflowFromDate && txDate < cashflowFromDate) return false;
@@ -1782,7 +1805,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       }`}
                     >
                       <option value="ALL">All Traders (Global House)</option>
-                      {users.map((u) => (
+                      {safeUsers.map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.name} ({u.id})
                         </option>
@@ -1859,7 +1882,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       onClick={() => setCashflowUserFilter('ALL')}
                       className="ml-auto px-2 py-1 text-[11px] font-bold rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition flex items-center gap-1"
                     >
-                      <span>Showing: {users.find((u) => u.id === cashflowUserFilter)?.name || cashflowUserFilter}</span>
+                      <span>Showing: {safeUsers.find((u) => u.id === cashflowUserFilter)?.name || cashflowUserFilter}</span>
                       <X className="w-3 h-3" />
                     </button>
                   )}

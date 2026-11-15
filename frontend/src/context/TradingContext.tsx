@@ -251,6 +251,12 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (savedUserRaw) {
             const savedUser = JSON.parse(savedUserRaw);
             if (savedUser && savedUser.id) {
+              if (savedUser.demoBalance === 10000 || !savedUser.demoBalance) {
+                savedUser.demoBalance = 700000.0;
+                setAccount((prev) => ({ ...prev, demoBalance: 700000.0 }));
+                localStorage.setItem('quotex_trader_user', JSON.stringify(savedUser));
+                localStorage.setItem('quotex_current_user', JSON.stringify(savedUser));
+              }
               socket.send(JSON.stringify({ type: 'SYNC_USER', userId: savedUser.id }));
             }
           }
@@ -695,6 +701,22 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const resetDemoBalance = () => {
+    setAccount((prev) => {
+      const updated = { ...prev, demoBalance: 700000.0 };
+      try {
+        const stored = localStorage.getItem('quotex_trader_user');
+        if (stored) {
+          const p = JSON.parse(stored);
+          localStorage.setItem('quotex_trader_user', JSON.stringify({ ...p, demoBalance: 700000.0 }));
+        }
+        const storedCur = localStorage.getItem('quotex_current_user');
+        if (storedCur) {
+          const p = JSON.parse(storedCur);
+          localStorage.setItem('quotex_current_user', JSON.stringify({ ...p, demoBalance: 700000.0 }));
+        }
+      } catch (e) {}
+      return updated;
+    });
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const msg: WSClientAction = { type: 'RESET_DEMO_BALANCE' };
       wsRef.current.send(JSON.stringify(msg));

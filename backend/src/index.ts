@@ -977,7 +977,7 @@ app.post('/api/payment/novupay/payout', (req, res) => {
 });
 
 // ================= ADMIN DASHBOARD ENDPOINTS =================
-app.use('/api/admin', securityFirewall.requireAdmin(activeStaffSessions));
+app.use('/api/admin', securityFirewall.requireAdmin(activeStaffSessions, adminManager));
 app.get('/api/admin/overview', (req, res) => {
   res.json(adminManager.getOverview());
 });

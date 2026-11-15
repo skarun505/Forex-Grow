@@ -268,7 +268,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const openDirectBalanceModal = (u: UserAccount) => {
     setSelectedUserForBalance(u);
     setDirectRealBalance(u.realBalance ?? 0);
-    setDirectDemoBalance(u.demoBalance ?? 10000);
+    setDirectDemoBalance(u.demoBalance ?? 700000);
     setDirectCurrency((u.currency as 'INR' | 'USD') || 'INR');
     setDirectAccountType(u.activeAccountType || 'REAL');
   };
@@ -353,25 +353,42 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     }
   };
 
+  const getManagerHeaders = () => {
+    const token = localStorage.getItem('forexgrow_auth_token') || sessionStorage.getItem('forexgrow_tab_token') || '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  };
+
   const fetchManagerData = async () => {
     setIsLoading(true);
     try {
+      const headers = getManagerHeaders();
       const [ovRes, uRes, txRes, trRes, logRes, psRes, riskRes, cpnRes] = await Promise.all([
-        fetch(apiUrl('/api/manager/overview')).then((r) => r.json()),
-        fetch(apiUrl('/api/manager/users')).then((r) => r.json()),
-        fetch(apiUrl('/api/manager/transactions')).then((r) => r.json()),
-        fetch(apiUrl('/api/manager/trades')).then((r) => r.json()),
-        fetch(apiUrl('/api/manager/audit-logs')).then((r) => r.json()),
-        fetch(apiUrl('/api/payment/settings')).then((r) => r.json()).catch(() => null),
-        fetch(apiUrl('/api/manager/risk/settings')).then((r) => r.json()).catch(() => null),
-        fetch(apiUrl('/api/manager/coupons')).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/manager/overview'), { headers }).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/manager/users'), { headers }).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/manager/transactions'), { headers }).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/manager/trades'), { headers }).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/manager/audit-logs'), { headers }).then((r) => r.json()).catch(() => []),
+        fetch(apiUrl('/api/payment/settings'), { headers }).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/manager/risk/settings'), { headers }).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/manager/coupons'), { headers }).then((r) => r.json()).catch(() => []),
       ]);
 
-      setOverview(ovRes);
-      setUsers(uRes);
-      setTransactions(txRes);
-      setLiveTrades(trRes);
-      setAuditLogs(logRes);
+      if (uRes?.code === 'FORBIDDEN_ROOT' || (uRes && !Array.isArray(uRes) && uRes.error)) {
+        localStorage.removeItem('quotex_manager_user');
+        localStorage.removeItem('forexgrow_auth_token');
+        window.history.pushState({}, '', '/manager');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        return;
+      }
+
+      setOverview(ovRes && !ovRes.error ? ovRes : null);
+      setUsers(Array.isArray(uRes) ? uRes : []);
+      setTransactions(Array.isArray(txRes) ? txRes : []);
+      setLiveTrades(Array.isArray(trRes) ? trRes : []);
+      setAuditLogs(Array.isArray(logRes) ? logRes : []);
       if (psRes?.settings) {
         setPaymentSettings(psRes.settings);
       }
@@ -811,8 +828,14 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
     setTimeout(() => setSlipCopied(false), 2500);
   };
 
+  const safeUsers = Array.isArray(users) ? users : [];
+  const safeTransactions = Array.isArray(transactions) ? transactions : [];
+  const safeLiveTrades = Array.isArray(liveTrades) ? liveTrades : [];
+  const safeAuditLogs = Array.isArray(auditLogs) ? auditLogs : [];
+  const safeCoupons = Array.isArray(coupons) ? coupons : [];
+
   // Filtered lists
-  const filteredTransactions = transactions.filter((tx) => {
+  const filteredTransactions = safeTransactions.filter((tx) => {
     const matchesFilter =
       txnFilter === 'ALL' ||
       (txnFilter === 'PENDING' && tx.status === 'PENDING') ||
@@ -832,7 +855,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
     return matchesFilter && matchesQuery;
   });
 
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = safeUsers.filter((u) => {
     if (u.role && u.role !== 'TRADER') return false;
     const q = userSearch.trim().toLowerCase();
     return (
@@ -1076,10 +1099,10 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
       }`}>
         {[
           { id: 'CASHIER', shortLabel: `Cashier (${pendingCount})`, label: 'Cashier Queue', icon: CreditCard, badge: pendingCount },
-          { id: 'TRADERS', shortLabel: `Traders (${users.filter(u => !u.role || u.role === 'TRADER').length})`, label: 'Traders & KYC', icon: Users, badge: users.filter(u => !u.role || u.role === 'TRADER').length },
+          { id: 'TRADERS', shortLabel: `Traders (${safeUsers.filter(u => !u.role || u.role === 'TRADER').length})`, label: 'Traders & KYC', icon: Users, badge: safeUsers.filter(u => !u.role || u.role === 'TRADER').length },
           { id: 'TRADES', shortLabel: 'Trades', label: 'Live Trades Desk', icon: Activity },
           { id: 'RISK', shortLabel: 'Risk', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
-          { id: 'COUPONS', shortLabel: `Promos (${coupons.length})`, label: 'Special Promo Codes', icon: Tag, badge: coupons.length },
+          { id: 'COUPONS', shortLabel: `Promos (${safeCoupons.length})`, label: 'Special Promo Codes', icon: Tag, badge: safeCoupons.length },
           { id: 'MARKETS', shortLabel: 'Payouts', label: 'Payout Customizer', icon: Sliders, badge: assets.length },
           { id: 'AUDIT', shortLabel: 'Audit', label: 'Audit Log', icon: FileText },
         ].map((tab) => {
@@ -1632,14 +1655,14 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-mono">
-                    {liveTrades.length === 0 ? (
+                    {safeLiveTrades.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-8 text-center text-gray-500">
                           No active trades on the floor right now.
                         </td>
                       </tr>
                     ) : (
-                      liveTrades.map((t) => {
+                      safeLiveTrades.map((t) => {
                         const isUp = t.direction === 'UP';
                         const isWon = t.status === 'WON';
                         const isOpen = t.status === 'OPEN';
@@ -1773,12 +1796,12 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
             <div className={`rounded-2xl border divide-y divide-white/5 ${
               isLight ? 'bg-white border-slate-200' : 'bg-[#141824] border-[#222838]'
             }`}>
-              {auditLogs.length === 0 ? (
+              {safeAuditLogs.length === 0 ? (
                 <div className="p-8 text-center text-gray-500 text-xs">
                   No operations recorded yet. Actions taken on the cashier and trader desks will appear here.
                 </div>
               ) : (
-                auditLogs.map((log) => (
+                safeAuditLogs.map((log) => (
                   <div key={log.id} className="p-3.5 sm:px-4 flex items-start justify-between text-xs hover:bg-white/5 transition">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2">
