@@ -16,6 +16,7 @@ import { LoginPage } from './components/LoginPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { KycModal } from './components/KycModal';
 import { ProfileModal } from './components/ProfileModal';
+import { LegalPages } from './components/LegalPages';
 
 const MainLayout: React.FC = () => {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -221,6 +222,20 @@ export const App: React.FC = () => {
     localStorage.setItem('quotex_current_user', JSON.stringify(user));
     navigateTo('/');
   };
+
+  // ================= PUBLIC REGULATORY & LEGAL PAGES =================
+  if (currentPath === '/privacy' || currentPath === '/privacy-policy') {
+    return <LegalPages initialTab="privacy" onBack={() => navigateTo(traderUser ? '/' : '/login')} />;
+  }
+  if (currentPath === '/refund' || currentPath === '/refund-policy' || currentPath === '/returns') {
+    return <LegalPages initialTab="refund" onBack={() => navigateTo(traderUser ? '/' : '/login')} />;
+  }
+  if (currentPath === '/legal' || currentPath === '/legal-disclaimer') {
+    return <LegalPages initialTab="legal" onBack={() => navigateTo(traderUser ? '/' : '/login')} />;
+  }
+  if (currentPath === '/terms' || currentPath === '/terms-of-service') {
+    return <LegalPages initialTab="terms" onBack={() => navigateTo(traderUser ? '/' : '/login')} />;
+  }
 
   // ================= 1. ADMIN PORTAL SLUG (/admin) =================
   const isAdminPath = currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/');

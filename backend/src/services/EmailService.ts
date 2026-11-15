@@ -125,8 +125,32 @@ class EmailService {
     return { success: false, error: 'No email transport configured' };
   }
 
+  private getLegalEmailFooterHtml(): string {
+    const baseUrl = process.env.PUBLIC_APP_URL || process.env.APP_BASE_URL || 'http://localhost:4000';
+    return `
+      <div style="border-top: 1px solid #1e2638; margin-top: 24px; padding-top: 16px; text-align: center; color: #64748b; font-size: 10px; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <p style="margin: 0 0 6px 0; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-size: 9px;">
+          ⚖️ Binding Terms, Risk Warning & OTP Acceptance
+        </p>
+        <p style="margin: 0 0 8px 0; color: #94a3b8;">
+          By providing this One-Time Password (OTP) to your account manager or entering it on the terminal, you confirm you are at least 18 years old and unconditionally accept Forex Grow's 
+          <a href="${baseUrl}/terms" style="color: #38bdf8; text-decoration: underline;">Terms of Service</a>, 
+          <a href="${baseUrl}/privacy" style="color: #38bdf8; text-decoration: underline;">Privacy Policy</a>, 
+          <a href="${baseUrl}/refund-policy" style="color: #38bdf8; text-decoration: underline;">Return & Refund Policy</a>, and 
+          <a href="${baseUrl}/legal" style="color: #38bdf8; text-decoration: underline;">Risk Disclosure</a>.
+        </p>
+        <p style="margin: 0 0 8px 0; color: #cbd5e1; font-size: 9.5px;">
+          <strong>High-Risk Warning:</strong> Trading digital contracts and OTC foreign exchange involves substantial risk of capital loss. Instantaneous market outcomes are final. You may lose up to 100% of your invested capital. All deposits and executed trades are strictly non-refundable once placed in the market. Payouts require verified Aadhaar identity and matching beneficiary bank account.
+        </p>
+        <p style="margin: 0; color: #475569; font-size: 9px;">
+          &copy; ${new Date().getFullYear()} Forex Grow Institutional Markets Ltd. All rights reserved. Do not disclose this OTP to unauthorized third parties.
+        </p>
+      </div>
+    `;
+  }
+
   /**
-   * Send 6-Digit Email OTP for 1st-Time Trader Registration
+   * Send 6-Digit Email OTP for 1st-Time Trader Registration & Login
    */
   public async sendOtpEmail(toEmail: string, otpCode: string, traderName: string = 'Trader'): Promise<{ success: boolean; error?: string }> {
     const subject = `Your Forex Grow Security Code: ${otpCode}`;
@@ -139,7 +163,7 @@ class EmailService {
 
         <div style="background: #141926; border: 1px solid #232c40; border-radius: 12px; padding: 24px; text-align: center;">
           <p style="color: #94a3b8; font-size: 14px; margin-top: 0;">Hello <strong>${traderName}</strong>,</p>
-          <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">Use the one-time verification code below to complete your trader account registration:</p>
+          <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">Use the one-time verification code below to authorize your account:</p>
 
           <div style="background: #090c13; border: 2px dashed #00c679; border-radius: 10px; padding: 16px; margin: 24px 0;">
             <span style="font-size: 34px; font-weight: 900; letter-spacing: 8px; color: #00c679; font-family: monospace;">${otpCode}</span>
@@ -148,9 +172,7 @@ class EmailService {
           <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">This OTP is valid for <strong>5 minutes</strong>. Do not share this code with anyone.</p>
         </div>
 
-        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
-          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk. All rights reserved.
-        </div>
+        ${this.getLegalEmailFooterHtml()}
       </div>
     `;
 
@@ -208,9 +230,7 @@ class EmailService {
           <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">You will receive an automated confirmation email as soon as the funds are approved and dispatched.</p>
         </div>
 
-        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
-          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
-        </div>
+        ${this.getLegalEmailFooterHtml()}
       </div>
     `;
 
@@ -268,9 +288,7 @@ class EmailService {
           <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">Depending on your bank, IMPS/UPI transfers credit within 5-15 minutes.</p>
         </div>
 
-        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
-          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
-        </div>
+        ${this.getLegalEmailFooterHtml()}
       </div>
     `;
 
@@ -333,9 +351,7 @@ class EmailService {
           <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">Once confirmed by our finance manager, the funds will be credited directly to your Live Real Balance instantly.</p>
         </div>
 
-        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
-          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
-        </div>
+        ${this.getLegalEmailFooterHtml()}
       </div>
     `;
 
@@ -394,9 +410,7 @@ class EmailService {
           <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">You can now open live positions directly on the trading terminal.</p>
         </div>
 
-        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
-          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
-        </div>
+        ${this.getLegalEmailFooterHtml()}
       </div>
     `;
 
@@ -459,9 +473,7 @@ class EmailService {
           <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">For assistance or clarification, please reach out to our Customer Care team with your transaction reference.</p>
         </div>
 
-        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
-          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
-        </div>
+        ${this.getLegalEmailFooterHtml()}
       </div>
     `;
 

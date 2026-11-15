@@ -738,15 +738,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
       </main>
 
       {/* Footer Info */}
-      <footer className={`w-full max-w-7xl mx-auto px-4 py-4 text-center text-xs z-10 flex flex-col sm:flex-row items-center justify-between gap-2 border-t ${
-        isLight ? 'border-slate-200 text-slate-500' : 'border-white/5 text-gray-500'
+      <footer className={`w-full max-w-7xl mx-auto px-4 py-4 text-center text-xs z-10 flex flex-col md:flex-row items-center justify-between gap-3 border-t ${
+        isLight ? 'border-slate-200 text-slate-500' : 'border-white/5 text-gray-400'
       }`}>
         <div className="flex items-center space-x-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+          <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
           <span>Forex Grow Institutional Grade Execution • Private Managed Client Accounts</span>
         </div>
+
+        {/* Legal Links */}
+        <div className="flex items-center space-x-3 text-[11px] text-gray-400">
+          <a
+            href="/legal"
+            onClick={(e) => { e.preventDefault(); navigateTo('/legal'); }}
+            className="hover:text-emerald-400 transition"
+          >
+            Risk Disclosure
+          </a>
+          <span>•</span>
+          <a
+            href="/privacy"
+            onClick={(e) => { e.preventDefault(); navigateTo('/privacy'); }}
+            className="hover:text-emerald-400 transition"
+          >
+            Privacy Policy
+          </a>
+          <span>•</span>
+          <a
+            href="/refund-policy"
+            onClick={(e) => { e.preventDefault(); navigateTo('/refund-policy'); }}
+            className="hover:text-emerald-400 transition"
+          >
+            Return & Refund Policy
+          </a>
+          <span>•</span>
+          <a
+            href="/terms"
+            onClick={(e) => { e.preventDefault(); navigateTo('/terms'); }}
+            className="hover:text-emerald-400 transition"
+          >
+            Terms of Service
+          </a>
+        </div>
+
         <div>
-          <span>© 2026 Forex Grow Trading Ltd. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Forex Grow Trading Ltd. All rights reserved.</span>
         </div>
       </footer>
 
