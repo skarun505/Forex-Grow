@@ -143,7 +143,7 @@ export class SettlementEngine extends EventEmitter {
       realBalance: 10000.00,
       activeAccountType: 'REAL',
       currency: 'INR',
-      vipLevel: 'VIP',
+      vipLevel: 'STANDARD',
       isKycVerified: true,
       status: 'ACTIVE',
       totalTrades: 34,
@@ -338,7 +338,7 @@ export class SettlementEngine extends EventEmitter {
 
     this.activeTrades.set(trade.id, trade);
     SupabaseDb.saveTrade(trade);
-    SupabaseDb.saveUser(user);
+    this.adminManager.persistUser(user);
 
     const newBalance =
       user.activeAccountType === 'DEMO'
@@ -542,7 +542,7 @@ export class SettlementEngine extends EventEmitter {
     }
 
     SupabaseDb.saveTrade(trade);
-    SupabaseDb.saveUser(user);
+    this.adminManager.persistUser(user);
 
     const currentBalance =
       user.activeAccountType === 'DEMO'

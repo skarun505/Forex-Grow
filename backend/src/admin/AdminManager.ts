@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import path from 'path';
 import { UserAccount, Transaction, PromoCoupon, AdminOverview, AuditLog, UserRole, DepositPaymentSettings, RiskSettings } from '../types.js';
 import { SupabaseDb } from '../db/supabase.js';
 
@@ -73,9 +75,145 @@ export class AdminManager extends EventEmitter {
     return { ...this.riskSettings };
   }
 
+  private getDataDir(): string {
+    const cwd = process.cwd();
+    const candidate = path.resolve(cwd, 'backend', 'data');
+    if (fs.existsSync(path.resolve(cwd, 'backend'))) {
+      if (!fs.existsSync(candidate)) {
+        try { fs.mkdirSync(candidate, { recursive: true }); } catch {}
+      }
+      return candidate;
+    }
+    const directData = path.resolve(cwd, 'data');
+    if (!fs.existsSync(directData)) {
+      try { fs.mkdirSync(directData, { recursive: true }); } catch {}
+    }
+    return directData;
+  }
+
+  private loadLocalData() {
+    try {
+      const dir = this.getDataDir();
+      const uPath = path.resolve(dir, 'users.json');
+      if (fs.existsSync(uPath)) {
+        const raw = fs.readFileSync(uPath, 'utf8');
+        const parsed: UserAccount[] = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          for (const u of parsed) {
+            u.vipLevel = AdminManager.calculateVipLevel(u.realBalance, u.currency);
+            this.users.set(u.id, u);
+          }
+          console.log(`[AdminManager] Successfully loaded ${this.users.size} persisted trader accounts from local disk.`);
+        }
+      }
+
+      const tPath = path.resolve(dir, 'transactions.json');
+      if (fs.existsSync(tPath)) {
+        const raw = fs.readFileSync(tPath, 'utf8');
+        const parsed: Transaction[] = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.transactions = parsed;
+          console.log(`[AdminManager] Successfully loaded ${this.transactions.length} persisted transactions from local disk.`);
+        }
+      }
+
+      const cPath = path.resolve(dir, 'coupons.json');
+      if (fs.existsSync(cPath)) {
+        const raw = fs.readFileSync(cPath, 'utf8');
+        const parsed: PromoCoupon[] = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.coupons = parsed;
+        }
+      }
+
+      const pPath = path.resolve(dir, 'payment_settings.json');
+      if (fs.existsSync(pPath)) {
+        const raw = fs.readFileSync(pPath, 'utf8');
+        this.paymentSettings = { ...this.paymentSettings, ...JSON.parse(raw) };
+      }
+
+      const rPath = path.resolve(dir, 'risk_settings.json');
+      if (fs.existsSync(rPath)) {
+        const raw = fs.readFileSync(rPath, 'utf8');
+        this.riskSettings = { ...this.riskSettings, ...JSON.parse(raw) };
+      }
+    } catch (e: any) {
+      console.warn('[AdminManager] Error loading local persisted data:', e.message);
+    }
+  }
+
+  public saveLocalUsers() {
+    try {
+      const dir = this.getDataDir();
+      const uPath = path.resolve(dir, 'users.json');
+      fs.writeFileSync(uPath, JSON.stringify(Array.from(this.users.values()), null, 2), 'utf8');
+    } catch (e: any) {
+      console.error('[AdminManager] Failed to persist users to disk:', e.message);
+    }
+  }
+
+  public saveLocalTransactions() {
+    try {
+      const dir = this.getDataDir();
+      const tPath = path.resolve(dir, 'transactions.json');
+      fs.writeFileSync(tPath, JSON.stringify(this.transactions, null, 2), 'utf8');
+    } catch (e: any) {
+      console.error('[AdminManager] Failed to persist transactions to disk:', e.message);
+    }
+  }
+
+  public saveLocalCoupons() {
+    try {
+      const dir = this.getDataDir();
+      const cPath = path.resolve(dir, 'coupons.json');
+      fs.writeFileSync(cPath, JSON.stringify(this.coupons, null, 2), 'utf8');
+    } catch (e: any) {
+      console.error('[AdminManager] Failed to persist coupons to disk:', e.message);
+    }
+  }
+
+  public saveLocalPaymentSettings() {
+    try {
+      const dir = this.getDataDir();
+      const pPath = path.resolve(dir, 'payment_settings.json');
+      fs.writeFileSync(pPath, JSON.stringify(this.paymentSettings, null, 2), 'utf8');
+    } catch (e: any) {
+      console.error('[AdminManager] Failed to persist payment settings to disk:', e.message);
+    }
+  }
+
+  public saveLocalRiskSettings() {
+    try {
+      const dir = this.getDataDir();
+      const rPath = path.resolve(dir, 'risk_settings.json');
+      fs.writeFileSync(rPath, JSON.stringify(this.riskSettings, null, 2), 'utf8');
+    } catch (e: any) {
+      console.error('[AdminManager] Failed to persist risk settings to disk:', e.message);
+    }
+  }
+
+  public persistUser(user: UserAccount) {
+    user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
+    this.users.set(user.id, user);
+    this.saveLocalUsers();
+    SupabaseDb.saveUser(user);
+  }
+
+  public persistTransaction(tx: Transaction) {
+    this.saveLocalTransactions();
+    SupabaseDb.saveTransaction(tx);
+  }
+
   constructor() {
     super();
-    this.seedInitialData();
+    // 1. First load local disk persisted data to guarantee zero data loss across updates/reboots
+    this.loadLocalData();
+    // 2. Only seed defaults if local data is absent
+    if (this.users.size === 0) {
+      this.seedInitialData();
+      this.saveLocalUsers();
+    }
+    // 3. Sync with Supabase (merging without resetting trader balances)
     this.initSupabaseSync();
   }
 
@@ -99,18 +237,21 @@ export class AdminManager extends EventEmitter {
             kycStatus: existing?.kycStatus || u.kycStatus || 'APPROVED',
             savedBankDetails: existing?.savedBankDetails || u.savedBankDetails,
             customRiskSettings: existing?.customRiskSettings || u.customRiskSettings,
+            // Keep existing realBalance if locally updated
+            realBalance: existing?.realBalance !== undefined ? existing.realBalance : u.realBalance,
+            demoBalance: existing?.demoBalance !== undefined ? existing.demoBalance : u.demoBalance,
           };
 
-          // Normalize primary currency to INR as requested
+          // Normalize primary currency to INR as requested; NEVER overwrite balance with 10000!
           if (merged.id === 'usr_quotex_vip_99') {
             merged.currency = 'INR';
-            if (merged.realBalance > 50000 || merged.realBalance === 0) merged.realBalance = 10000.00;
-            if (merged.demoBalance > 50000 || merged.demoBalance === 0) merged.demoBalance = 10000.00;
             merged.activeAccountType = 'REAL';
             merged.role = 'TRADER';
             merged.isKycVerified = true;
             merged.kycStatus = 'APPROVED';
             if (!merged.aadhaarNumber) merged.aadhaarNumber = '7845 1290 3341';
+            // Compute real tier from balance
+            merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
             await SupabaseDb.saveUser(merged);
           } else if (merged.id === 'usr_admin_001') {
             merged.realBalance = 0;
@@ -125,9 +266,13 @@ export class AdminManager extends EventEmitter {
             merged.demoBalance = 0;
             merged.role = 'MANAGER';
             await SupabaseDb.saveUser(merged);
+          } else {
+            // General trader: compute tier from actual balance
+            merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
           }
           this.users.set(merged.id, merged);
         }
+        this.saveLocalUsers();
       } else {
         for (const u of this.users.values()) {
           await SupabaseDb.saveUser(u);
@@ -137,6 +282,7 @@ export class AdminManager extends EventEmitter {
       const dbTxns = await SupabaseDb.loadTransactions();
       if (dbTxns.length > 0) {
         this.transactions = dbTxns.filter(t => t.id !== 'tx_init_01' && !['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04'].includes(t.userId));
+        this.saveLocalTransactions();
       }
 
       const dbCoupons = await SupabaseDb.loadCoupons();
@@ -201,7 +347,7 @@ export class AdminManager extends EventEmitter {
       realBalance: 10000.00,
       activeAccountType: 'REAL',
       currency: 'INR',
-      vipLevel: 'VIP',
+      vipLevel: 'STANDARD',
       isKycVerified: true,
       kycStatus: 'APPROVED',
       kycData: {
@@ -437,7 +583,7 @@ export class AdminManager extends EventEmitter {
     }
 
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -500,7 +646,7 @@ export class AdminManager extends EventEmitter {
 
     this.users.set(newUser.id, newUser);
     this.emit('user_created', newUser);
-    SupabaseDb.saveUser(newUser);
+    this.persistUser(newUser);
 
     if (params.actor) {
       this.addAuditLog(
@@ -549,7 +695,7 @@ export class AdminManager extends EventEmitter {
     if (updates.activeAccountType !== undefined) user.activeAccountType = updates.activeAccountType;
 
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -585,7 +731,7 @@ export class AdminManager extends EventEmitter {
     );
 
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -596,6 +742,7 @@ export class AdminManager extends EventEmitter {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
     this.users.delete(userId);
+    this.saveLocalUsers();
     this.emit('user_deleted', userId);
     SupabaseDb.deleteUser(userId);
     return { success: true };
@@ -613,7 +760,7 @@ export class AdminManager extends EventEmitter {
     }
     user.password = newPassword.trim();
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
 
     this.addAuditLog(
       'sys_auth',
@@ -667,7 +814,7 @@ export class AdminManager extends EventEmitter {
     };
 
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -710,7 +857,7 @@ export class AdminManager extends EventEmitter {
     );
 
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -747,7 +894,7 @@ export class AdminManager extends EventEmitter {
     };
 
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -769,7 +916,7 @@ export class AdminManager extends EventEmitter {
     };
     this.transactions.unshift(newTx);
     this.emit('transaction_added', newTx);
-    SupabaseDb.saveTransaction(newTx);
+    this.persistTransaction(newTx);
     return newTx;
   }
 
@@ -839,7 +986,7 @@ export class AdminManager extends EventEmitter {
       const usdAdded = tx.amountUSD || (tx.currency === 'INR' ? tx.amount / USD_INR_RATE : tx.amount);
       user.totalDepositedUSD = Number((user.totalDepositedUSD + usdAdded).toFixed(2));
       this.emit('user_updated', user);
-      SupabaseDb.saveUser(user);
+      this.persistUser(user);
     }
 
     this.addAuditLog(
@@ -853,7 +1000,7 @@ export class AdminManager extends EventEmitter {
     );
 
     this.emit('transaction_updated', tx);
-    SupabaseDb.saveTransaction(tx);
+    this.persistTransaction(tx);
     return { success: true, transaction: { ...tx } };
   }
 
@@ -882,7 +1029,7 @@ export class AdminManager extends EventEmitter {
       user.realBalance = Number((user.realBalance + refundAmount).toFixed(2));
       user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
       this.emit('user_updated', user);
-      SupabaseDb.saveUser(user);
+      this.persistUser(user);
     }
 
     this.addAuditLog(
@@ -896,7 +1043,7 @@ export class AdminManager extends EventEmitter {
     );
 
     this.emit('transaction_updated', tx);
-    SupabaseDb.saveTransaction(tx);
+    this.persistTransaction(tx);
     return { success: true, transaction: { ...tx } };
   }
 
@@ -923,7 +1070,7 @@ export class AdminManager extends EventEmitter {
       `KYC status changed to ${isVerified ? 'VERIFIED' : 'REVOKED'}`
     );
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -945,7 +1092,7 @@ export class AdminManager extends EventEmitter {
       `User account status set to ${status}`
     );
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 
@@ -966,7 +1113,7 @@ export class AdminManager extends EventEmitter {
       'Demo balance reset to $10,000.00'
     );
     this.emit('user_updated', user);
-    SupabaseDb.saveUser(user);
+    this.persistUser(user);
     return { success: true, user: { ...user } };
   }
 

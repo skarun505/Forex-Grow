@@ -100,7 +100,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     realBalance: 10000.0,
     activeAccountType: 'REAL',
     currency: getSessionCurrency(),
-    vipLevel: 'VIP',
+    vipLevel: 'STANDARD',
     isKycVerified: true,
     status: 'ACTIVE',
     totalTrades: 34,
@@ -304,7 +304,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const mergedAccount = {
                 ...action.account,
                 currency: effectiveCurrency,
-                vipLevel: action.account.vipLevel || calculateVipLevel(action.account.realBalance, effectiveCurrency),
+                vipLevel: calculateVipLevel(action.account.realBalance, effectiveCurrency),
               };
 
               setAccount(mergedAccount);
@@ -445,7 +445,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 } catch {}
 
                 const effCurr = currentSessionCurrency || action.currency || prev.currency || 'INR';
-                const effVip = action.vipLevel || calculateVipLevel(action.realBalance, effCurr);
+                const effVip = calculateVipLevel(action.realBalance, effCurr);
 
                 const updated = {
                   ...prev,
@@ -638,6 +638,31 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       showNotification('Cannot place trade: not connected to trading server.');
       return;
     }
+
+    // Daily Loss Limit Protection Guard for Live REAL Account
+    if (account.activeAccountType === 'REAL') {
+      try {
+        const isLimitEnabled = localStorage.getItem('forexgrow_daily_limit_enabled_' + account.id) === 'true';
+        const limitAmt = Number(localStorage.getItem('forexgrow_daily_limit_' + account.id)) || 0;
+        if (isLimitEnabled && limitAmt > 0) {
+          const todayStart = new Date().setHours(0, 0, 0, 0);
+          const todayTrades = tradeHistory.filter((t) => t.openTime >= todayStart && t.accountType === 'REAL');
+          let netLossToday = 0;
+          for (const t of todayTrades) {
+            if (t.status === 'LOST') {
+              netLossToday += t.amount;
+            } else if (t.status === 'WON') {
+              netLossToday -= ((t.amount * (t.payout / 100)));
+            }
+          }
+          if (netLossToday >= limitAmt) {
+            showNotification(`🛡️ Daily Limit Hit: Today's net loss reached ${formatCurrency(limitAmt, account.currency)}. Trading is paused to protect your funds.`);
+            return;
+          }
+        }
+      } catch {}
+    }
+
     const currentAssetId = selectedAssetIdRef.current || selectedAssetId;
     const msg: WSClientAction = {
       type: 'PLACE_TRADE',

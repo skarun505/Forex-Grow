@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useTrading } from '../context/TradingContext';
+import { useTrading, calculateVipLevel } from '../context/TradingContext';
 import { CURRENCY_CONFIGS, formatCurrency } from '../utils/currency';
 import { apiUrl } from '../utils/api';
 import { ForexGrowLogo } from './ForexGrowLogo';
+import { DailyLimitModal } from './DailyLimitModal';
 import { 
   ChevronDown, 
   RefreshCw, 
@@ -101,6 +102,31 @@ export const Header: React.FC<HeaderProps> = ({
   const userMenuRef = useRef<HTMLDivElement>(null);
   const accountDropdownRef = useRef<HTMLDivElement>(null);
 
+  const [isDailyLimitModalOpen, setIsDailyLimitModalOpen] = useState(false);
+  const [dailyLimitAmount, setDailyLimitAmount] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('forexgrow_daily_limit_' + account.id)) || 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [isDailyLimitEnabled, setIsDailyLimitEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('forexgrow_daily_limit_enabled_' + account.id) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const storedLimit = Number(localStorage.getItem('forexgrow_daily_limit_' + account.id)) || 0;
+      const storedEnabled = localStorage.getItem('forexgrow_daily_limit_enabled_' + account.id) === 'true';
+      setDailyLimitAmount(storedLimit);
+      setIsDailyLimitEnabled(storedEnabled);
+    } catch {}
+  }, [account.id]);
+
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -118,7 +144,8 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const activeBalance = account.activeAccountType === 'DEMO' ? account.demoBalance : account.realBalance;
-  const effectiveTier = (account.vipLevel || 'STANDARD') as 'STANDARD' | 'PRO' | 'VIP';
+  // Always compute effective tier directly from actual real balance and currency
+  const effectiveTier = calculateVipLevel(account.realBalance, account.currency);
   const currencyConfig = CURRENCY_CONFIGS[account.currency] || CURRENCY_CONFIGS.USD;
   const initials = account.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -149,10 +176,11 @@ export const Header: React.FC<HeaderProps> = ({
     }`}>
       {/* Brand & Asset Pill */}
       <div className="flex items-center space-x-2 sm:space-x-5">
-        <div className="flex items-center space-x-2">
+        <div className="hidden sm:flex items-center space-x-2">
           <ForexGrowLogo
             size="sm"
             variant="trader"
+            badgeText={effectiveTier !== 'STANDARD' ? effectiveTier : undefined}
             subtitle={isConnected ? 'Live Market' : 'Connecting...'}
           />
         </div>
@@ -161,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
         {selectedAsset && (
           <button
             onClick={onOpenAssetModal}
-            className={`hidden sm:flex items-center space-x-2 sm:space-x-3 transition border px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl text-left group shadow-sm ${
+            className={`flex items-center space-x-1.5 sm:space-x-3 transition border px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl text-left group shadow-sm ${
               isLight 
                 ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-800' 
                 : 'bg-[#1c2333] hover:bg-[#252e42] border-[#293246] text-white'
@@ -198,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({
               setShowAccountDropdown(!showAccountDropdown);
               setShowUserMenu(false);
             }}
-            className={`flex items-center space-x-1.5 sm:space-x-2 border px-2.5 sm:px-3 py-1.5 rounded-xl sm:rounded-2xl transition shadow-sm ${
+            className={`flex items-center flex-nowrap shrink-0 whitespace-nowrap space-x-1.5 sm:space-x-2 border px-2 sm:px-3 py-1.5 rounded-xl sm:rounded-2xl transition shadow-sm ${
               account.activeAccountType === 'REAL'
                 ? effectiveTier === 'VIP'
                   ? isLight
@@ -218,14 +246,14 @@ export const Header: React.FC<HeaderProps> = ({
             title="Click to switch between Live and Demo account, or refill demo funds"
           >
             <TierArrowIcon tier={effectiveTier} isDemo={account.activeAccountType === 'DEMO'} />
-            <span className="text-[10px] sm:text-[11px] font-black tracking-wider uppercase">
+            <span className="text-[10px] sm:text-[11px] font-black tracking-wider uppercase shrink-0">
               {account.activeAccountType === 'REAL' ? 'LIVE' : 'DEMO'}
             </span>
-            <span className="text-xs sm:text-sm font-black mono-num">
+            <span className="text-[11px] sm:text-sm font-black mono-num whitespace-nowrap shrink-0">
               {isBalanceHidden ? '••••••' : formatCurrency(activeBalance, account.currency)}
             </span>
             {account.activeAccountType === 'REAL' && effectiveTier !== 'STANDARD' && (
-              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded uppercase ${
+              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded uppercase shrink-0 ${
                 effectiveTier === 'VIP'
                   ? 'bg-amber-500/25 border border-amber-500/50 text-amber-300 shadow-sm'
                   : 'bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 shadow-sm'
@@ -233,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {effectiveTier}
               </span>
             )}
-            <ChevronDown className={`w-3 h-3 opacity-70 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 opacity-70 transition-transform shrink-0 ${showAccountDropdown ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Quotex-Style Account Dropdown Card */}
@@ -335,19 +363,26 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="text-base font-black mono-num text-emerald-400 mt-0.5">
                     {isBalanceHidden ? '••••••' : formatCurrency(account.realBalance, account.currency)}
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-1">
-                    The daily limit is not set
+                  <div className="text-[10px] text-gray-400 mt-1 flex items-center space-x-1">
+                    {isDailyLimitEnabled && dailyLimitAmount > 0 ? (
+                      <span className="text-emerald-400 font-bold flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse shrink-0"></span>
+                        <span>Daily limit: {formatCurrency(dailyLimitAmount, account.currency)} active</span>
+                      </span>
+                    ) : (
+                      <span>The daily limit is not set</span>
+                    )}
                   </div>
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowAccountDropdown(false);
-                      onOpenCashierModal();
+                      setIsDailyLimitModalOpen(true);
                     }}
                     className="text-[10px] font-extrabold text-sky-400 hover:underline uppercase mt-0.5 block"
                   >
-                    SET LIMIT
+                    {isDailyLimitEnabled && dailyLimitAmount > 0 ? 'EDIT LIMIT' : 'SET LIMIT'}
                   </button>
                 </div>
               </div>
@@ -616,6 +651,17 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </div>
 
+      {/* Daily Risk Protection Limit Modal */}
+      <DailyLimitModal
+        isOpen={isDailyLimitModalOpen}
+        onClose={() => setIsDailyLimitModalOpen(false)}
+        currency={account.currency}
+        userId={account.id}
+        onSaved={(newLimit, isEnabled) => {
+          setDailyLimitAmount(newLimit);
+          setIsDailyLimitEnabled(isEnabled);
+        }}
+      />
     </header>
   );
 };
