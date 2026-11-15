@@ -138,7 +138,7 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
 
   const openWhatsAppSupport = () => {
     const msg = `Hello Forex Grow Customer Care,\n\nI need immediate verification for my Aadhaar KYC.\nTrader Name: ${account?.name}\nAccount ID: ${account?.id}\nAadhaar: ${aadhaarNumber || 'Attached in terminal'}\n\nPlease review and approve.`;
-    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/919180169771?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   return (
@@ -502,7 +502,7 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
               className="text-[11px] text-[#25D366] hover:underline font-bold flex items-center space-x-1"
             >
               <MessageCircle className="w-3.5 h-3.5 fill-current" />
-              <span>Customer Care WhatsApp</span>
+              <span>Customer Care WhatsApp (+91 9180169771)</span>
             </button>
           </div>
         </div>

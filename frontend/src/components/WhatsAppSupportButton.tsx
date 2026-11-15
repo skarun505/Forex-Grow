@@ -6,7 +6,7 @@ export const WhatsAppSupportButton: React.FC = () => {
   const { account } = useTrading();
   const [isOpen, setIsOpen] = useState(false);
 
-  const SUPPORT_NUMBER = '919876543210'; // Official Customer Care WhatsApp Number
+  const SUPPORT_NUMBER = '919180169771'; // Official Customer Care WhatsApp Number: +91 9180169771
 
   const openWhatsApp = (queryType: string = 'General Support') => {
     const userName = account?.name || 'Trader';
@@ -31,7 +31,7 @@ export const WhatsAppSupportButton: React.FC = () => {
                 <h4 className="text-xs font-black">Customer Care Desk</h4>
                 <div className="flex items-center space-x-1.5 text-[10px] text-emerald-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Live & Instant Response</span>
+                  <span>+91 9180169771 (24/7 Desk)</span>
                 </div>
               </div>
             </div>

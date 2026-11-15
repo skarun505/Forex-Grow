@@ -142,6 +142,9 @@ class EmailService {
         <p style="margin: 0 0 8px 0; color: #cbd5e1; font-size: 9.5px;">
           <strong>High-Risk Warning:</strong> Trading digital contracts and OTC foreign exchange involves substantial risk of capital loss. Instantaneous market outcomes are final. You may lose up to 100% of your invested capital. All deposits and executed trades are strictly non-refundable once placed in the market. Payouts require verified Aadhaar identity and matching beneficiary bank account.
         </p>
+        <p style="margin: 0 0 6px 0; color: #38bdf8; font-size: 9.5px;">
+          <strong>Customer Care Desk (Phone & WhatsApp):</strong> +91 9180169771 | <strong>Official Support:</strong> support.forexgrow@gmail.com
+        </p>
         <p style="margin: 0; color: #475569; font-size: 9px;">
           &copy; ${new Date().getFullYear()} Forex Grow Institutional Markets Ltd. All rights reserved. Do not disclose this OTP to unauthorized third parties.
         </p>

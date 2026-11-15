@@ -4008,7 +4008,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Phone Number (Login Enabled)</label>
                   <input
                     type="text"
-                    placeholder="e.g. +91 98765 43210"
+                    placeholder="e.g. +91 9180169771"
                     value={newUserPhone}
                     onChange={(e) => setNewUserPhone(e.target.value)}
                     className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none ${

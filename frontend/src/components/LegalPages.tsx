@@ -445,6 +445,28 @@ export const LegalPages: React.FC<LegalPagesProps> = ({
                   If any provision of these terms is determined to be invalid or unenforceable under applicable law, the remaining provisions shall continue in full force and effect. All disputes arising from trading contracts or operations shall be resolved through institutional arbitration in accordance with financial dispute resolution procedures.
                 </p>
               </section>
+
+              <section className="space-y-3 pt-4 border-t border-white/10">
+                <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-mono">5</span>
+                  <span>Contact Information & Compliance Grievance Desk</span>
+                </h3>
+                <p>
+                  For institutional inquiries, compliance audits, or trader account support:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+                    <div className="text-gray-400 font-bold mb-1">Official Desk Phone & WhatsApp:</div>
+                    <div className="text-emerald-400 font-mono font-bold text-sm">+91 9180169771</div>
+                    <div className="text-[10px] text-gray-500 mt-1">24/7 Verification & Customer Care Desk</div>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+                    <div className="text-gray-400 font-bold mb-1">Official Email Address:</div>
+                    <div className="text-white font-mono font-bold text-sm">support@forexgrow.com</div>
+                    <div className="text-[10px] text-gray-500 mt-1">support.forexgrow@gmail.com</div>
+                  </div>
+                </div>
+              </section>
             </div>
           )}
 

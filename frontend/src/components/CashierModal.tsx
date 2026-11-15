@@ -459,7 +459,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
           </div>
           <div className="flex items-center space-x-2">
             <a
-              href={`https://wa.me/919876543210?text=${encodeURIComponent(`Hello Forex Grow Customer Care,\n\nI need assistance with Cashier / Deposit / Withdrawal.\nTrader Name: ${account.name}\nAccount ID: ${account.id}`)}`}
+              href={`https://wa.me/919180169771?text=${encodeURIComponent(`Hello Forex Grow Customer Care,\n\nI need assistance with Cashier / Deposit / Withdrawal.\nTrader Name: ${account.name}\nAccount ID: ${account.id}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm"
@@ -599,7 +599,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   type="button"
                   onClick={() => {
                     const msg = `Hello Forex Grow Customer Care,\n\nI have submitted a deposit and request instant verification & approval:\nTrader Name: ${account.name}\nTrader ID: ${account.id}\nDeposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()}\nReference ID: ${depositSuccessData?.reference || 'N/A'}\nUTR Number: ${utrNumber || 'N/A'}\n\nPlease verify and credit my live trading balance.`;
-                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                    window.open(`https://wa.me/919180169771?text=${encodeURIComponent(msg)}`, '_blank');
                   }}
                   className="w-full max-w-md py-3.5 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/10 transition active:scale-98"
                 >
@@ -1094,7 +1094,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   type="button"
                   onClick={() => {
                     const msg = `Hello Forex Grow Customer Care,\n\nI have requested a payout and request instant approval:\nTrader Name: ${account.name}\nTrader ID: ${account.id}\nWithdrawal Amount: ${curr.symbol}${numericWithdraw.toLocaleString()}\nReference ID: ${withdrawSuccessData?.reference || 'N/A'}\nDestination: ${withdrawType === 'UPI' ? withdrawUpiId : bankAccountNumber}\n\nPlease verify and release my payout.`;
-                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                    window.open(`https://wa.me/919180169771?text=${encodeURIComponent(msg)}`, '_blank');
                   }}
                   className="w-full max-w-md py-3.5 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/10 transition active:scale-98"
                 >
@@ -1259,7 +1259,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                       type="button"
                       onClick={() => {
                         const msg = `Hello Forex Grow Customer Care,\n\nI need to update my verified bank/UPI payout details.\nTrader: ${account.name} (${account.id})\n\nPlease assist me.`;
-                        window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
+                        window.open(`https://wa.me/919180169771?text=${encodeURIComponent(msg)}`, '_blank');
                       }}
                       className="shrink-0 px-2 py-1 rounded-lg bg-[#25D366] text-black font-black text-[10px] flex items-center space-x-1 shadow hover:bg-[#20ba5a] transition"
                     >

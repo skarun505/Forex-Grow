@@ -6,6 +6,7 @@ import {
   Lock, 
   Mail, 
   Phone, 
+  MessageCircle,
   Eye, 
   EyeOff, 
   ArrowRight, 
@@ -814,6 +815,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
             </p>
 
             <div className="space-y-2.5">
+              {/* WhatsApp & Phone Direct Support */}
+              <div className="p-4 rounded-2xl bg-black/25 border border-emerald-500/20 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-[#25D366] flex items-center justify-center">
+                    <MessageCircle className="w-4 h-4 fill-current" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">Desk Phone & WhatsApp</div>
+                    <div className="text-[11px] text-emerald-400 font-mono font-bold">+91 9180169771</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => copyToClipboard('+919180169771', 'phone')}
+                    className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 flex items-center space-x-1 transition"
+                  >
+                    {copiedType === 'phone' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedType === 'phone' ? 'Copied' : 'Copy'}</span>
+                  </button>
+                  <a
+                    href={`https://wa.me/919180169771?text=${encodeURIComponent('Hello Forex Grow Desk,\n\nI would like to request client trading credentials / account access.\n\nPlease assist me.')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 flex items-center space-x-1 transition"
+                  >
+                    <span>WhatsApp</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Email Support */}
               <div className="p-4 rounded-2xl bg-black/25 border border-white/5 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
