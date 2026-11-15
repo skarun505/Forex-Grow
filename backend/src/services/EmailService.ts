@@ -1,4 +1,11 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Robust dotenv loading covering repository root, backend folder, and current working directory
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), 'backend', '.env') });
 
 export interface EmailConfig {
   smtpHost?: string;
@@ -11,20 +18,24 @@ export interface EmailConfig {
 }
 
 class EmailService {
-  private config: EmailConfig = {
-    smtpHost: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
-    smtpPort: Number(process.env.BREVO_SMTP_PORT) || 587,
-    smtpUser: process.env.BREVO_SMTP_USER || '',
-    smtpPass: process.env.BREVO_SMTP_PASS || '',
-    apiKey: process.env.BREVO_API_KEY || '',
-    senderEmail: process.env.SENDER_EMAIL || 'support.forexgrow@gmail.com',
-    senderName: process.env.SENDER_NAME || 'Forex Grow Official Desk',
-  };
-
+  private config: EmailConfig = {};
   private transporter: Transporter | null = null;
 
   constructor() {
+    this.refreshConfig();
     this.initTransporter();
+  }
+
+  public refreshConfig() {
+    this.config = {
+      smtpHost: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
+      smtpPort: Number(process.env.BREVO_SMTP_PORT) || 587,
+      smtpUser: process.env.BREVO_SMTP_USER || 'c341fb001@smtp-brevo.com',
+      smtpPass: process.env.BREVO_SMTP_PASS || '',
+      apiKey: process.env.BREVO_API_KEY || '',
+      senderEmail: process.env.SENDER_EMAIL || 'support.forexgrow@gmail.com',
+      senderName: process.env.SENDER_NAME || 'Forex Grow Official Desk',
+    };
   }
 
   public updateConfig(newConfig: Partial<EmailConfig>) {
@@ -57,6 +68,7 @@ class EmailService {
     html: string;
     text?: string;
   }): Promise<{ success: boolean; error?: string }> {
+    this.refreshConfig();
     const { to, subject, html, text } = options;
 
     // 1. Try Brevo REST API if API Key is available
@@ -93,7 +105,7 @@ class EmailService {
     }
 
     // 2. Try SMTP Transporter
-    if (this.transporter) {
+    if (this.transporter && this.config.smtpPass) {
       try {
         const info = await this.transporter.sendMail({
           from: `"${this.config.senderName}" <${this.config.senderEmail}>`,
