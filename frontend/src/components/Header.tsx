@@ -140,21 +140,200 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3">
-        {/* User Profile Pill - Interactive with Dropdown Menu */}
+      <div className="flex items-center space-x-1 sm:space-x-2.5">
+        {/* 1-Tap Quick Switch Pill (Mobile & Desktop) */}
+        <div className={`flex items-center p-0.5 rounded-xl border text-[10px] font-black shrink-0 ${
+          isLight ? 'bg-slate-200 border-slate-300' : 'bg-[#10141f] border-[#293246]'
+        }`}>
+          <button
+            type="button"
+            onClick={() => switchAccount('REAL')}
+            className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1 ${
+              account.activeAccountType === 'REAL'
+                ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+            }`}
+            title="Switch to Live Real Account"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${account.activeAccountType === 'REAL' ? 'bg-slate-950 animate-pulse' : 'bg-emerald-500'}`} />
+            <span>REAL</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchAccount('DEMO')}
+            className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1 ${
+              account.activeAccountType === 'DEMO'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+            }`}
+            title="Switch to Practice Demo Account"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${account.activeAccountType === 'DEMO' ? 'bg-slate-950' : 'bg-amber-500'}`} />
+            <span>DEMO</span>
+          </button>
+        </div>
+
+        {/* Account Balance Pill & Detailed Modal Trigger */}
+        <div className="relative" ref={accountDropdownRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setShowAccountDropdown(!showAccountDropdown);
+              setShowUserMenu(false);
+            }}
+            className={`flex items-center space-x-1 sm:space-x-1.5 border px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl transition shadow-sm ${
+              account.activeAccountType === 'REAL'
+                ? isLight ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-400'
+                : isLight ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-amber-950/30 border-amber-500/40 text-amber-400'
+            }`}
+            title="Click to view detailed account balances & cashier options"
+          >
+            <Wallet className="w-3.5 h-3.5 shrink-0 hidden xs:block" />
+            <span className="text-xs sm:text-sm font-black mono-num">
+              {formatCurrency(activeBalance, account.currency)}
+            </span>
+            <ChevronDown className="w-3 h-3 opacity-70 shrink-0" />
+          </button>
+
+          {/* Account Details Dropdown */}
+          {showAccountDropdown && (
+            <div className={`absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 ${
+              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a2130] border-[#293246] text-white'
+            }`}>
+              <div className={`pb-2.5 mb-2 border-b flex items-center justify-between ${
+                isLight ? 'border-slate-200' : 'border-[#293246]'
+              }`}>
+                <span className="text-xs font-black uppercase tracking-wider text-gray-400">Select Trading Account</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  account.activeAccountType === 'REAL' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                }`}>
+                  Current: {account.activeAccountType}
+                </span>
+              </div>
+
+              {/* 1. Live Real Account Card */}
+              <div
+                onClick={() => {
+                  switchAccount('REAL');
+                  setShowAccountDropdown(false);
+                }}
+                className={`p-3 rounded-2xl border cursor-pointer transition mb-2 ${
+                  account.activeAccountType === 'REAL'
+                    ? 'border-emerald-500 bg-emerald-500/10 shadow-md'
+                    : isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-[#293246] hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-black">Live Real Account</span>
+                  </div>
+                  {account.activeAccountType === 'REAL' && (
+                    <span className="text-[10px] font-black text-emerald-400 flex items-center space-x-0.5">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>ACTIVE</span>
+                    </span>
+                  )}
+                </div>
+                <div className="text-base sm:text-lg font-black mono-num text-emerald-400">
+                  {formatCurrency(account.realBalance, account.currency)}
+                </div>
+                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] text-gray-400">Real Market Trading</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAccountDropdown(false);
+                      onOpenCashierModal();
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] transition shadow"
+                  >
+                    + Deposit
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Practice Demo Account Card */}
+              <div
+                onClick={() => {
+                  switchAccount('DEMO');
+                  setShowAccountDropdown(false);
+                }}
+                className={`p-3 rounded-2xl border cursor-pointer transition mb-2 ${
+                  account.activeAccountType === 'DEMO'
+                    ? 'border-amber-500 bg-amber-500/10 shadow-md'
+                    : isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-[#293246] hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-xs font-black">Practice Demo Account</span>
+                  </div>
+                  {account.activeAccountType === 'DEMO' && (
+                    <span className="text-[10px] font-black text-amber-400 flex items-center space-x-0.5">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>ACTIVE</span>
+                    </span>
+                  )}
+                </div>
+                <div className="text-base sm:text-lg font-black mono-num text-amber-400">
+                  {formatCurrency(account.demoBalance, account.currency)}
+                </div>
+                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] text-gray-400">Virtual Practice Funds</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetDemoBalance();
+                    }}
+                    title="Reset demo balance to initial funds"
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-[10px] transition flex items-center space-x-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Currency & KYC quick info */}
+              <div
+                onClick={() => {
+                  setShowAccountDropdown(false);
+                  onOpenCurrencyModal();
+                }}
+                className={`pt-2 border-t p-1.5 text-xs flex items-center justify-between cursor-pointer rounded-xl hover:bg-white/5 ${
+                  isLight ? 'border-slate-200 text-slate-600' : 'border-[#293246]/60 text-gray-400'
+                }`}
+              >
+                <span className="flex items-center space-x-1.5">
+                  <Globe2 className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Currency: {currencyConfig.name}</span>
+                </span>
+                <span className="font-bold">{currencyConfig.flag} {currencyConfig.code}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* User Profile Pill - Clean & Minimal */}
         <div className="relative" ref={userMenuRef}>
           <button
+            type="button"
             onClick={() => {
               setShowUserMenu(!showUserMenu);
               setShowAccountDropdown(false);
             }}
-            className={`flex items-center space-x-2 border px-2.5 py-1.5 rounded-2xl shadow-sm transition text-left ${
+            className={`flex items-center space-x-1 sm:space-x-2 border p-1 sm:px-2.5 sm:py-1.5 rounded-xl sm:rounded-2xl shadow-sm transition text-left ${
               isLight 
                 ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-800' 
                 : 'bg-[#1c2333] hover:bg-[#252e42] border-[#293246] text-white'
             }`}
+            title="Trader Profile & Settings"
           >
-            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-black text-xs text-slate-950 shadow-inner">
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-black text-xs text-slate-950 shadow-inner shrink-0">
               {initials || <User className="w-3.5 h-3.5" />}
             </div>
             <div className="hidden md:block text-left">
@@ -174,7 +353,7 @@ export const Header: React.FC<HeaderProps> = ({
             <ChevronDown className="w-3 h-3 text-gray-400 hidden sm:block" />
           </button>
 
-          {/* User Profile Dropdown Menu (NO ADMIN BUTTON - ONLY /admin URL) */}
+          {/* User Profile Dropdown Menu (Strictly Trader Controls - ZERO Admin/Manager links) */}
           {showUserMenu && (
             <div className={`absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-100 ${
               isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a2130] border-[#293246] text-white'
@@ -187,69 +366,13 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </div>
                 <div className={`text-xs truncate mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{account.email}</div>
-                <div className={`text-[10px] font-mono mt-1 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>ID: {account.id}</div>
+                <div className={`text-[10px] font-mono mt-1 ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>Trader ID: {account.id}</div>
               </div>
 
               <div className="space-y-1">
-                {account.role === 'ADMIN' && (
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      window.history.pushState({}, '', '/admin');
-                      window.dispatchEvent(new PopStateEvent('popstate'));
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-amber-400 hover:bg-amber-500/10 transition flex items-center space-x-2"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Open Master Admin Portal</span>
-                  </button>
-                )}
-
-                {(account.role === 'MANAGER' || account.role === 'ADMIN') && (
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      window.history.pushState({}, '', '/manager');
-                      window.dispatchEvent(new PopStateEvent('popstate'));
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-sky-400 hover:bg-sky-500/10 transition flex items-center space-x-2"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Open Manager Desk</span>
-                  </button>
-                )}
-
+                {/* Aadhaar Identity KYC Modal Trigger */}
                 <button
-                  onClick={() => {
-                    toggleTheme();
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between md:hidden ${
-                    isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-sky-400" />}
-                    <span>Theme: {theme === 'dark' ? 'Dark' : 'Light'}</span>
-                  </div>
-                  <span className="text-[10px] text-gray-400 uppercase">Switch</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    toggleMute();
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between md:hidden ${
-                    isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-500" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-500" />}
-                    <span>Sound Effects</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-400">{isMuted ? 'MUTED' : 'ON'}</span>
-                </button>
-
-                <button
+                  type="button"
                   onClick={() => {
                     setShowUserMenu(false);
                     onOpenKycModal?.();
@@ -275,7 +398,39 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </button>
 
+                {/* Theme Switch */}
                 <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between md:hidden ${
+                    isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-sky-400" />}
+                    <span>Theme: {theme === 'dark' ? 'Dark' : 'Light'}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 uppercase">Switch</span>
+                </button>
+
+                {/* Sound Effects */}
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between md:hidden ${
+                    isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-500" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    <span>Sound Effects</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400">{isMuted ? 'MUTED' : 'ON'}</span>
+                </button>
+
+                {/* Switch Trader Account */}
+                <button
+                  type="button"
                   onClick={() => {
                     setShowUserMenu(false);
                     handleNavigateLogin();
@@ -288,7 +443,9 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>Switch Trader Account</span>
                 </button>
 
+                {/* Logout */}
                 <button
+                  type="button"
                   onClick={() => {
                     setShowUserMenu(false);
                     handleLogout();
@@ -303,7 +460,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Currency Switcher Pill - Hidden on mobile since MobileNavBar has Currency tab */}
+        {/* Currency Switcher Pill - Hidden on mobile */}
         <button
           onClick={onOpenCurrencyModal}
           title="Switch Account Currency"
@@ -331,7 +488,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Top</span>
         </button>
 
-        {/* Dark / Light Theme Toggle */}
+        {/* Dark / Light Theme Toggle (Desktop) */}
         <button
           onClick={toggleTheme}
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -348,7 +505,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {/* Audio Mute/Unmute */}
+        {/* Audio Mute/Unmute (Desktop) */}
         <button
           onClick={toggleMute}
           title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
@@ -361,139 +518,6 @@ export const Header: React.FC<HeaderProps> = ({
           {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-500" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500" />}
         </button>
 
-        {/* Account Switcher - Full button on desktop, compact pill with balance on mobile */}
-        <div className="relative" ref={accountDropdownRef}>
-          <button
-            onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-            className={`flex items-center space-x-1 sm:space-x-2 transition border px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl text-left ${
-              isLight 
-                ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-800' 
-                : 'bg-[#1c2333] hover:bg-[#252e42] border-[#293246] text-white'
-            }`}
-          >
-            <Wallet className="w-3.5 h-3.5 text-gray-400 hidden xs:block" />
-            <div>
-              <div className="text-[7.5px] sm:text-[9px] uppercase font-bold tracking-wider text-gray-400 flex items-center space-x-1">
-                <span>{account.activeAccountType === 'DEMO' ? 'Demo' : 'Live'}</span>
-              </div>
-              <div className={`text-[11px] sm:text-sm font-black mono-num leading-tight ${
-                account.activeAccountType === 'DEMO' ? 'text-emerald-500' : isLight ? 'text-slate-900' : 'text-white'
-              }`}>
-                {formatCurrency(activeBalance, account.currency)}
-              </div>
-            </div>
-            <ChevronDown className="w-3 h-3 text-gray-400 ml-0.5" />
-          </button>
-
-          {/* Account Dropdown */}
-          {showAccountDropdown && (
-            <div className={`absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 ${
-              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a2130] border-[#293246] text-white'
-            }`}>
-              {/* User Profile Info Inside Dropdown */}
-              <div className={`p-3 border-b flex items-center space-x-2.5 ${isLight ? 'border-slate-200' : 'border-[#293246]/60'}`}>
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-black text-sm text-slate-950 shadow-md">
-                  {initials || <User className="w-4 h-4" />}
-                </div>
-                <div className="overflow-hidden flex-1">
-                  <div className="text-xs font-bold flex items-center space-x-1.5">
-                    <span className="truncate">{account.name}</span>
-                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30">
-                      {account.vipLevel}
-                    </span>
-                  </div>
-                  <div className={`text-[11px] truncate ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{account.email}</div>
-                </div>
-              </div>
-
-              <div className={`text-[10px] font-semibold px-3 py-1.5 flex justify-between items-center ${
-                isLight ? 'text-slate-500' : 'text-gray-400'
-              }`}>
-                <span>Switch Trading Balance</span>
-                <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center space-x-1">
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>KYC Verified</span>
-                </span>
-              </div>
-
-              {/* Demo Account */}
-              <div
-                onClick={() => {
-                  switchAccount('DEMO');
-                  setShowAccountDropdown(false);
-                }}
-                className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition mt-1.5 ${
-                  account.activeAccountType === 'DEMO' 
-                    ? isLight ? 'bg-emerald-50 border border-emerald-300' : 'bg-[#242d40] border border-emerald-500/30' 
-                    : isLight ? 'hover:bg-slate-100' : 'hover:bg-[#22293a]'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-bold flex items-center space-x-1.5">
-                    <span>Demo Account ($10,000)</span>
-                    {account.activeAccountType === 'DEMO' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
-                  </div>
-                  <div className="text-sm font-black mono-num text-emerald-500">
-                    {formatCurrency(account.demoBalance, account.currency)}
-                  </div>
-                </div>
-                <button
-                  title={`Reset Demo to ${formatCurrency(10000, account.currency)}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    resetDemoBalance();
-                  }}
-                  className={`p-1.5 rounded-lg transition ${
-                    isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Real Account */}
-              <div
-                onClick={() => {
-                  switchAccount('REAL');
-                  setShowAccountDropdown(false);
-                }}
-                className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition mt-1.5 ${
-                  account.activeAccountType === 'REAL' 
-                    ? isLight ? 'bg-emerald-50 border border-emerald-300' : 'bg-[#242d40] border border-emerald-500/30' 
-                    : isLight ? 'hover:bg-slate-100' : 'hover:bg-[#22293a]'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-bold flex items-center space-x-1.5">
-                    <span>Live Real Account</span>
-                    {account.activeAccountType === 'REAL' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
-                  </div>
-                  <div className={`text-sm font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                    {formatCurrency(account.realBalance, account.currency)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Currency Switch Trigger */}
-              <div
-                onClick={() => {
-                  setShowAccountDropdown(false);
-                  onOpenCurrencyModal();
-                }}
-                className={`mt-2 pt-2 border-t p-2 text-xs flex items-center justify-between cursor-pointer ${
-                  isLight ? 'border-slate-200 text-slate-600 hover:text-slate-900' : 'border-[#293246]/60 text-gray-400 hover:text-white'
-                }`}
-              >
-                <span className="flex items-center space-x-1.5">
-                  <Globe2 className="w-3.5 h-3.5 text-sky-500" />
-                  <span>Currency: {currencyConfig.name}</span>
-                </span>
-                <span className="font-bold">{currencyConfig.flag} {currencyConfig.code}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Deposit Button (Desktop only; mobile uses dedicated glowing tab in MobileNavBar) */}
         <button
           onClick={onOpenCashierModal}
@@ -503,6 +527,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Deposit</span>
         </button>
       </div>
+
     </header>
   );
 };

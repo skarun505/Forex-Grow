@@ -598,7 +598,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                     <span className={isLight ? 'text-slate-800' : 'text-white'}>Managed Client Accounts Only</span>
                   </div>
                   <p className="text-[11px]">
-                    Client trading accounts are issued exclusively through authorized Forex Grow Account Managers and Desk Administrators. If you need credentials, contact your account manager.
+                    Client trading accounts are issued exclusively through authorized Forex Grow Customer Care. If you need credentials or assistance, please contact Customer Care.
                   </p>
                 </div>
               ) : (
@@ -661,12 +661,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
               </div>
               <div>
                 <h3 className="text-lg font-black">Need Trading Access?</h3>
-                <p className="text-xs text-gray-400">Contact Forex Grow Desk Administration</p>
+                <p className="text-xs text-gray-400">Contact Forex Grow Customer Care</p>
               </div>
             </div>
 
             <p className="text-xs text-gray-300 leading-relaxed mb-4">
-              Client accounts on Forex Grow are exclusively created and activated by authorized operations managers. Contact our desk to obtain your personalized client ID and initial deposit.
+              Client accounts on Forex Grow are exclusively activated by Forex Grow Customer Care. Contact Customer Care to obtain your credentials or account assistance.
             </p>
 
             <div className="space-y-2.5">
@@ -676,7 +676,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                     <MessageCircle className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold">WhatsApp Operations Desk</div>
+                    <div className="text-xs font-bold">WhatsApp Customer Care</div>
                     <div className="text-[10px] text-gray-400">+1 (555) 000-2222</div>
                   </div>
                 </div>

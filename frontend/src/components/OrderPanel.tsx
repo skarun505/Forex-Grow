@@ -155,10 +155,18 @@ export const OrderPanel: React.FC = () => {
                 <span className={`text-sm font-bold mr-1 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{curr.symbol}</span>
                 <input
                   type="number"
-                  value={Math.round(amountUSD * curr.rateAgainstUSD)}
+                  inputMode="decimal"
+                  pattern="[0-9]*"
+                  value={Math.round(amountUSD * curr.rateAgainstUSD) || ''}
+                  placeholder="500"
                   onChange={(e) => {
-                    const localVal = Number(e.target.value);
-                    if (localVal >= 0) {
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      setAmountUSD(0);
+                      return;
+                    }
+                    const localVal = parseFloat(raw);
+                    if (!isNaN(localVal) && localVal >= 0) {
                       setAmountUSD(localVal / curr.rateAgainstUSD);
                     }
                   }}
@@ -349,22 +357,49 @@ export const OrderPanel: React.FC = () => {
             ))}
           </div>
 
-          {/* Amount Stepper */}
-          <div className={`flex-1 flex items-center border rounded-xl px-2 py-1 justify-between ${
-            isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#121620] border-[#2e354b]'
+          {/* Amount Stepper with Manual Number Entry */}
+          <div className={`flex-1 flex items-center border rounded-xl px-1 sm:px-2 py-1 justify-between transition-colors ${
+            isLight ? 'bg-slate-100 border-slate-300 focus-within:border-emerald-500' : 'bg-[#121620] border-[#2e354b] focus-within:border-emerald-500/60'
           }`}>
             <button
+              type="button"
               onClick={() => handleAdjustAmount(-1)}
-              className={`p-1.5 rounded-lg active:scale-90 transition ${isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`p-1.5 rounded-lg active:scale-90 transition shrink-0 ${isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              title="Decrease amount"
             >
               <Minus className="w-3.5 h-3.5" />
             </button>
-            <span className={`text-xs sm:text-sm font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-              {formatUSDToCurrency(amountUSD, account.currency)}
-            </span>
+            <div className="flex items-center justify-center flex-1 px-1">
+              <span className={`text-xs font-bold mr-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                {curr.symbol}
+              </span>
+              <input
+                type="number"
+                inputMode="decimal"
+                pattern="[0-9]*"
+                value={Math.round(amountUSD * curr.rateAgainstUSD) || ''}
+                placeholder="500"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setAmountUSD(0);
+                    return;
+                  }
+                  const val = parseFloat(raw);
+                  if (!isNaN(val) && val >= 0) {
+                    setAmountUSD(val / curr.rateAgainstUSD);
+                  }
+                }}
+                className={`w-16 sm:w-20 bg-transparent text-center text-xs sm:text-sm font-black mono-num focus:outline-none ${
+                  isLight ? 'text-slate-900' : 'text-white'
+                }`}
+              />
+            </div>
             <button
+              type="button"
               onClick={() => handleAdjustAmount(1)}
-              className={`p-1.5 rounded-lg active:scale-90 transition ${isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`p-1.5 rounded-lg active:scale-90 transition shrink-0 ${isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              title="Increase amount"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
