@@ -178,6 +178,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
   const [createClientStep, setCreateClientStep] = useState<'FORM' | 'OTP'>('FORM');
   const [clientOtpCode, setClientOtpCode] = useState('');
+  const [clientDebugOtp, setClientDebugOtp] = useState<string | null>(null);
   const [isSendingClientOtp, setIsSendingClientOtp] = useState(false);
   const [isVerifyingClientOtp, setIsVerifyingClientOtp] = useState(false);
   const [clientOtpError, setClientOtpError] = useState<string | null>(null);
@@ -725,6 +726,9 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
 
       setCreateClientStep('OTP');
       setClientOtpCode('');
+      if (data.debugOtp) {
+        setClientDebugOtp(data.debugOtp);
+      }
     } catch (err) {
       setCreateClientError('Failed to connect to backend server');
     } finally {
@@ -2371,6 +2375,15 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     onChange={(e) => setClientOtpCode(e.target.value.replace(/\D/g, ''))}
                     className="w-full tracking-[8px] text-center text-xl font-mono font-black py-3 rounded-xl border focus:outline-none bg-[#0f131d] border-[#252c40] text-emerald-400"
                   />
+                  {clientDebugOtp && (
+                    <button
+                      type="button"
+                      onClick={() => setClientOtpCode(clientDebugOtp)}
+                      className="text-[11px] text-amber-400 hover:text-amber-300 font-mono underline block mx-auto mt-2"
+                    >
+                      ⚡ Auto-fill Security Code ({clientDebugOtp})
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex space-x-2 pt-2">

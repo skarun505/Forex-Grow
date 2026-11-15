@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTrading } from '../context/TradingContext';
 import { apiUrl } from '../utils/api';
 import { 
@@ -34,9 +34,19 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!account?.isKycVerified && account?.kycStatus !== 'PENDING') {
+      setFrontImage('');
+      setBackImage('');
+      setSuccessMsg(null);
+    }
+  }, [account?.isKycVerified, account?.kycStatus]);
+
   if (!isOpen) return null;
 
-  const kycStatus = account?.kycStatus || (account?.isKycVerified ? 'APPROVED' : 'NOT_SUBMITTED');
+  const kycStatus = !account?.isKycVerified
+    ? (account?.kycStatus === 'PENDING' ? 'PENDING' : (account?.kycStatus === 'REJECTED' ? 'REJECTED' : 'NOT_SUBMITTED'))
+    : (account?.kycStatus || 'APPROVED');
 
   // Format Aadhaar Number to 4 4 4 digits
   const handleAadhaarChange = (e: React.ChangeEvent<HTMLInputElement>) => {

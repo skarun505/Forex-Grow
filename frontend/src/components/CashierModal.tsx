@@ -1123,28 +1123,28 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
               </div>
             ) : (
               /* Withdraw Form */
-              <div className="space-y-5">
+              <div className="space-y-3 sm:space-y-3.5">
                 {withdrawError && (
-                  <div className="bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs p-3.5 rounded-2xl flex items-center space-x-2 animate-in fade-in">
+                  <div className="bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs p-3 rounded-xl flex items-center space-x-2 animate-in fade-in">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{withdrawError}</span>
                   </div>
                 )}
 
                 {/* Available Live Real Balance Display */}
-                <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                <div className={`p-3 rounded-xl border flex items-center justify-between ${
                   isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#10141f] border-[#293246]'
                 }`}>
                   <div>
-                    <span className={`text-xs block ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    <span className={`text-[11px] block ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
                       Available Live Real Balance
                     </span>
-                    <span className={`text-2xl font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    <span className={`text-xl font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
                       {curr.symbol}{realBalanceLocal.toLocaleString()}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-[10px] font-black px-2.5 py-1 rounded-xl">
+                    <span className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-black px-2 py-0.5 rounded-lg">
                       Real Money Payout
                     </span>
                   </div>
@@ -1152,40 +1152,37 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
                 {/* Aadhaar KYC Required Warning if Unverified */}
                 {!account.isKycVerified && (
-                  <div className="p-4 rounded-2xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-300 space-y-3 shadow-lg">
-                    <div className="flex items-start space-x-3">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                        <ShieldAlert className="w-5 h-5" />
+                  <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="text-xs font-black text-white">Aadhaar KYC Required</span>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-black text-white">Aadhaar KYC Verification Required</h4>
-                        <p className="text-xs text-amber-200/90 mt-1 leading-relaxed">
-                          In compliance with institutional financial regulations, only Aadhaar verified accounts can request payouts. Payouts are strictly locked until your Aadhaar is verified.
-                        </p>
-                      </div>
+                      {onOpenKycModal && (
+                        <button
+                          type="button"
+                          onClick={onOpenKycModal}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] transition shrink-0"
+                        >
+                          Verify Now
+                        </button>
+                      )}
                     </div>
-                    {onOpenKycModal && (
-                      <button
-                        type="button"
-                        onClick={onOpenKycModal}
-                        className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md flex items-center justify-center space-x-2"
-                      >
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Complete Aadhaar Verification Now</span>
-                      </button>
-                    )}
+                    <p className="text-[11px] text-amber-200/90 leading-snug">
+                      Institutional regulations require Aadhaar KYC before payouts are released.
+                    </p>
                   </div>
                 )}
 
                 {/* Withdrawal Amount */}
                 <div>
-                  <label className={`text-xs font-bold block mb-2 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  <label className={`text-[11px] font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
                     Withdrawal Amount ({curr.code})
                   </label>
-                  <div className={`flex items-center border rounded-2xl px-4 py-3 ${
+                  <div className={`flex items-center border rounded-xl px-3 py-2 ${
                     isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#10141f] border-[#293246]'
                   }`}>
-                    <span className={`text-xl font-black mr-2 ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                    <span className={`text-lg font-black mr-2 ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
                       {curr.symbol}
                     </span>
                     <input
@@ -1195,7 +1192,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                         const val = e.target.value.replace(/[^0-9.]/g, '');
                         setWithdrawAmountInput(val);
                       }}
-                      className={`w-full bg-transparent text-xl font-black mono-num focus:outline-none ${
+                      className={`w-full bg-transparent text-lg font-black mono-num focus:outline-none ${
                         isLight ? 'text-slate-900' : 'text-white'
                       }`}
                     />
@@ -1204,20 +1201,20 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
                 {/* Payout Destination Selector: UPI or Bank Transfer */}
                 <div>
-                  <label className={`text-xs font-bold block mb-2 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  <label className={`text-[11px] font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
                     Select Payout Channel
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setWithdrawType('UPI')}
-                      className={`p-3 rounded-2xl border text-left flex items-center space-x-3 transition ${
+                      className={`p-2.5 rounded-xl border text-left flex items-center space-x-2.5 transition ${
                         withdrawType === 'UPI'
-                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-500 font-bold'
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 font-bold'
                           : isLight ? 'border-slate-200 bg-slate-100 text-slate-700' : 'border-[#293246] bg-[#10141f] text-gray-400'
                       }`}
                     >
-                      <Smartphone className="w-5 h-5 text-emerald-500 shrink-0" />
+                      <Smartphone className="w-4 h-4 text-emerald-500 shrink-0" />
                       <div>
                         <div className="text-xs font-black">UPI Payout</div>
                         <div className="text-[10px] text-gray-400">Direct to UPI VPA</div>
@@ -1227,13 +1224,13 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                     <button
                       type="button"
                       onClick={() => setWithdrawType('BANK')}
-                      className={`p-3 rounded-2xl border text-left flex items-center space-x-3 transition ${
+                      className={`p-2.5 rounded-xl border text-left flex items-center space-x-2.5 transition ${
                         withdrawType === 'BANK'
-                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-500 font-bold'
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 font-bold'
                           : isLight ? 'border-slate-200 bg-slate-100 text-slate-700' : 'border-[#293246] bg-[#10141f] text-gray-400'
                       }`}
                     >
-                      <Building2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                      <Building2 className="w-4 h-4 text-emerald-500 shrink-0" />
                       <div>
                         <div className="text-xs font-black">Bank Transfer</div>
                         <div className="text-[10px] text-gray-400">IMPS / NEFT / RTGS</div>
@@ -1242,23 +1239,21 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   </div>
                 </div>
 
-                {/* Mandatory Regulatory Warning: Beneficiary Name Mismatch Rule */}
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1 text-xs">
-                  <div className="flex items-center space-x-2 text-amber-400 font-bold">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>Strict Beneficiary Name Requirement</span>
+                {/* Single Sleek Beneficiary Name Rule Notice */}
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-amber-200/90 leading-snug">
+                    <span className="font-bold text-amber-300">Name Match Rule: </span>
+                    Payout is strictly credited to your verified Aadhaar name (<span className="text-white font-bold underline">{account.kycData?.fullName || account.name}</span>). Any bank name mismatch will cause immediate decline.
                   </div>
-                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                    ⚠️ <strong>Notice:</strong> Only the verified Aadhaar Card registered person can receive payout settlements. The receiving Bank Account / UPI beneficiary name <strong>must exactly match your verified Aadhaar Card name</strong> ({account.kycData?.fullName || account.name}). If any bank name mismatch happens, <strong>immediate transaction decline will occur</strong> and your payout will be cancelled.
-                  </p>
                 </div>
 
                 {/* Bank Details Lock Notice */}
                 {isBankDetailsLocked && (
-                  <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center justify-between gap-2">
-                    <div className="flex items-center space-x-2">
-                      <Lock className="w-4 h-4 shrink-0 text-amber-400" />
-                      <span>Bank details verified & locked. To update, please contact Customer Care.</span>
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-1.5 text-[11px]">
+                      <Lock className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                      <span>Bank details locked. Contact support to update.</span>
                     </div>
                     <button
                       type="button"
@@ -1266,10 +1261,10 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                         const msg = `Hello Forex Grow Customer Care,\n\nI need to update my verified bank/UPI payout details.\nTrader: ${account.name} (${account.id})\n\nPlease assist me.`;
                         window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
                       }}
-                      className="shrink-0 px-2.5 py-1.5 rounded-xl bg-[#25D366] text-black font-black text-[10px] flex items-center space-x-1 shadow hover:bg-[#20ba5a] transition"
+                      className="shrink-0 px-2 py-1 rounded-lg bg-[#25D366] text-black font-black text-[10px] flex items-center space-x-1 shadow hover:bg-[#20ba5a] transition"
                     >
-                      <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                      <span>Contact Care</span>
+                      <MessageCircle className="w-3 h-3 fill-current" />
+                      <span>Care</span>
                     </button>
                   </div>
                 )}
@@ -1285,17 +1280,13 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                       value={withdrawUpiId}
                       onChange={(e) => setWithdrawUpiId(e.target.value)}
                       placeholder="e.g. yourname@okhdfcbank" disabled={isBankDetailsLocked}
-                      className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none ${
+                      className={`w-full border rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none ${
                         isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                       }`}
                     />
-                    <div className="text-[10px] text-amber-400/90 font-medium mt-1.5 flex items-center gap-1">
-                      <span>⚠️ Bank account linked to this UPI ID must bear your verified Aadhaar name:</span>
-                      <strong className="text-white underline">{account.kycData?.fullName || account.name}</strong>
-                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <div>
                       <label className={`text-[11px] font-semibold block mb-1 ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
                         Account Holder Name *
@@ -1305,14 +1296,10 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                         value={bankHolderName}
                         onChange={(e) => setBankHolderName(e.target.value)}
                         placeholder="As registered in your bank" disabled={isBankDetailsLocked}
-                        className={`w-full border rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-none ${
+                        className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none ${
                           isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                         }`}
                       />
-                      <div className="text-[10px] text-amber-400/90 font-medium mt-1.5 flex items-center gap-1">
-                        <span>⚠️ Beneficiary name must strictly match your verified Aadhaar Card name:</span>
-                        <strong className="text-white underline">{account.kycData?.fullName || account.name}</strong>
-                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -1325,13 +1312,13 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                           value={bankAccountNumber}
                           onChange={(e) => setBankAccountNumber(e.target.value)}
                           placeholder="Account Number" disabled={isBankDetailsLocked}
-                          className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono font-bold focus:outline-none ${
+                          className={`w-full border rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none ${
                             isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                           }`}
                         />
                       </div>
                       <div>
-                        <label className={`text-[11px] font-semibold block mb-1 ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                        <label className={`text-[11px] font-semibold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
                           Bank IFSC Code *
                         </label>
                         <input
@@ -1339,7 +1326,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                           value={bankIfsc}
                           onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
                           placeholder="e.g. HDFC0001234" disabled={isBankDetailsLocked}
-                          className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono font-bold uppercase focus:outline-none ${
+                          className={`w-full border rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase focus:outline-none ${
                             isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                           }`}
                         />
@@ -1355,7 +1342,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                         value={bankName}
                         onChange={(e) => setBankName(e.target.value)}
                         placeholder="e.g. HDFC Bank, SBI, ICICI" disabled={isBankDetailsLocked}
-                        className={`w-full border rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-none ${
+                        className={`w-full border rounded-xl px-3 py-2 text-xs font-bold focus:outline-none ${
                           isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                         }`}
                       />
@@ -1365,12 +1352,12 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
 
                 {/* Balance warning if insufficient */}
                 {account.realBalance < numericWithdraw && (
-                  <div className="text-[11px] text-center text-amber-500 font-bold bg-amber-500/10 py-2 px-3 rounded-xl border border-amber-500/20">
-                    ⚠️ Insufficient Real Balance ({formatCurrency(account.realBalance, account.currency)} available). Switch to Real Account or lower the withdrawal amount.
+                  <div className="text-[11px] text-center text-amber-500 font-bold bg-amber-500/10 py-1.5 px-3 rounded-xl border border-amber-500/20">
+                    ⚠️ Insufficient Real Balance ({formatCurrency(account.realBalance, account.currency)} available).
                   </div>
                 )}
 
-                <div className="pt-1">
+                <div className="pt-0.5">
                   <p className={`text-[10px] text-center ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
                     ⏱️ Processed within 24 working hours. Real balance is deducted immediately upon submission.
                   </p>

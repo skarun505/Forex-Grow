@@ -507,7 +507,16 @@ export class AdminManager extends EventEmitter {
     if (updates.name !== undefined) user.name = updates.name;
     if (updates.password !== undefined) user.password = updates.password;
     if (updates.vipLevel !== undefined) user.vipLevel = updates.vipLevel;
-    if (updates.isKycVerified !== undefined) user.isKycVerified = updates.isKycVerified;
+    if (updates.isKycVerified !== undefined) {
+      user.isKycVerified = updates.isKycVerified;
+      if (!updates.isKycVerified) {
+        user.kycStatus = 'NOT_SUBMITTED';
+        user.kycData = undefined;
+        user.aadhaarNumber = undefined;
+      } else {
+        user.kycStatus = 'APPROVED';
+      }
+    }
     if (updates.status !== undefined) user.status = updates.status;
     if (updates.currency !== undefined) user.currency = updates.currency;
     if (updates.realBalance !== undefined) user.realBalance = updates.realBalance;
@@ -648,15 +657,21 @@ export class AdminManager extends EventEmitter {
 
     user.isKycVerified = isApproved;
     user.kycStatus = isApproved ? 'APPROVED' : 'REJECTED';
-    if (!user.kycData) {
-      user.kycData = {
-        aadhaarNumber: user.aadhaarNumber || '7845 1290 3341',
-        fullName: user.name,
-      };
-    }
-    user.kycData.reviewedAt = Date.now();
     if (!isApproved) {
-      user.kycData.rejectionReason = reason || 'Aadhaar documents unclear or details mismatched';
+      user.kycData = {
+        fullName: user.name,
+        aadhaarNumber: '',
+        rejectionReason: reason || 'Aadhaar documents were revoked. Please submit clear front & back photos for verification.',
+      };
+      user.aadhaarNumber = undefined;
+    } else {
+      if (!user.kycData) {
+        user.kycData = {
+          aadhaarNumber: user.aadhaarNumber || '7845 1290 3341',
+          fullName: user.name,
+        };
+      }
+      user.kycData.reviewedAt = Date.now();
     }
 
     this.addAuditLog(
@@ -866,6 +881,11 @@ export class AdminManager extends EventEmitter {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
     user.isKycVerified = isVerified;
+    user.kycStatus = isVerified ? 'APPROVED' : 'NOT_SUBMITTED';
+    if (!isVerified) {
+      user.kycData = undefined;
+      user.aadhaarNumber = undefined;
+    }
     this.addAuditLog(
       actor?.id || 'mgr_sys',
       actor?.name || 'Operations Desk',
@@ -873,7 +893,7 @@ export class AdminManager extends EventEmitter {
       isVerified ? 'VERIFIED_KYC' : 'REVOKED_KYC',
       user.id,
       user.name,
-      `KYC status changed to ${isVerified ? 'VERIFIED' : 'PENDING'}`
+      `KYC status changed to ${isVerified ? 'VERIFIED' : 'REVOKED'}`
     );
     this.emit('user_updated', user);
     SupabaseDb.saveUser(user);

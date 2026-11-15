@@ -256,7 +256,7 @@ export type WSServerAction =
   | { type: 'SENTIMENT_UPDATE'; sentiment: Sentiment }
   | { type: 'TRADE_OPENED'; trade: Trade; newBalance: number }
   | { type: 'TRADE_SETTLED'; trade: Trade; newBalance: number }
-  | { type: 'BALANCE_UPDATE'; userId?: string; demoBalance: number; realBalance: number; activeAccountType?: 'DEMO' | 'REAL'; currency?: CurrencyCode }
+  | { type: 'BALANCE_UPDATE'; userId?: string; demoBalance: number; realBalance: number; activeAccountType?: 'DEMO' | 'REAL'; currency?: CurrencyCode; isKycVerified?: boolean; kycStatus?: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' }
   | { type: 'TRANSACTION_SUCCESS'; userId?: string; message: string; demoBalance: number; realBalance: number }
   | { type: 'ASSETS_UPDATE'; assets: Asset[] }
   | { type: 'LEADERBOARD_UPDATE'; leaderboard: LeaderboardTrader[] }

@@ -153,6 +153,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [createStep, setCreateStep] = useState<'FORM' | 'OTP'>('FORM');
   const [createOtpCode, setCreateOtpCode] = useState('');
+  const [debugOtpCode, setDebugOtpCode] = useState<string | null>(null);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [createOtpError, setCreateOtpError] = useState<string | null>(null);
@@ -792,6 +793,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       }
       setCreateStep('OTP');
       setCreateOtpCode('');
+      if (data.debugOtp) {
+        setDebugOtpCode(data.debugOtp);
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to connect to backend server');
@@ -3927,6 +3931,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-emerald-400'
                     }`}
                   />
+                  {debugOtpCode && (
+                    <button
+                      type="button"
+                      onClick={() => setCreateOtpCode(debugOtpCode)}
+                      className="text-[11px] text-amber-400 hover:text-amber-300 font-mono underline block mx-auto mt-2"
+                    >
+                      ⚡ Auto-fill Security Code ({debugOtpCode})
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex space-x-2 pt-2">

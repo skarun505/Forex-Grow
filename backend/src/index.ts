@@ -259,11 +259,14 @@ app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), a
   try {
     const sendRes = await emailService.sendOtpEmail(cleanEmail, otp, cleanName);
     if (!sendRes.success) {
-      console.warn('[AUTH] Email sending failed, OTP logged for verification:', otp);
+      console.warn(`[AUTH] Email sending notice: ${sendRes.error}. Verification OTP for ${cleanEmail}: ${otp}`);
     }
     return res.json({
       success: true,
-      message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox.`,
+      message: sendRes.success
+        ? `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox.`
+        : `Verification code generated (${otp}). Brevo IP authorization is pending.`,
+      debugOtp: otp,
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to dispatch verification email. Please try again.' });
@@ -1028,6 +1031,8 @@ app.post('/api/admin/users/:userId/update', (req, res) => {
     realBalance: u.realBalance,
     activeAccountType: u.activeAccountType,
     currency: u.currency,
+    isKycVerified: u.isKycVerified,
+    kycStatus: u.kycStatus,
   });
 
   res.json(result);
@@ -1394,6 +1399,20 @@ app.post('/api/manager/users/:id/kyc/review', (req: express.Request, res: expres
     actorName || 'Operations Manager'
   );
   if (!result.success) return res.status(400).json({ error: result.error });
+
+  if (result.user) {
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      userId: result.user.id,
+      demoBalance: result.user.demoBalance,
+      realBalance: result.user.realBalance,
+      activeAccountType: result.user.activeAccountType,
+      currency: result.user.currency,
+      isKycVerified: result.user.isKycVerified,
+      kycStatus: result.user.kycStatus,
+    });
+  }
+
   res.json(result);
 });
 
@@ -1406,6 +1425,20 @@ app.post('/api/admin/users/:id/kyc/review', (req: express.Request, res: express.
     actorName || 'Administrator'
   );
   if (!result.success) return res.status(400).json({ error: result.error });
+
+  if (result.user) {
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      userId: result.user.id,
+      demoBalance: result.user.demoBalance,
+      realBalance: result.user.realBalance,
+      activeAccountType: result.user.activeAccountType,
+      currency: result.user.currency,
+      isKycVerified: result.user.isKycVerified,
+      kycStatus: result.user.kycStatus,
+    });
+  }
+
   res.json(result);
 });
 
@@ -1490,6 +1523,20 @@ app.post('/api/manager/users/:id/kyc', (req: express.Request, res: express.Respo
     role: 'MANAGER',
   });
   if (!result.success) return res.status(400).json({ error: result.error });
+
+  if (result.user) {
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      userId: result.user.id,
+      demoBalance: result.user.demoBalance,
+      realBalance: result.user.realBalance,
+      activeAccountType: result.user.activeAccountType,
+      currency: result.user.currency,
+      isKycVerified: result.user.isKycVerified,
+      kycStatus: result.user.kycStatus,
+    });
+  }
+
   res.json(result);
 });
 

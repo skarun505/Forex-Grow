@@ -433,6 +433,10 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   realBalance: action.realBalance,
                   activeAccountType: action.activeAccountType || prev.activeAccountType,
                   currency: currentSessionCurrency || action.currency || prev.currency || 'INR',
+                  isKycVerified: action.isKycVerified !== undefined ? action.isKycVerified : prev.isKycVerified,
+                  kycStatus: action.kycStatus !== undefined ? action.kycStatus : (action.isKycVerified === false ? 'NOT_SUBMITTED' : prev.kycStatus),
+                  kycData: action.isKycVerified === false ? undefined : prev.kycData,
+                  aadhaarNumber: action.isKycVerified === false ? undefined : prev.aadhaarNumber,
                 };
                 try {
                   const stored = localStorage.getItem('quotex_trader_user');
