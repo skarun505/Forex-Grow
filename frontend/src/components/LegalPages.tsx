@@ -24,15 +24,22 @@ export const LegalPages: React.FC<LegalPagesProps> = ({
   onBack,
 }) => {
   const [activeTab, setActiveTab] = useState<LegalTab>(initialTab);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setActiveTab(initialTab);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0 });
+    }
   }, [initialTab]);
 
   const handleTabChange = (tab: LegalTab) => {
     setActiveTab(tab);
     const path = tab === 'legal' ? '/legal' : tab === 'privacy' ? '/privacy' : tab === 'refund' ? '/refund-policy' : '/terms';
     window.history.pushState({}, '', path);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleBackToApp = () => {
@@ -47,7 +54,11 @@ export const LegalPages: React.FC<LegalPagesProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#0e131d] text-gray-200 select-text font-sans">
+    <div 
+      ref={scrollRef}
+      className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden bg-[#0e131d] text-gray-200 select-text font-sans scroll-smooth"
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
       {/* Top Fixed Header */}
       <header className="sticky top-0 z-40 bg-[#141926]/95 backdrop-blur-md border-b border-[#232c40] px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -510,7 +521,7 @@ export const LegalPages: React.FC<LegalPagesProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#1e2638] bg-[#090c13] py-8 text-center text-xs text-gray-400">
+      <footer className="border-t border-[#1e2638] bg-[#090c13] py-10 pb-20 text-center text-xs text-gray-400">
         <p className="max-w-2xl mx-auto px-4 text-[11px] leading-relaxed">
           &copy; {new Date().getFullYear()} Forex Grow Institutional Markets Ltd. All rights reserved. By submitting your 6-digit OTP code, you legally agree to all policies, terms, and risk disclosures contained herein.
         </p>
