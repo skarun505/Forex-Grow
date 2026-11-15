@@ -32,6 +32,9 @@ import {
   Moon,
   UserPlus,
   Mail,
+  Key,
+  Sparkles,
+  CheckCircle2,
   Eye,
   Image as ImageIcon,
   Check,
@@ -191,6 +194,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
   // User Edit Modal State
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserAccount | null>(null);
+
+  // User Password Reset Modal State
+  const [selectedUserForPasswordReset, setSelectedUserForPasswordReset] = useState<UserAccount | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState<string>('');
+  const [isResettingPassword, setIsResettingPassword] = useState<boolean>(false);
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState<string | null>(null);
 
   // Trade History Modal State
   const [selectedUserForTrades, setSelectedUserForTrades] = useState<UserAccount | null>(null);
@@ -550,6 +559,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Handle Admin User Password Reset
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserForPasswordReset || !resetPasswordValue.trim()) return;
+    setIsResettingPassword(true);
+    setResetPasswordSuccess(null);
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${selectedUserForPasswordReset.id}/reset-password`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: resetPasswordValue.trim(), actorName: 'Super Admin' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to reset password');
+        return;
+      }
+      setResetPasswordSuccess(`Password successfully changed to: ${resetPasswordValue.trim()}`);
+      fetchAdminData();
+    } catch (err) {
+      alert('Network error while resetting password');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  // Handle Admin Delete Trader Account
+  const handleDeleteTrader = async (user: UserAccount) => {
+    if (user.id === 'usr_quotex_vip_99') {
+      alert('Alex Rivera is the protected permanent demo account and cannot be deleted.');
+      return;
+    }
+    const confirmDelete = window.confirm(`Are you sure you want to permanently delete trader "${user.name}" (${user.email})? This action will remove all their trades, transactions and account history.`);
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${user.id}`), {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to delete user');
+        return;
+      }
+      alert(`Trader "${user.name}" has been permanently deleted.`);
+      fetchAdminData();
+    } catch (err) {
+      alert('Network error while deleting trader');
     }
   };
 
@@ -1371,26 +1431,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     </div>
 
                     {/* Bottom Actions */}
-                    <div className="flex items-center space-x-2 pt-1">
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       <button
                         onClick={() => openDirectBalanceModal(u)}
-                        className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition shadow-sm text-center flex items-center justify-center space-x-1"
+                        className="flex-1 min-w-[90px] py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition shadow-sm text-center flex items-center justify-center space-x-1"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         <span>Direct Edit</span>
                       </button>
                       <button
                         onClick={() => setSelectedUserForEdit(u)}
-                        className="px-3 py-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-xl text-xs font-bold transition text-center"
+                        className="px-2.5 py-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-xl text-xs font-bold transition text-center"
                       >
                         Level
                       </button>
                       <button
                         onClick={() => handleViewUserTrades(u)}
-                        className="px-3 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition text-center"
+                        className="px-2.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition text-center"
                       >
                         Trades ({u.totalTrades})
                       </button>
+                      <button
+                        onClick={() => {
+                          setSelectedUserForPasswordReset(u);
+                          setResetPasswordValue('');
+                          setResetPasswordSuccess(null);
+                        }}
+                        className="px-2.5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition text-center flex items-center gap-1"
+                        title="Reset Trader Password"
+                      >
+                        <Key className="w-3.5 h-3.5" />
+                        <span>Pass</span>
+                      </button>
+                      {u.id !== 'usr_quotex_vip_99' && (
+                        <button
+                          onClick={() => handleDeleteTrader(u)}
+                          className="px-2.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition text-center flex items-center gap-1"
+                          title="Delete Trader Account"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1513,6 +1594,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                           >
                             Trades
                           </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUserForPasswordReset(u);
+                              setResetPasswordValue('');
+                              setResetPasswordSuccess(null);
+                            }}
+                            className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                            title="Reset Trader Password"
+                          >
+                            <Key className="w-3 h-3" />
+                            <span>Reset Pass</span>
+                          </button>
+                          {u.id !== 'usr_quotex_vip_99' && (
+                            <button
+                              onClick={() => handleDeleteTrader(u)}
+                              className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                              title="Delete Trader Account"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -3465,6 +3568,108 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: ADMIN RESET USER PASSWORD ================= */}
+      {selectedUserForPasswordReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-4 transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
+          }`}>
+            <div className="flex items-center justify-between pb-3 border-b border-gray-700/40">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Reset Trader Password</h3>
+                  <p className="text-xs text-gray-400 font-mono">{selectedUserForPasswordReset.name} • {selectedUserForPasswordReset.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedUserForPasswordReset(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {resetPasswordSuccess ? (
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-3">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                <p className="text-sm font-bold text-emerald-400">{resetPasswordSuccess}</p>
+                <p className="text-xs text-gray-400">The trader's password has been updated and a security notice email has been dispatched to their inbox.</p>
+                <button
+                  onClick={() => setSelectedUserForPasswordReset(null)}
+                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div>
+                  <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                    New Password for Trader
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    minLength={6}
+                    value={resetPasswordValue}
+                    onChange={(e) => setResetPasswordValue(e.target.value)}
+                    placeholder="Enter new strong password (min 6 chars)..."
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none focus:border-amber-500 ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-white'
+                    }`}
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setResetPasswordValue('Tr@der$' + Math.floor(100000 + Math.random() * 900000))}
+                      className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 font-semibold"
+                    >
+                      <Sparkles className="w-3 h-3" /> Generate Random Secure Password
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300/90 leading-relaxed">
+                  ⚠️ Resetting will immediately invalidate any existing sessions and overwrite the login password. The trader will receive an automated email notice.
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUserForPasswordReset(null)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition ${
+                      isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-white border-[#2e354b]'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isResettingPassword || !resetPasswordValue.trim()}
+                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-xs transition flex items-center justify-center space-x-1"
+                  >
+                    {isResettingPassword ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Resetting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Key className="w-3.5 h-3.5" />
+                        <span>Update Password</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

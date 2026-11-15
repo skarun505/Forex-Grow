@@ -499,12 +499,13 @@ export class AdminManager extends EventEmitter {
 
   public updateUser(
     userId: string,
-    updates: Partial<Pick<UserAccount, 'name' | 'vipLevel' | 'isKycVerified' | 'status' | 'currency' | 'realBalance' | 'demoBalance' | 'activeAccountType'>>
+    updates: Partial<Pick<UserAccount, 'name' | 'password' | 'vipLevel' | 'isKycVerified' | 'status' | 'currency' | 'realBalance' | 'demoBalance' | 'activeAccountType'>>
   ): { success: boolean; user?: UserAccount; error?: string } {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
 
     if (updates.name !== undefined) user.name = updates.name;
+    if (updates.password !== undefined) user.password = updates.password;
     if (updates.vipLevel !== undefined) user.vipLevel = updates.vipLevel;
     if (updates.isKycVerified !== undefined) user.isKycVerified = updates.isKycVerified;
     if (updates.status !== undefined) user.status = updates.status;
@@ -562,6 +563,34 @@ export class AdminManager extends EventEmitter {
     if (!user) return { success: false, error: 'User not found' };
     this.users.delete(userId);
     this.emit('user_deleted', userId);
+    SupabaseDb.deleteUser(userId);
+    return { success: true };
+  }
+
+  public resetUserPassword(
+    userId: string,
+    newPassword: string,
+    actor?: { id: string; name: string; role: 'ADMIN' | 'MANAGER' }
+  ): { success: boolean; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+    if (!newPassword || newPassword.trim().length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters' };
+    }
+    user.password = newPassword.trim();
+    this.emit('user_updated', user);
+    SupabaseDb.saveUser(user);
+
+    this.addAuditLog(
+      'sys_auth',
+      actor?.name || 'Staff Operator',
+      actor?.role || 'MANAGER',
+      'PASSWORD_RESET',
+      user.id,
+      user.name,
+      `Password successfully reset for trader ${user.name} (${user.email || user.id})`
+    );
+
     return { success: true };
   }
 

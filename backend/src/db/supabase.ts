@@ -197,6 +197,16 @@ export class SupabaseDb {
     }
   }
 
+  public static async deleteUser(userId: string): Promise<void> {
+    try {
+      await supabase.from('users').delete().eq('id', userId);
+      await supabase.from('trades').delete().eq('user_id', userId);
+      await supabase.from('transactions').delete().eq('user_id', userId);
+    } catch (err: any) {
+      console.error('Failed to delete user from Supabase:', err.message);
+    }
+  }
+
   // --- Coupons ---
   public static async loadCoupons(): Promise<any[]> {
     try {

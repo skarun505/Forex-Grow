@@ -824,6 +824,80 @@ app.delete('/api/manager/users/:userId', (req, res) => {
   res.json(result);
 });
 
+// Admin Password Reset Endpoint
+app.post('/api/admin/users/:userId/reset-password', (req, res) => {
+  const { newPassword, actorName } = req.body;
+  const result = adminManager.resetUserPassword(req.params.userId, newPassword, {
+    id: 'admin_root',
+    name: actorName || 'Super Admin',
+    role: 'ADMIN',
+  });
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const user = adminManager.getUser(req.params.userId);
+  if (user && user.email) {
+    emailService.sendMail({
+      to: user.email,
+      subject: 'Forex Grow: Security Notice - Your Password Has Been Updated',
+      html: `
+        <div style="background-color: #0c0f17; color: #ffffff; font-family: sans-serif; padding: 30px; max-width: 500px; margin: 0 auto; border-radius: 12px; border: 1px solid #1f2738;">
+          <h2 style="color: #00c679; margin: 0;">FOREX GROW</h2>
+          <p style="color: #64748b; font-size: 11px; text-transform: uppercase;">Security Alert Desk</p>
+          <div style="background: #141926; padding: 20px; border-radius: 8px; margin-top: 15px;">
+            <p style="color: #cbd5e1; font-size: 14px;">Hello <strong>${user.name}</strong>,</p>
+            <p style="color: #94a3b8; font-size: 13px;">Your trader account password has been updated by operations desk.</p>
+            <div style="background: #090c13; padding: 12px; border-radius: 6px; margin: 15px 0; font-family: monospace; font-size: 16px; color: #f59e0b; font-weight: bold;">
+              New Password: ${newPassword}
+            </div>
+            <p style="color: #64748b; font-size: 11px;">If you did not authorize this change, contact Forex Grow Customer Care immediately.</p>
+          </div>
+        </div>
+      `,
+    }).catch(err => console.error('[EMAIL] Failed to send password reset email:', err));
+  }
+
+  res.json({ success: true, message: 'Password reset successfully' });
+});
+
+// Manager Password Reset Endpoint
+app.post('/api/manager/users/:userId/reset-password', (req, res) => {
+  const { newPassword, actorName, actorId } = req.body;
+  const result = adminManager.resetUserPassword(req.params.userId, newPassword, {
+    id: actorId || 'mgr_01',
+    name: actorName || 'Operations Manager',
+    role: 'MANAGER',
+  });
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const user = adminManager.getUser(req.params.userId);
+  if (user && user.email) {
+    emailService.sendMail({
+      to: user.email,
+      subject: 'Forex Grow: Security Notice - Your Password Has Been Updated',
+      html: `
+        <div style="background-color: #0c0f17; color: #ffffff; font-family: sans-serif; padding: 30px; max-width: 500px; margin: 0 auto; border-radius: 12px; border: 1px solid #1f2738;">
+          <h2 style="color: #00c679; margin: 0;">FOREX GROW</h2>
+          <p style="color: #64748b; font-size: 11px; text-transform: uppercase;">Security Alert Desk</p>
+          <div style="background: #141926; padding: 20px; border-radius: 8px; margin-top: 15px;">
+            <p style="color: #cbd5e1; font-size: 14px;">Hello <strong>${user.name}</strong>,</p>
+            <p style="color: #94a3b8; font-size: 13px;">Your trader account password has been updated by operations desk.</p>
+            <div style="background: #090c13; padding: 12px; border-radius: 6px; margin: 15px 0; font-family: monospace; font-size: 16px; color: #f59e0b; font-weight: bold;">
+              New Password: ${newPassword}
+            </div>
+            <p style="color: #64748b; font-size: 11px;">If you did not authorize this change, contact Forex Grow Customer Care immediately.</p>
+          </div>
+        </div>
+      `,
+    }).catch(err => console.error('[EMAIL] Failed to send password reset email:', err));
+  }
+
+  res.json({ success: true, message: 'Password reset successfully' });
+});
+
 app.post('/api/admin/users/create', (req, res) => {
   const result = adminManager.createUser(req.body);
   if (!result.success) {
