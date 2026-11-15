@@ -125,6 +125,16 @@ export class AdminManager extends EventEmitter {
 
       const dbCoupons = await SupabaseDb.loadCoupons();
       if (dbCoupons.length > 0) {
+        const seededMap = new Map(this.coupons.map((c) => [c.code, c]));
+        for (const dbC of dbCoupons) {
+          const s = seededMap.get(dbC.code);
+          if (s) {
+            dbC.minDepositINR = s.minDepositINR || dbC.minDepositINR;
+            dbC.maxBonusINR = s.maxBonusINR || dbC.maxBonusINR;
+            dbC.minDepositUSD = s.minDepositUSD || dbC.minDepositUSD;
+            dbC.maxBonusUSD = s.maxBonusUSD || dbC.maxBonusUSD;
+          }
+        }
         const existingCodes = new Set(dbCoupons.map((c: any) => c.code));
         for (const seeded of this.coupons) {
           if (!existingCodes.has(seeded.code)) {
@@ -230,14 +240,42 @@ export class AdminManager extends EventEmitter {
     };
     this.users.set(opsManager.id, opsManager);
 
-    // Standard Seed Coupons (Requested: 10k, 50k, 100k, 500k, 1M with 5%, 10%, 12%, 15%, 20%)
+    // Standard Seed Coupons with explicit INR and USD values
     this.coupons = [
+      {
+        id: 'cpn_welcome50',
+        code: 'WELCOME50',
+        bonusPercentage: 50,
+        minDepositINR: 500,
+        minDepositUSD: 20,
+        maxBonusINR: 25000,
+        maxBonusUSD: 250,
+        usageCount: 0,
+        maxUsage: 1000,
+        isActive: true,
+        createdAt: Date.now(),
+      },
+      {
+        id: 'cpn_vip100',
+        code: 'VIP100',
+        bonusPercentage: 100,
+        minDepositINR: 2500,
+        minDepositUSD: 50,
+        maxBonusINR: 50000,
+        maxBonusUSD: 500,
+        usageCount: 0,
+        maxUsage: 1000,
+        isActive: true,
+        createdAt: Date.now(),
+      },
       {
         id: 'cpn_10k',
         code: 'GROW10K',
         bonusPercentage: 5,
-        maxBonusUSD: 100,
-        minDepositUSD: 105, // ~₹10,000 INR
+        minDepositINR: 10000,
+        minDepositUSD: 105,
+        maxBonusINR: 1000,
+        maxBonusUSD: 10.5,
         usageCount: 0,
         maxUsage: 1000,
         isActive: true,
@@ -247,8 +285,10 @@ export class AdminManager extends EventEmitter {
         id: 'cpn_50k',
         code: 'GROW50K',
         bonusPercentage: 10,
-        maxBonusUSD: 500,
-        minDepositUSD: 526, // ~₹50,000 INR
+        minDepositINR: 50000,
+        minDepositUSD: 526,
+        maxBonusINR: 5000,
+        maxBonusUSD: 52.6,
         usageCount: 0,
         maxUsage: 500,
         isActive: true,
@@ -258,8 +298,10 @@ export class AdminManager extends EventEmitter {
         id: 'cpn_100k',
         code: 'GROW100K',
         bonusPercentage: 12,
-        maxBonusUSD: 1200,
-        minDepositUSD: 1052, // ~₹100,000 INR
+        minDepositINR: 100000,
+        minDepositUSD: 1052,
+        maxBonusINR: 12000,
+        maxBonusUSD: 126,
         usageCount: 0,
         maxUsage: 500,
         isActive: true,
@@ -269,8 +311,10 @@ export class AdminManager extends EventEmitter {
         id: 'cpn_500k',
         code: 'GROW500K',
         bonusPercentage: 15,
-        maxBonusUSD: 7500,
-        minDepositUSD: 5263, // ~₹500,000 INR
+        minDepositINR: 500000,
+        minDepositUSD: 5263,
+        maxBonusINR: 75000,
+        maxBonusUSD: 789,
         usageCount: 0,
         maxUsage: 250,
         isActive: true,
@@ -280,8 +324,10 @@ export class AdminManager extends EventEmitter {
         id: 'cpn_1m',
         code: 'GROW1M',
         bonusPercentage: 20,
-        maxBonusUSD: 20000,
-        minDepositUSD: 10526, // ~₹1,000,000 INR
+        minDepositINR: 1000000,
+        minDepositUSD: 10526,
+        maxBonusINR: 200000,
+        maxBonusUSD: 2105,
         usageCount: 0,
         maxUsage: 100,
         isActive: true,
@@ -881,8 +927,11 @@ export class AdminManager extends EventEmitter {
   public createCoupon(params: {
     code: string;
     bonusPercentage: number;
-    maxBonusUSD: number;
-    minDepositUSD: number;
+    maxBonusUSD?: number;
+    minDepositUSD?: number;
+    maxBonusINR?: number;
+    minDepositINR?: number;
+    currency?: 'INR' | 'USD';
     maxUsage: number;
   }): { success: boolean; coupon?: PromoCoupon; error?: string } {
     const upperCode = params.code.trim().toUpperCase();
@@ -891,12 +940,32 @@ export class AdminManager extends EventEmitter {
       return { success: false, error: 'Coupon code already exists' };
     }
 
+    const rate = 95.0;
+    let minUSD = params.minDepositUSD || 0;
+    let maxBonusUSD = params.maxBonusUSD || 0;
+    let minINR = params.minDepositINR || 0;
+    let maxBonusINR = params.maxBonusINR || 0;
+
+    if (params.currency === 'INR' || (!params.minDepositUSD && params.minDepositINR)) {
+      minINR = params.minDepositINR || 0;
+      maxBonusINR = params.maxBonusINR || 0;
+      minUSD = Number((minINR / rate).toFixed(2));
+      maxBonusUSD = Number((maxBonusINR / rate).toFixed(2));
+    } else {
+      minUSD = params.minDepositUSD || 0;
+      maxBonusUSD = params.maxBonusUSD || 0;
+      if (!minINR) minINR = Math.round(minUSD * rate);
+      if (!maxBonusINR) maxBonusINR = Math.round(maxBonusUSD * rate);
+    }
+
     const newCoupon: PromoCoupon = {
       id: `cpn_${uuidv4().slice(0, 8)}`,
       code: upperCode,
       bonusPercentage: params.bonusPercentage,
-      maxBonusUSD: params.maxBonusUSD,
-      minDepositUSD: params.minDepositUSD,
+      maxBonusUSD,
+      minDepositUSD: minUSD,
+      maxBonusINR,
+      minDepositINR: minINR,
       usageCount: 0,
       maxUsage: params.maxUsage || 500,
       isActive: true,
@@ -925,26 +994,41 @@ export class AdminManager extends EventEmitter {
     return this.coupons.length < initial;
   }
 
-  public validateCoupon(code: string, depositAmount: number): { valid: boolean; bonus: number; message: string } {
+  public validateCoupon(
+    code: string,
+    depositAmount: number,
+    currency: 'INR' | 'USD' = 'INR'
+  ): { valid: boolean; bonus: number; bonusPercentage: number; message: string; coupon?: PromoCoupon } {
     const coupon = this.coupons.find((c) => c.code === code.trim().toUpperCase() && c.isActive);
-    if (!coupon) return { valid: false, bonus: 0, message: 'Invalid or expired promo code' };
-    if (depositAmount < coupon.minDepositUSD) {
+    if (!coupon) return { valid: false, bonus: 0, bonusPercentage: 0, message: 'Invalid or expired promo code' };
+
+    const rate = 95.0;
+    const isINR = currency === 'INR';
+    const minRequired = isINR ? (coupon.minDepositINR || coupon.minDepositUSD * rate) : coupon.minDepositUSD;
+    const maxBonusCap = isINR ? (coupon.maxBonusINR || coupon.maxBonusUSD * rate) : coupon.maxBonusUSD;
+
+    if (depositAmount < minRequired) {
       return {
         valid: false,
         bonus: 0,
-        message: `Min deposit for ${coupon.code} is $${coupon.minDepositUSD}`,
+        bonusPercentage: coupon.bonusPercentage,
+        message: `Min deposit for ${coupon.code} is ${isINR ? '₹' + minRequired.toLocaleString() : '$' + minRequired}`,
       };
     }
+
     if (coupon.usageCount >= coupon.maxUsage) {
-      return { valid: false, bonus: 0, message: 'Coupon usage limit reached' };
+      return { valid: false, bonus: 0, bonusPercentage: coupon.bonusPercentage, message: 'Coupon usage limit reached' };
     }
 
-    const calculatedBonus = Math.min(coupon.maxBonusUSD, depositAmount * (coupon.bonusPercentage / 100));
-    coupon.usageCount++;
+    const rawBonus = depositAmount * (coupon.bonusPercentage / 100);
+    const calculatedBonus = Math.min(maxBonusCap, rawBonus);
+
     return {
       valid: true,
       bonus: Number(calculatedBonus.toFixed(2)),
-      message: `+${coupon.bonusPercentage}% bonus ($${calculatedBonus.toFixed(2)}) applied!`,
+      bonusPercentage: coupon.bonusPercentage,
+      coupon,
+      message: `+${coupon.bonusPercentage}% bonus (${isINR ? '₹' + calculatedBonus.toLocaleString() : '$' + calculatedBonus.toFixed(2)}) applied!`,
     };
   }
 

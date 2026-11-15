@@ -89,8 +89,9 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newBonusPct, setNewBonusPct] = useState(10);
-  const [newMaxBonus, setNewMaxBonus] = useState(500);
-  const [newMinDeposit, setNewMinDeposit] = useState(20);
+  const [couponCurrency, setCouponCurrency] = useState<'INR' | 'USD'>('INR');
+  const [newMaxBonus, setNewMaxBonus] = useState(5000);
+  const [newMinDeposit, setNewMinDeposit] = useState(1000);
   const [newMaxUsage, setNewMaxUsage] = useState(500);
 
   // Individual Risk Engine State
@@ -410,14 +411,23 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const handleCreateCoupon = async () => {
     if (!newCouponCode.trim()) return;
     try {
+      const isINR = couponCurrency === 'INR';
+      const minUSD = isINR ? Number((newMinDeposit / 95).toFixed(2)) : newMinDeposit;
+      const maxBonusUSD = isINR ? Number((newMaxBonus / 95).toFixed(2)) : newMaxBonus;
+      const minINR = isINR ? newMinDeposit : Math.round(newMinDeposit * 95);
+      const maxBonusINR = isINR ? newMaxBonus : Math.round(newMaxBonus * 95);
+
       const res = await fetch(apiUrl('/api/manager/coupons'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: newCouponCode.trim().toUpperCase(),
           bonusPercentage: newBonusPct,
-          maxBonusUSD: newMaxBonus,
-          minDepositUSD: newMinDeposit,
+          currency: couponCurrency,
+          minDepositUSD: minUSD,
+          maxBonusUSD: maxBonusUSD,
+          minDepositINR: minINR,
+          maxBonusINR: maxBonusINR,
           maxUsage: newMaxUsage,
         }),
       });
@@ -2041,11 +2051,25 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     </div>
                     <div className="flex justify-between">
                       <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Max Bonus Cap:</span>
-                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>${cpn.maxBonusUSD}</span>
+                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        {displayCurrency === 'INR' 
+                          ? `₹${(cpn.maxBonusINR || Math.round(cpn.maxBonusUSD * 95)).toLocaleString()}` 
+                          : `$${cpn.maxBonusUSD}`}
+                        <span className="text-[10px] text-gray-400 ml-1 font-normal">
+                          ({displayCurrency === 'INR' ? `$${cpn.maxBonusUSD}` : `₹${(cpn.maxBonusINR || Math.round(cpn.maxBonusUSD * 95)).toLocaleString()}`})
+                        </span>
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Min Deposit Required:</span>
-                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>${cpn.minDepositUSD}</span>
+                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        {displayCurrency === 'INR' 
+                          ? `₹${(cpn.minDepositINR || Math.round(cpn.minDepositUSD * 95)).toLocaleString()}` 
+                          : `$${cpn.minDepositUSD}`}
+                        <span className="text-[10px] text-gray-400 ml-1 font-normal">
+                          ({displayCurrency === 'INR' ? `$${cpn.minDepositUSD}` : `₹${(cpn.minDepositINR || Math.round(cpn.minDepositUSD * 95)).toLocaleString()}`})
+                        </span>
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className={isLight ? 'text-slate-500' : 'text-gray-400'}>Total Redeemed:</span>
@@ -2841,9 +2865,52 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
             </h3>
 
             <div className="space-y-3">
+              {/* Currency Selector */}
+              <div>
+                <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                  Input Currency Mode
+                </label>
+                <div className="flex rounded-xl bg-black/20 p-1 border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (couponCurrency !== 'INR') {
+                        setCouponCurrency('INR');
+                        setNewMinDeposit((prev) => Math.round(prev * 95));
+                        setNewMaxBonus((prev) => Math.round(prev * 95));
+                      }
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-black transition flex items-center justify-center space-x-1.5 ${
+                      couponCurrency === 'INR'
+                        ? 'bg-emerald-500 text-slate-950 shadow-md'
+                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <span>🇮🇳 ₹ INR (Primary)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (couponCurrency !== 'USD') {
+                        setCouponCurrency('USD');
+                        setNewMinDeposit((prev) => Math.max(1, Math.round(prev / 95)));
+                        setNewMaxBonus((prev) => Math.max(1, Math.round(prev / 95)));
+                      }
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-black transition flex items-center justify-center space-x-1.5 ${
+                      couponCurrency === 'USD'
+                        ? 'bg-emerald-500 text-slate-950 shadow-md'
+                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <span>🇺🇸 $ USD</span>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                  Coupon Code (e.g. VIP2026)
+                  Coupon Code (e.g. GROW10K, VIP2026)
                 </label>
                 <input
                   type="text"
@@ -2869,7 +2936,16 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                   />
                 </div>
                 <div>
-                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Max Bonus ($)</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      Max Bonus ({couponCurrency === 'INR' ? '₹' : '$'})
+                    </label>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      {couponCurrency === 'INR' 
+                        ? `≈ $${(newMaxBonus / 95).toFixed(2)}` 
+                        : `≈ ₹${Math.round(newMaxBonus * 95).toLocaleString()}`}
+                    </span>
+                  </div>
                   <input
                     type="number"
                     value={newMaxBonus}
@@ -2883,7 +2959,16 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Min Deposit ($)</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                      Min Deposit ({couponCurrency === 'INR' ? '₹' : '$'})
+                    </label>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      {couponCurrency === 'INR' 
+                        ? `≈ $${(newMinDeposit / 95).toFixed(2)}` 
+                        : `≈ ₹${Math.round(newMinDeposit * 95).toLocaleString()}`}
+                    </span>
+                  </div>
                   <input
                     type="number"
                     value={newMinDeposit}

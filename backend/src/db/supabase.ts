@@ -202,17 +202,36 @@ export class SupabaseDb {
     try {
       const { data, error } = await supabase.from('coupons').select('*');
       if (error) throw error;
-      return (data || []).map((row) => ({
-        id: `cpn_${row.code}`,
-        code: row.code,
-        bonusPercentage: parseFloat(row.bonus_percentage),
-        minDepositUSD: parseFloat(row.min_deposit_usd),
-        maxBonusUSD: parseFloat(row.max_bonus_usd),
-        isActive: row.is_active,
-        usageCount: row.total_uses,
-        maxUsage: 500,
-        createdAt: new Date(row.created_at).getTime(),
-      }));
+      return (data || []).map((row) => {
+        const minUsd = parseFloat(row.min_deposit_usd);
+        const maxUsd = parseFloat(row.max_bonus_usd);
+        let minInr = Math.round(minUsd * 95);
+        let maxInr = Math.round(maxUsd * 95);
+
+        // Clean integer INR milestones for standard named codes
+        if (row.code === 'GROW10K') { minInr = 10000; maxInr = 1000; }
+        else if (row.code === 'GROW50K') { minInr = 50000; maxInr = 5000; }
+        else if (row.code === 'GROW100K') { minInr = 100000; maxInr = 12000; }
+        else if (row.code === 'GROW500K') { minInr = 500000; maxInr = 75000; }
+        else if (row.code === 'GROW1M') { minInr = 1000000; maxInr = 200000; }
+        else if (row.code === 'WELCOME50') { minInr = 500; maxInr = 25000; }
+        else if (row.code === 'VIP100') { minInr = 2500; maxInr = 50000; }
+        else if (row.code === 'FOREXGROW50') { minInr = 1000; maxInr = 10000; }
+
+        return {
+          id: `cpn_${row.code}`,
+          code: row.code,
+          bonusPercentage: parseFloat(row.bonus_percentage),
+          minDepositUSD: minUsd,
+          maxBonusUSD: maxUsd,
+          minDepositINR: minInr,
+          maxBonusINR: maxInr,
+          isActive: row.is_active,
+          usageCount: row.total_uses,
+          maxUsage: 500,
+          createdAt: new Date(row.created_at).getTime(),
+        };
+      });
     } catch (err: any) {
       console.error('Failed to load coupons from Supabase:', err.message);
       return [];

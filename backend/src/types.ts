@@ -217,6 +217,8 @@ export interface PromoCoupon {
   bonusPercentage: number;
   maxBonusUSD: number;
   minDepositUSD: number;
+  maxBonusINR?: number;
+  minDepositINR?: number;
   usageCount: number;
   maxUsage: number;
   isActive: boolean;

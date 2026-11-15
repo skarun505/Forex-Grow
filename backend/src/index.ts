@@ -933,6 +933,21 @@ app.post('/api/admin/transactions/:id/reject', (req, res) => {
   res.json(result);
 });
 
+// Public & Client Coupon Validation
+app.get('/api/coupons', (_req: express.Request, res: express.Response) => {
+  res.json(adminManager.getCoupons().filter((c) => c.isActive));
+});
+
+app.post('/api/coupons/validate', (req: express.Request, res: express.Response) => {
+  const { code, depositAmount, currency } = req.body;
+  const result = adminManager.validateCoupon(
+    String(code || ''),
+    Number(depositAmount) || 0,
+    (currency === 'USD' ? 'USD' : 'INR')
+  );
+  res.json(result);
+});
+
 app.get('/api/admin/coupons', (req, res) => {
   res.json(adminManager.getCoupons());
 });
@@ -1106,14 +1121,7 @@ app.get('/api/manager/coupons', (_req: express.Request, res: express.Response) =
 });
 
 app.post('/api/manager/coupons', (req: express.Request, res: express.Response) => {
-  const { code, bonusPercentage, maxBonusUSD, minDepositUSD, maxUsage } = req.body;
-  const result = adminManager.createCoupon({
-    code: String(code || '').toUpperCase().trim(),
-    bonusPercentage: Number(bonusPercentage) || 10,
-    maxBonusUSD: Number(maxBonusUSD) || 500,
-    minDepositUSD: Number(minDepositUSD) || 20,
-    maxUsage: Number(maxUsage) || 500,
-  });
+  const result = adminManager.createCoupon(req.body);
   if (!result.success) return res.status(400).json({ error: result.error });
   res.json(result);
 });

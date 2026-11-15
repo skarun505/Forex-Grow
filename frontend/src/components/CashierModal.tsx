@@ -92,6 +92,10 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   const [depositAmountInput, setDepositAmountInput] = useState<string>(initialLocalAmount);
   const [promoCodeInput, setPromoCodeInput] = useState<string>('');
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [promoBonusAmount, setPromoBonusAmount] = useState<number>(0);
+  const [promoBonusPct, setPromoBonusPct] = useState<number>(0);
+  const [promoSuccessMsg, setPromoSuccessMsg] = useState<string | null>(null);
+  const [isValidatingPromo, setIsValidatingPromo] = useState<boolean>(false);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [utrNumber, setUtrNumber] = useState('');
@@ -159,13 +163,8 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
   };
   const depositPresetChips = getDepositPresetChips(account.currency);
 
-  // Promo Calculation (only if manually applied!)
-  let bonusAmountLocal = 0;
-  if (appliedPromo === 'WELCOME50') {
-    bonusAmountLocal = numericDeposit * 0.5;
-  } else if (appliedPromo === 'VIP100') {
-    bonusAmountLocal = numericDeposit * 1.0;
-  }
+  // Dynamic Server-Validated Promo Calculation
+  const bonusAmountLocal = appliedPromo ? promoBonusAmount : 0;
   const totalCreditedLocal = numericDeposit + bonusAmountLocal;
 
   // Generate standard scannable UPI string for all Indian apps (GPay, PhonePe, Paytm, Navi, BHIM)
@@ -188,18 +187,45 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) =
 
   if (!isOpen) return null;
 
-  const handleApplyPromo = () => {
+  const handleApplyPromo = async () => {
     setPromoError(null);
+    setPromoSuccessMsg(null);
     const code = promoCodeInput.trim().toUpperCase();
     if (!code) {
       setPromoError('Please enter a coupon code');
       return;
     }
-    if (code === 'WELCOME50' || code === 'VIP100' || code === 'FOREXGROW50') {
-      setAppliedPromo(code);
-      setPromoError(null);
-    } else {
-      setPromoError('Invalid coupon code. Try WELCOME50 or VIP100');
+    if (numericDeposit <= 0) {
+      setPromoError('Please enter a valid deposit amount first');
+      return;
+    }
+    setIsValidatingPromo(true);
+    try {
+      const res = await fetch(apiUrl('/api/coupons/validate'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          depositAmount: numericDeposit,
+          currency: account.currency || 'INR',
+        }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedPromo(code);
+        setPromoBonusAmount(data.bonus || 0);
+        setPromoBonusPct(data.bonusPercentage || 0);
+        setPromoSuccessMsg(data.message || 'Promo code applied!');
+      } else {
+        setAppliedPromo(null);
+        setPromoBonusAmount(0);
+        setPromoBonusPct(0);
+        setPromoError(data.message || 'Invalid or ineligible coupon code.');
+      }
+    } catch {
+      setPromoError('Unable to connect to verification server. Please retry.');
+    } finally {
+      setIsValidatingPromo(false);
     }
   };
 
@@ -661,7 +687,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                     {appliedPromo && (
                       <span className="text-xs text-amber-500 font-black flex items-center space-x-1">
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span>+{appliedPromo === 'VIP100' ? '100%' : '50%'} Bonus Applied</span>
+                        <span>+{promoBonusPct}% Bonus Applied ({curr.symbol}{promoBonusAmount.toLocaleString()})</span>
                       </span>
                     )}
                   </label>
@@ -670,7 +696,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                       type="text"
                       value={promoCodeInput}
                       onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-                      placeholder="Enter promo code (e.g. WELCOME50)"
+                      placeholder="Enter promo code (e.g. GROW10K, WELCOME50)"
                       className={`flex-1 border rounded-2xl px-4 py-2.5 text-xs font-mono font-bold uppercase focus:outline-none ${
                         isLight 
                           ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400' 
@@ -679,12 +705,19 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                     />
                     <button
                       type="button"
+                      disabled={isValidatingPromo}
                       onClick={handleApplyPromo}
-                      className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-2xl transition"
+                      className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-2xl transition"
                     >
-                      Apply
+                      {isValidatingPromo ? 'Checking...' : 'Apply'}
                     </button>
                   </div>
+                  {promoSuccessMsg && (
+                    <div className="text-[11px] text-emerald-400 mt-1 font-semibold flex items-center space-x-1">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{promoSuccessMsg}</span>
+                    </div>
+                  )}
                   {promoError && (
                     <div className="text-[11px] text-rose-500 mt-1 font-semibold">{promoError}</div>
                   )}
