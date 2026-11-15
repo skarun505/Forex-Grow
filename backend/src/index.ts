@@ -7,13 +7,23 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { MarketEngine } from './market/MarketEngine.js';
 import { SettlementEngine } from './engine/SettlementEngine.js';
 import { AdminManager } from './admin/AdminManager.js';
+import { emailService } from './services/EmailService.js';
+import { securityFirewall } from './security/SecurityFirewall.js';
 import { WSClientAction, WSServerAction } from './types.js';
 import { SupabaseDb } from './db/supabase.js';
 
 const app = express();
+
+// ================= LAYER 1: WAF & STRICT HTTP SECURITY HEADERS =================
+app.use(securityFirewall.getHelmetMiddleware());
+
+// Cross-Origin Resource Sharing (CORS) Configuration
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Global Layer 7 DDoS & Scraping Rate Limiter (300 requests/minute per IP)
+app.use('/api', securityFirewall.getGlobalApiLimiter());
 
 // Initialize Supabase connection
 SupabaseDb.init();
@@ -197,7 +207,126 @@ app.post('/api/auth/logout', (req, res) => {
   });
 });
 
-app.post('/api/auth/login', (req, res) => {
+// In-memory store for pending registration OTP verifications
+interface PendingRegistrationOtp {
+  email: string;
+  name: string;
+  password?: string;
+  phone?: string;
+  currency?: string;
+  otp: string;
+  expiresAt: number;
+}
+const pendingRegisterOtps = new Map<string, PendingRegistrationOtp>();
+
+// ================= LAYER 2: AUTHENTICATION & REGISTRATION ENDPOINTS =================
+
+// Send 6-digit registration OTP via Brevo Email
+app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), async (req, res) => {
+  const { email, name, phone, password, currency } = req.body;
+  const cleanEmail = securityFirewall.sanitizeString(email).toLowerCase();
+  const cleanName = securityFirewall.sanitizeString(name) || 'Trader';
+  const cleanPhone = securityFirewall.sanitizeString(phone);
+
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return res.status(400).json({ error: 'Please provide a valid email address' });
+  }
+
+  // Check if trader already exists
+  const existing = adminManager.getAllAccounts().find(u => u.email && u.email.toLowerCase() === cleanEmail);
+  if (existing) {
+    return res.status(400).json({ error: 'An account with this email address is already registered. Please log in.' });
+  }
+
+  // Generate 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  pendingRegisterOtps.set(cleanEmail, {
+    email: cleanEmail,
+    name: cleanName,
+    phone: cleanPhone,
+    password: password || 'forexgrow123',
+    currency: currency === 'USD' ? 'USD' : 'INR',
+    otp,
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes validity
+  });
+
+  try {
+    const sendRes = await emailService.sendOtpEmail(cleanEmail, otp, cleanName);
+    if (!sendRes.success) {
+      console.warn('[AUTH] Email sending failed, OTP logged for verification:', otp);
+    }
+    return res.json({
+      success: true,
+      message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to dispatch verification email. Please try again.' });
+  }
+});
+
+// Verify OTP & Activate Trader Account
+app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(), (req, res) => {
+  const { email, otp } = req.body;
+  const cleanEmail = securityFirewall.sanitizeString(email).toLowerCase();
+  const cleanOtp = securityFirewall.sanitizeString(otp).trim();
+
+  const record = pendingRegisterOtps.get(cleanEmail);
+  if (!record) {
+    return res.status(400).json({ error: 'No active OTP verification session found for this email. Please request a new code.' });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    pendingRegisterOtps.delete(cleanEmail);
+    return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+  }
+
+  if (record.otp !== cleanOtp) {
+    return res.status(400).json({ error: 'Invalid verification code. Please check your email and try again.' });
+  }
+
+  // OTP verified! Create official client account
+  const createResult = adminManager.createUser({
+    name: record.name,
+    email: record.email,
+    phone: record.phone,
+    password: record.password,
+    currency: record.currency as any || 'INR',
+    realBalance: 0,
+    demoBalance: 10000,
+    vipLevel: 'STANDARD',
+  });
+
+  if (!createResult.success || !createResult.user) {
+    return res.status(500).json({ error: createResult.error || 'Failed to create trader account.' });
+  }
+
+  pendingRegisterOtps.delete(cleanEmail);
+
+  // Generate login session token
+  const sessionToken = `jwt_session_${createResult.user.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  let accountSessions = traderAccountSessions.get(createResult.user.id);
+  if (!accountSessions) {
+    accountSessions = new Map<string, ActiveSession>();
+    traderAccountSessions.set(createResult.user.id, accountSessions);
+  }
+  accountSessions.set(sessionToken, {
+    token: sessionToken,
+    userId: createResult.user.id,
+    userName: createResult.user.name,
+    role: 'TRADER',
+    loginTime: Date.now(),
+    lastSeen: Date.now(),
+  });
+
+  res.json({
+    success: true,
+    user: createResult.user,
+    token: sessionToken,
+    message: 'Account successfully registered and verified!',
+  });
+});
+
+app.post('/api/auth/login', securityFirewall.getAuthRateLimiter(), (req, res) => {
   const { identifier, email, phone, password } = req.body;
   const rawId = (identifier || email || phone || '').toString().trim();
   const rawPass = (password || '').toString();
@@ -381,7 +510,7 @@ app.get('/api/payment/settings', (_req, res) => {
   });
 });
 
-app.post('/api/payment/deposit-proof', (req, res) => {
+app.post('/api/payment/deposit-proof', securityFirewall.getCashierRateLimiter(), (req, res) => {
   const { userId, amount, currency, amountUSD, utrNumber, proofImage, promoCode, paymentRail, bankDetails } = req.body;
   const currentAcc = settlementEngine.getAccount();
   const targetUserId = userId || currentAcc?.id;
@@ -454,7 +583,7 @@ app.post('/api/payment/deposit-proof', (req, res) => {
   });
 });
 
-app.post('/api/payment/withdraw-request', (req, res) => {
+app.post('/api/payment/withdraw-request', securityFirewall.getCashierRateLimiter(), (req, res) => {
   const { userId, amount, amountUSD, payoutMethod, bankDetails } = req.body;
   const currentAcc = settlementEngine.getAccount();
   const targetUserId = userId || currentAcc?.id;
@@ -511,6 +640,18 @@ app.post('/api/payment/withdraw-request', (req, res) => {
     activeAccountType: user.activeAccountType,
     currency: user.currency,
   });
+
+  // Automated Security Notification: Dispatch withdrawal requested email
+  if (user.email) {
+    emailService.sendWithdrawalRequestedEmail(
+      user.email,
+      user.name,
+      txn.amount,
+      user.currency,
+      txn.id,
+      txn.method
+    ).catch(e => console.error('[EMAIL] Failed to dispatch withdrawal requested email:', e));
+  }
 
   res.json({
     success: true,
@@ -623,6 +764,18 @@ app.post('/api/payment/novupay/payout', (req, res) => {
     activeAccountType: user.activeAccountType,
     currency: user.currency,
   });
+
+  // Automated Security Notification: Dispatch withdrawal requested email
+  if (user.email) {
+    emailService.sendWithdrawalRequestedEmail(
+      user.email,
+      user.name,
+      txn.amount,
+      user.currency,
+      txn.id,
+      txn.method
+    ).catch(e => console.error('[EMAIL] Failed to dispatch withdrawal requested email:', e));
+  }
 
   res.json({
     success: true,
@@ -922,6 +1075,18 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
       demoBalance: user.demoBalance,
       realBalance: user.realBalance,
     });
+
+    // Automated Security Notification: Dispatch withdrawal approved email
+    if (tx.type === 'WITHDRAWAL' && user.email) {
+      emailService.sendWithdrawalApprovedEmail(
+        user.email,
+        user.name,
+        tx.amount,
+        tx.currency,
+        tx.id,
+        tx.method
+      ).catch(e => console.error('[EMAIL] Failed to dispatch withdrawal approved email:', e));
+    }
   }
 
   res.json(result);
@@ -947,6 +1112,11 @@ app.post('/api/admin/transactions/:id/reject', (req, res) => {
   }
 
   res.json(result);
+});
+
+// Security Event Logs & Threat Monitor Endpoint
+app.get('/api/admin/security/audit-logs', (_req: express.Request, res: express.Response) => {
+  res.json(securityFirewall.getRecentSecurityLogs());
 });
 
 // Public & Client Coupon Validation
@@ -1243,10 +1413,22 @@ app.post('/api/manager/transactions/:id/approve', (req: express.Request, res: ex
     broadcast({
       type: 'TRANSACTION_SUCCESS',
       userId: user.id,
-      message: `Deposit of ${user.currency} ${(result.transaction!.amount * (user.currency === 'INR' ? 95 : 1)).toFixed(2)} has been approved and credited to your live account!`,
+      message: `${result.transaction!.type === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'} of ${user.currency} ${(result.transaction!.amount * (user.currency === 'INR' ? 95 : 1)).toFixed(2)} has been approved and processed!`,
       demoBalance: user.demoBalance,
       realBalance: user.realBalance,
     });
+
+    // Automated Security Notification: Dispatch withdrawal approved email
+    if (result.transaction!.type === 'WITHDRAWAL' && user.email) {
+      emailService.sendWithdrawalApprovedEmail(
+        user.email,
+        user.name,
+        result.transaction!.amount,
+        result.transaction!.currency,
+        result.transaction!.id,
+        result.transaction!.method
+      ).catch(e => console.error('[EMAIL] Failed to dispatch withdrawal approved email:', e));
+    }
   }
   res.json(result);
 });
@@ -1518,11 +1700,17 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'PLACE_TRADE': {
+          const validated = securityFirewall.validateTradeAmount(action.amount);
+          if (!validated.valid) {
+            sendToClient(ws, { type: 'ERROR', message: validated.error || 'Invalid trade amount' });
+            break;
+          }
+
           const result = settlementEngine.placeTrade({
             assetId: action.assetId,
             direction: action.direction,
-            amount: action.amount,
-            duration: action.duration,
+            amount: validated.amount,
+            duration: Math.max(5, Math.min(3600, Number(action.duration) || 30)),
           });
 
           if ('error' in result) {
