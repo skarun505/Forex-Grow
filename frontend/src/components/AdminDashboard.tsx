@@ -31,6 +31,7 @@ import {
   Sun,
   Moon,
   UserPlus,
+  Mail,
   Eye,
   Image as ImageIcon,
   Check,
@@ -147,6 +148,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
   // New Trader Account Creation State
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [createStep, setCreateStep] = useState<'FORM' | 'OTP'>('FORM');
+  const [createOtpCode, setCreateOtpCode] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [createOtpError, setCreateOtpError] = useState<string | null>(null);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
@@ -691,14 +697,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     }
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateOtpError(null);
     if (!newUserName.trim() || !newUserEmail.trim()) {
-      alert('Name and Email are required');
+      alert('Full Name and Email address are required');
       return;
     }
+    if (!newUserEmail.includes('@')) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    setIsSendingOtp(true);
     try {
-      const res = await fetch(apiUrl('/api/admin/users/create'), {
+      const res = await fetch(apiUrl('/api/auth/send-register-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -707,19 +720,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           phone: newUserPhone.trim() || undefined,
           password: newUserPassword.trim() || 'Trader@2026',
           currency: newUserCurrency,
-          activeAccountType: newUserAccountType,
+          demoBalance: Number(newUserDemoBal),
+          realBalance: Number(newUserRealBal),
+          vipLevel: newUserVip,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to send OTP verification email');
+        return;
+      }
+      setCreateStep('OTP');
+      setCreateOtpCode('');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to connect to backend server');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtpAndCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateOtpError(null);
+    if (!createOtpCode.trim() || createOtpCode.trim().length < 6) {
+      setCreateOtpError('Please enter the complete 6-digit OTP code');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const res = await fetch(apiUrl('/api/auth/verify-register-otp'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newUserEmail.trim(),
+          otp: createOtpCode.trim(),
           demoBalance: Number(newUserDemoBal),
           realBalance: Number(newUserRealBal),
           vipLevel: newUserVip,
           isKycVerified: newUserKyc,
-          status: newUserStatus,
+          actor: { id: 'admin_root', name: 'Super Admin', role: 'ADMIN' },
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Failed to create user');
+      if (!res.ok || !data.success || !data.user) {
+        setCreateOtpError(data.error || 'Invalid or expired OTP code');
         return;
       }
+
       setCreatedSlip({
         name: data.user.name,
         id: data.user.id,
@@ -731,10 +780,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         realBalance: data.user.realBalance,
         url: window.location.origin,
       });
+      setCreateStep('FORM');
       fetchAdminData();
     } catch (err) {
       console.error(err);
-      alert('Failed to connect to backend server');
+      setCreateOtpError('Network error while verifying OTP');
+    } finally {
+      setIsVerifyingOtp(false);
     }
   };
 
@@ -3597,7 +3649,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             {createdSlip ? (
               <div className="space-y-4 py-2">
                 <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono space-y-2">
-                  <div className="font-sans font-bold text-emerald-400 text-sm">✅ Trader Account Created & Activated!</div>
+                  <div className="font-sans font-bold text-emerald-400 text-sm">✅ Trader Account Verified & Created!</div>
                   <div><strong>Name:</strong> {createdSlip.name}</div>
                   <div><strong>Email:</strong> {createdSlip.email}</div>
                   <div><strong>Phone:</strong> {createdSlip.phone}</div>
@@ -3622,6 +3674,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   type="button"
                   onClick={() => {
                     setCreatedSlip(null);
+                    setCreateStep('FORM');
                     setIsCreateUserModalOpen(false);
                   }}
                   className="w-full py-2 bg-white/10 text-xs font-bold rounded-xl"
@@ -3629,8 +3682,80 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   Done
                 </button>
               </div>
+            ) : createStep === 'OTP' ? (
+              <form onSubmit={handleVerifyOtpAndCreate} className="space-y-4 py-2">
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <h4 className={`font-black text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>Email Verification Required</h4>
+                  <p className="text-xs text-gray-400">
+                    A 6-digit security OTP has been dispatched to:
+                  </p>
+                  <div className="font-mono font-bold text-amber-400 bg-black/40 px-3 py-1 rounded-lg inline-block text-xs border border-amber-500/30">
+                    {newUserEmail}
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Obtain the verification code from the client to authorize and activate their trading account.
+                  </p>
+                </div>
+
+                {createOtpError && (
+                  <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold text-center">
+                    {createOtpError}
+                  </div>
+                )}
+
+                <div>
+                  <label className={`text-xs font-bold block mb-1 text-center ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                    Enter 6-Digit Email OTP *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    autoFocus
+                    placeholder="• • • • • •"
+                    value={createOtpCode}
+                    onChange={(e) => setCreateOtpCode(e.target.value.replace(/\D/g, ''))}
+                    className={`w-full tracking-[8px] text-center text-xl font-mono font-black py-3 rounded-xl border focus:outline-none ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#121620] border-[#2e354b] text-emerald-400'
+                    }`}
+                  />
+                </div>
+
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateStep('FORM');
+                      setCreateOtpError(null);
+                    }}
+                    className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition border ${
+                      isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
+                    }`}
+                  >
+                    ← Edit Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={isSendingOtp}
+                    className={`px-3 font-bold py-2.5 rounded-xl text-xs transition border text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20`}
+                  >
+                    {isSendingOtp ? 'Resending...' : 'Resend OTP'}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isVerifyingOtp}
+                    className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg transition disabled:opacity-50 flex items-center justify-center space-x-1"
+                  >
+                    {isVerifyingOtp ? <span>Verifying...</span> : <span>✓ Verify & Create</span>}
+                  </button>
+                </div>
+              </form>
             ) : (
-              <form onSubmit={handleCreateUser} className="space-y-4">
+              <form onSubmit={handleSendOtp} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={`text-xs font-bold block mb-1 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>Full Name *</label>
@@ -3849,9 +3974,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg transition"
+                  disabled={isSendingOtp}
+                  className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg transition flex items-center justify-center space-x-1.5 disabled:opacity-50"
                 >
-                  Create Trader Account
+                  {isSendingOtp ? (
+                    <span>Sending Verification Email...</span>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      <span>Send OTP & Verify Email</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

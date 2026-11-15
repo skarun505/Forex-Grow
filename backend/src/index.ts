@@ -214,6 +214,9 @@ interface PendingRegistrationOtp {
   password?: string;
   phone?: string;
   currency?: string;
+  demoBalance?: number;
+  realBalance?: number;
+  vipLevel?: 'STANDARD' | 'PRO' | 'VIP';
   otp: string;
   expiresAt: number;
 }
@@ -223,7 +226,7 @@ const pendingRegisterOtps = new Map<string, PendingRegistrationOtp>();
 
 // Send 6-digit registration OTP via Brevo Email
 app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), async (req, res) => {
-  const { email, name, phone, password, currency } = req.body;
+  const { email, name, phone, password, currency, demoBalance, realBalance, vipLevel } = req.body;
   const cleanEmail = securityFirewall.sanitizeString(email).toLowerCase();
   const cleanName = securityFirewall.sanitizeString(name) || 'Trader';
   const cleanPhone = securityFirewall.sanitizeString(phone);
@@ -246,6 +249,9 @@ app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), a
     phone: cleanPhone,
     password: password || 'forexgrow123',
     currency: currency === 'USD' ? 'USD' : 'INR',
+    demoBalance: demoBalance !== undefined ? Number(demoBalance) : 10000,
+    realBalance: realBalance !== undefined ? Number(realBalance) : 0,
+    vipLevel: vipLevel || 'STANDARD',
     otp,
     expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes validity
   });
@@ -266,7 +272,7 @@ app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), a
 
 // Verify OTP & Activate Trader Account
 app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(), (req, res) => {
-  const { email, otp } = req.body;
+  const { email, otp, demoBalance, realBalance, vipLevel, isKycVerified, actor } = req.body;
   const cleanEmail = securityFirewall.sanitizeString(email).toLowerCase();
   const cleanOtp = securityFirewall.sanitizeString(otp).trim();
 
@@ -284,6 +290,11 @@ app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(),
     return res.status(400).json({ error: 'Invalid verification code. Please check your email and try again.' });
   }
 
+  const finalRealBal = realBalance !== undefined ? Number(realBalance) : (record.realBalance ?? 0);
+  const finalDemoBal = demoBalance !== undefined ? Number(demoBalance) : (record.demoBalance ?? 10000);
+  const finalVip = vipLevel || record.vipLevel || 'STANDARD';
+  const finalKyc = isKycVerified !== undefined ? Boolean(isKycVerified) : false;
+
   // OTP verified! Create official client account
   const createResult = adminManager.createUser({
     name: record.name,
@@ -291,9 +302,11 @@ app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(),
     phone: record.phone,
     password: record.password,
     currency: record.currency as any || 'INR',
-    realBalance: 0,
-    demoBalance: 10000,
-    vipLevel: 'STANDARD',
+    realBalance: finalRealBal,
+    demoBalance: finalDemoBal,
+    vipLevel: finalVip,
+    isKycVerified: finalKyc,
+    actor: actor,
   });
 
   if (!createResult.success || !createResult.user) {
@@ -322,7 +335,7 @@ app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(),
     success: true,
     user: createResult.user,
     token: sessionToken,
-    message: 'Account successfully registered and verified!',
+    message: 'Account successfully registered and verified via email OTP!',
   });
 });
 

@@ -33,6 +33,7 @@ import {
   Eye,
   FileText,
   UserPlus,
+  Mail,
   Sparkles,
   Key,
   X,
@@ -175,6 +176,11 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
 
   // Client Creation States
   const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
+  const [createClientStep, setCreateClientStep] = useState<'FORM' | 'OTP'>('FORM');
+  const [clientOtpCode, setClientOtpCode] = useState('');
+  const [isSendingClientOtp, setIsSendingClientOtp] = useState(false);
+  const [isVerifyingClientOtp, setIsVerifyingClientOtp] = useState(false);
+  const [clientOtpError, setClientOtpError] = useState<string | null>(null);
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
@@ -185,7 +191,6 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [newClientVip, setNewClientVip] = useState<VipLevel>('STANDARD');
   const [newClientKyc, setNewClientKyc] = useState(false);
   const [createdClientSlip, setCreatedClientSlip] = useState<any | null>(null);
-  const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [createClientError, setCreateClientError] = useState<string | null>(null);
   const [slipCopied, setSlipCopied] = useState(false);
 
@@ -647,17 +652,21 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     setNewClientPassword(`Fg@${res}`);
   };
 
-  const handleCreateClient = async (e: React.FormEvent) => {
+  const handleSendClientOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateClientError(null);
     if (!newClientName.trim() || !newClientEmail.trim()) {
       setCreateClientError('Full Name and Email address are required.');
       return;
     }
+    if (!newClientEmail.includes('@')) {
+      setCreateClientError('Please enter a valid email address.');
+      return;
+    }
 
-    setIsCreatingClient(true);
+    setIsSendingClientOtp(true);
     try {
-      const res = await fetch(apiUrl('/api/manager/users/create'), {
+      const res = await fetch(apiUrl('/api/auth/send-register-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -669,15 +678,55 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
           demoBalance: Number(newClientDemoBal) || 10000,
           realBalance: Number(newClientRealBal) || 0,
           vipLevel: newClientVip,
-          isKycVerified: newClientKyc,
-          actorId: managerProfile.id,
-          actorName: managerProfile.name,
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setCreateClientError(data.error || 'Failed to create client account');
+        setCreateClientError(data.error || 'Failed to dispatch verification email');
+        return;
+      }
+
+      setCreateClientStep('OTP');
+      setClientOtpCode('');
+    } catch (err) {
+      setCreateClientError('Failed to connect to backend server');
+    } finally {
+      setIsSendingClientOtp(false);
+    }
+  };
+
+  const handleVerifyClientOtpAndCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setClientOtpError(null);
+    if (!clientOtpCode.trim() || clientOtpCode.trim().length < 6) {
+      setClientOtpError('Please enter the complete 6-digit OTP code');
+      return;
+    }
+
+    setIsVerifyingClientOtp(true);
+    try {
+      const res = await fetch(apiUrl('/api/auth/verify-register-otp'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newClientEmail.trim(),
+          otp: clientOtpCode.trim(),
+          demoBalance: Number(newClientDemoBal) || 10000,
+          realBalance: Number(newClientRealBal) || 0,
+          vipLevel: newClientVip,
+          isKycVerified: newClientKyc,
+          actor: {
+            id: managerProfile.id,
+            name: managerProfile.name,
+            role: 'MANAGER',
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.user) {
+        setClientOtpError(data.error || 'Invalid or expired verification code');
         return;
       }
 
@@ -694,11 +743,12 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
         url: window.location.origin,
       });
 
+      setCreateClientStep('FORM');
       fetchManagerData();
     } catch (err) {
-      setCreateClientError('Failed to connect to backend server');
+      setClientOtpError('Network error while verifying OTP');
     } finally {
-      setIsCreatingClient(false);
+      setIsVerifyingClientOtp(false);
     }
   };
 
@@ -2165,8 +2215,8 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-emerald-400">Client Account Issued!</h3>
-                    <p className="text-xs text-gray-400">Share these trading credentials with the client</p>
+                    <h3 className="text-lg font-black text-emerald-400">Client Account Verified & Issued!</h3>
+                    <p className="text-xs text-gray-400">Email verified • Share credentials with client</p>
                   </div>
                 </div>
 
@@ -2217,6 +2267,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                   <button
                     onClick={() => {
                       setCreatedClientSlip(null);
+                      setCreateClientStep('FORM');
                       setNewClientName('');
                       setNewClientEmail('');
                       setNewClientPhone('');
@@ -2228,9 +2279,78 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                   </button>
                 </div>
               </div>
+            ) : createClientStep === 'OTP' ? (
+              /* OTP Verification Step */
+              <form onSubmit={handleVerifyClientOtpAndCreate} className="space-y-4 py-2">
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-black text-sm text-white">Client Email Verification</h4>
+                  <p className="text-xs text-gray-400">
+                    A 6-digit security OTP was sent via Brevo Desk to:
+                  </p>
+                  <div className="font-mono font-bold text-amber-400 bg-black/40 px-3 py-1 rounded-lg inline-block text-xs border border-amber-500/30">
+                    {newClientEmail}
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Ask the client for the 6-digit OTP code to verify their identity and issue this trading account.
+                  </p>
+                </div>
+
+                {clientOtpError && (
+                  <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold text-center">
+                    {clientOtpError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-center text-gray-300">
+                    Enter 6-Digit Email OTP *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    autoFocus
+                    placeholder="• • • • • •"
+                    value={clientOtpCode}
+                    onChange={(e) => setClientOtpCode(e.target.value.replace(/\D/g, ''))}
+                    className="w-full tracking-[8px] text-center text-xl font-mono font-black py-3 rounded-xl border focus:outline-none bg-[#0f131d] border-[#252c40] text-emerald-400"
+                  />
+                </div>
+
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateClientStep('FORM');
+                      setClientOtpError(null);
+                    }}
+                    className="flex-1 font-bold py-2.5 rounded-xl text-xs transition border bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]"
+                  >
+                    ← Edit Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendClientOtp}
+                    disabled={isSendingClientOtp}
+                    className="px-3 font-bold py-2.5 rounded-xl text-xs transition border text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20"
+                  >
+                    {isSendingClientOtp ? 'Resending...' : 'Resend OTP'}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isVerifyingClientOtp}
+                    className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-2.5 rounded-xl text-xs shadow-lg transition disabled:opacity-50 flex items-center justify-center space-x-1"
+                  >
+                    {isVerifyingClientOtp ? <span>Verifying...</span> : <span>✓ Verify & Issue</span>}
+                  </button>
+                </div>
+              </form>
             ) : (
               /* Create Client Form */
-              <form onSubmit={handleCreateClient} className="space-y-4">
+              <form onSubmit={handleSendClientOtp} className="space-y-4">
                 <div className="flex items-center space-x-3 mb-2">
                   <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
                     <UserPlus className="w-5 h-5" />
@@ -2391,15 +2511,15 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                 <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={isCreatingClient}
+                    disabled={isSendingClientOtp}
                     className="w-full py-3.5 rounded-2xl bg-[#00c679] hover:bg-[#00e089] disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-xl shadow-emerald-500/20 active:scale-95 transition"
                   >
-                    {isCreatingClient ? (
-                      <span>Creating Client Account...</span>
+                    {isSendingClientOtp ? (
+                      <span>Sending Verification Email...</span>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>Issue Client Account & Get Credentials</span>
+                        <Mail className="w-4 h-4" />
+                        <span>Send OTP & Verify Client Email</span>
                       </>
                     )}
                   </button>
