@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Quotex-inspired Binary Options Trading Platform & RE Architecture",
   "scripts": {
-    "start": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "start": "node backend/dist/index.js",
     "start:prod": "node backend/dist/index.js",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",
