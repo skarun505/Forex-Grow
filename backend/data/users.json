@@ -79,5 +79,39 @@
     "totalTrades": 0,
     "totalDepositedUSD": 0,
     "createdAt": 1789553736606
+  },
+  {
+    "id": "usr_31d85ccc",
+    "name": "Arunkumar",
+    "email": "ceo.stuentism@gmail.com",
+    "demoBalance": 700000,
+    "realBalance": 0,
+    "activeAccountType": "DEMO",
+    "currency": "INR",
+    "vipLevel": "STANDARD",
+    "isKycVerified": false,
+    "status": "ACTIVE",
+    "totalTrades": 0,
+    "totalDepositedUSD": 0,
+    "password": "forexgrow123",
+    "role": "TRADER",
+    "kycStatus": "APPROVED"
+  },
+  {
+    "id": "usr_c62d3ed7",
+    "name": "Arshitha K",
+    "email": "arshlovely6@gmail.com",
+    "demoBalance": 10000,
+    "realBalance": 30000,
+    "activeAccountType": "DEMO",
+    "currency": "INR",
+    "vipLevel": "STANDARD",
+    "isKycVerified": false,
+    "status": "ACTIVE",
+    "totalTrades": 0,
+    "totalDepositedUSD": 30000,
+    "password": "forexgrow123",
+    "role": "TRADER",
+    "kycStatus": "APPROVED"
   }
 ]

@@ -70,6 +70,7 @@ class EmailService {
   }): Promise<{ success: boolean; error?: string }> {
     this.refreshConfig();
     const { to, subject, html, text } = options;
+    let lastError = 'No email transport configured';
 
     // 1. Try Brevo REST API if API Key is available
     if (this.config.apiKey) {
@@ -92,19 +93,25 @@ class EmailService {
           }),
         });
 
-        const data = await res.json();
+        const data: any = await res.json();
         if (res.ok) {
           console.log(`[EMAIL] Sent successfully via Brevo REST API to ${to}:`, data.messageId);
           return { success: true };
         } else {
-          console.warn('[EMAIL] Brevo REST API error:', data);
+          lastError = data.message || JSON.stringify(data);
+          if (data.code === 'unauthorized' || (data.message && data.message.includes('unrecognised IP address'))) {
+            console.error(`[EMAIL ALERT] ⚠️ Brevo rejected request due to IP Restriction! To fix: Open https://app.brevo.com/security/authorised_ips and disable IP restrictions to allow Render cloud IPs.`);
+          } else {
+            console.warn('[EMAIL] Brevo REST API error:', data);
+          }
         }
       } catch (err: any) {
+        lastError = err.message;
         console.warn('[EMAIL] Failed sending via Brevo API:', err.message);
       }
     }
 
-    // 2. Try SMTP Transporter
+    // 2. Try SMTP Transporter (Brevo SMTP Relay)
     if (this.transporter && this.config.smtpPass) {
       try {
         const info = await this.transporter.sendMail({
@@ -117,12 +124,39 @@ class EmailService {
         console.log(`[EMAIL] Sent successfully via SMTP to ${to}:`, info.messageId);
         return { success: true };
       } catch (err: any) {
+        lastError = err.message;
         console.error('[EMAIL] SMTP send error:', err.message);
-        return { success: false, error: err.message };
       }
     }
 
-    return { success: false, error: 'No email transport configured' };
+    // 3. Fallback to Gmail SMTP if configured
+    const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
+    const gmailUser = process.env.GMAIL_USER || this.config.senderEmail;
+    if (gmailPass) {
+      try {
+        const gmailTransporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: gmailUser,
+            pass: gmailPass,
+          },
+        });
+        const info = await gmailTransporter.sendMail({
+          from: `"${this.config.senderName}" <${gmailUser}>`,
+          to,
+          subject,
+          html,
+          text: text || subject,
+        });
+        console.log(`[EMAIL] Sent successfully via Gmail SMTP fallback to ${to}:`, info.messageId);
+        return { success: true };
+      } catch (err: any) {
+        lastError = err.message;
+        console.error('[EMAIL] Gmail SMTP fallback error:', err.message);
+      }
+    }
+
+    return { success: false, error: lastError };
   }
 
   private getLegalEmailFooterHtml(): string {

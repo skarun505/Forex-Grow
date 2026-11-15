@@ -962,6 +962,20 @@ app.get('/api/admin/overview', (req, res) => {
   res.json(adminManager.getOverview());
 });
 
+app.get('/api/admin/email/status', async (req, res) => {
+  const to = (req.query.to as string) || 'support.forexgrow@gmail.com';
+  const testRes = await emailService.sendMail({
+    to,
+    subject: 'Forex Grow: Email Dispatch Health Check',
+    html: '<div style="font-family: sans-serif; padding: 20px; background: #0c0f17; color: #fff; border-radius: 8px;"><h2 style="color: #00c679;">FOREX GROW</h2><p>Your transactional email infrastructure is verified and operational!</p></div>'
+  });
+  res.json({
+    success: testRes.success,
+    error: testRes.error || null,
+    testedRecipient: to,
+  });
+});
+
 app.get('/api/admin/users', (req, res) => {
   res.json(adminManager.getUsers());
 });
