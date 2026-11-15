@@ -232,6 +232,9 @@ interface PendingLoginOtp {
 }
 const pendingLoginOtps = new Map<string, PendingLoginOtp>();
 
+// In-memory tracker for failed password login attempts (unlocks OTP after 5 fails)
+const failedAttemptsMap = new Map<string, { count: number; lastFailed: number }>();
+
 // ================= LAYER 2: AUTHENTICATION & REGISTRATION ENDPOINTS =================
 
 // Send 6-digit registration OTP via Brevo Email
@@ -424,6 +427,9 @@ app.post('/api/auth/verify-login-otp', securityFirewall.getAuthRateLimiter(), (r
   }
 
   const sessionToken = `jwt_session_${found.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Reset failed login attempts on successful OTP login
+  failedAttemptsMap.delete(found.id);
+
   let accountSessions = traderAccountSessions.get(found.id);
   if (!accountSessions) {
     accountSessions = new Map<string, ActiveSession>();
@@ -499,10 +505,23 @@ app.post('/api/auth/login', securityFirewall.getAuthRateLimiter(), (req, res) =>
 
   const expectedPassword = found.password || 'forexgrow123';
   if (rawPass !== expectedPassword) {
+    const prevFails = failedAttemptsMap.get(found.id)?.count || 0;
+    const currentFails = prevFails + 1;
+    failedAttemptsMap.set(found.id, { count: currentFails, lastFailed: Date.now() });
+
+    const canUseOtp = currentFails >= 5;
     return res.status(401).json({
-      error: 'Incorrect password. Please verify your credentials or contact Customer Care.'
+      error: canUseOtp
+        ? 'Incorrect password. You have reached 5 failed attempts. Security Email OTP option is now unlocked.'
+        : `Incorrect password (${currentFails}/5 attempts). Please verify your credentials.`,
+      failedAttempts: currentFails,
+      canUseOtp,
+      userEmail: found.email,
     });
   }
+
+  // Password correct! Reset failed attempts counter
+  failedAttemptsMap.delete(found.id);
 
   const userRole = (found.role || 'TRADER').toUpperCase();
   const isStaff = userRole === 'ADMIN' || userRole === 'MANAGER';
@@ -541,6 +560,9 @@ app.post('/api/auth/login', securityFirewall.getAuthRateLimiter(), (req, res) =>
   // BUT for any SINGLE trader account, a maximum of 2 devices / sessions are permitted simultaneously.
   // If a 3rd device signs into that SAME trader account, previous sessions for THAT account are auto-logged out!
   // Admin and Manager panels remain completely independent and uninterrupted.
+  // Reset failed login attempts on successful OTP login
+  failedAttemptsMap.delete(found.id);
+
   let accountSessions = traderAccountSessions.get(found.id);
   if (!accountSessions) {
     accountSessions = new Map<string, ActiveSession>();

@@ -42,12 +42,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Email OTP Login States
+  // Email OTP Login States (Unlocked only after 5 failed password attempts)
   const [authMethod, setAuthMethod] = useState<'PASSWORD' | 'OTP'>('PASSWORD');
   const [otpStep, setOtpStep] = useState<'INPUT_EMAIL' | 'ENTER_OTP'>('INPUT_EMAIL');
   const [loginOtpCode, setLoginOtpCode] = useState('');
   const [loginDebugOtp, setLoginDebugOtp] = useState<string | null>(null);
   const [otpSuccessNotice, setOtpSuccessNotice] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [canUseOtp, setCanUseOtp] = useState(false);
 
   // Re-sync credentials if mode changes
   useEffect(() => {
@@ -128,9 +130,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
           localStorage.setItem('quotex_trader_user', JSON.stringify(data.user));
           localStorage.setItem('quotex_current_user', JSON.stringify(data.user));
         }
+        setFailedAttempts(0);
+        setCanUseOtp(false);
         onLoginSuccess(data.user);
       } else {
         setErrorMsg(data.error || 'Invalid credentials. Please verify your email/phone and password.');
+        if (data.failedAttempts !== undefined) {
+          setFailedAttempts(data.failedAttempts);
+        } else {
+          setFailedAttempts((prev) => prev + 1);
+        }
+        if (data.canUseOtp) {
+          setCanUseOtp(true);
+        }
       }
     } catch (err) {
       setErrorMsg('Unable to connect to trading auth server. Please check your network connection.');
@@ -201,6 +213,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
       }
       localStorage.setItem('quotex_trader_user', JSON.stringify(data.user));
       localStorage.setItem('quotex_current_user', JSON.stringify(data.user));
+      setFailedAttempts(0);
+      setCanUseOtp(false);
       onLoginSuccess(data.user);
     } catch {
       setErrorMsg('Failed to verify login code');
@@ -372,42 +386,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                 </div>
               )}
 
-              {/* Trader Auth Mode Tabs: Password vs Email OTP */}
-              {mode === 'TRADER' && (
-                <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-2xl border mb-4 text-xs font-bold ${
-                  isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0a0d14] border-[#222a3d]'
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMethod('PASSWORD');
-                      setErrorMsg(null);
-                      setOtpSuccessNotice(null);
-                    }}
-                    className={`py-2 rounded-xl transition flex items-center justify-center space-x-1.5 ${
-                      authMethod === 'PASSWORD'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>Password Login</span>
-                  </button>
+              {/* Security Rescue: Unlocked ONLY after 5 failed password attempts */}
+              {(failedAttempts >= 5 || canUseOtp) && authMethod === 'PASSWORD' && mode === 'TRADER' && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2 animate-in fade-in mb-4">
+                  <div className="flex items-center justify-center space-x-1.5 text-amber-400 font-bold text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>5 Failed Password Attempts Detected</span>
+                  </div>
+                  <p className="text-[11px] text-gray-300">
+                    For your security, you can now bypass your password and sign in using a 6-digit code sent to your email.
+                  </p>
                   <button
                     type="button"
                     onClick={() => {
                       setAuthMethod('OTP');
+                      setOtpStep('INPUT_EMAIL');
                       setErrorMsg(null);
-                      setOtpSuccessNotice(null);
                     }}
-                    className={`py-2 rounded-xl transition flex items-center justify-center space-x-1.5 ${
-                      authMethod === 'OTP'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
-                    }`}
+                    className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl transition shadow-md flex items-center justify-center space-x-2"
                   >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>Email OTP Login</span>
+                    <Mail className="w-4 h-4" />
+                    <span>Unlock &amp; Sign In with Email OTP</span>
                   </button>
                 </div>
               )}
@@ -464,6 +463,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                         </>
                       )}
                     </button>
+
+                    <div className="text-center pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMethod('PASSWORD');
+                          setErrorMsg(null);
+                        }}
+                        className="text-xs text-gray-400 hover:text-white underline"
+                      >
+                        ← Back to Password Login
+                      </button>
+                    </div>
                   </form>
                 ) : (
                   <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
@@ -514,7 +526,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                       )}
                     </button>
 
-                    <div className="text-center pt-1">
+                    <div className="flex items-center justify-center space-x-4 pt-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -523,7 +535,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                         }}
                         className="text-xs text-gray-400 hover:text-white underline"
                       >
-                        ← Change Email Address
+                        ← Change Email
+                      </button>
+                      <span className="text-gray-600">•</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMethod('PASSWORD');
+                          setErrorMsg(null);
+                        }}
+                        className="text-xs text-gray-400 hover:text-white underline"
+                      >
+                        Password Login
                       </button>
                     </div>
                   </form>
