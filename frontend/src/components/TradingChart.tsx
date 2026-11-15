@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   createChart,
   IChartApi,
@@ -85,6 +85,48 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
   }, [timeframe]);
 
   const hasFittedRef = useRef(false);
+  const candlesRef = useRef(candles);
+  candlesRef.current = candles;
+
+  const resetChartView = useCallback((candleCount?: number) => {
+    if (!chartRef.current) return;
+    const isMobile = window.innerWidth < 768;
+    const timeScale = chartRef.current.timeScale();
+    const count = candleCount !== undefined ? candleCount : candlesRef.current.length;
+
+    if (isMobile) {
+      // Extended candle view on mobile matching Quotex: ~18-20 candles visible with thick, clear bodies
+      timeScale.applyOptions({
+        barSpacing: 22,
+        minBarSpacing: 6,
+        rightOffset: 5,
+      });
+
+      if (count > 0) {
+        const visibleBars = 19;
+        const rightOffset = 4;
+        timeScale.setVisibleLogicalRange({
+          from: Math.max(0, count - visibleBars),
+          to: count + rightOffset,
+        });
+      }
+    } else {
+      timeScale.applyOptions({
+        barSpacing: 14,
+        minBarSpacing: 4,
+        rightOffset: 8,
+      });
+
+      if (count > 0) {
+        const visibleBars = 45;
+        const rightOffset = 6;
+        timeScale.setVisibleLogicalRange({
+          from: Math.max(0, count - visibleBars),
+          to: count + rightOffset,
+        });
+      }
+    }
+  }, []);
 
   // Initialize Chart
   useEffect(() => {
@@ -92,6 +134,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
 
     const initialWidth = chartContainerRef.current.clientWidth || window.innerWidth || 320;
     const initialHeight = chartContainerRef.current.clientHeight || 400;
+    const isMobileInitial = initialWidth < 768;
 
     const chart = createChart(chartContainerRef.current, {
       width: initialWidth,
@@ -133,6 +176,9 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
         borderColor: 'rgba(255, 255, 255, 0.08)',
         timeVisible: true,
         secondsVisible: true,
+        barSpacing: isMobileInitial ? 22 : 14,
+        minBarSpacing: 6,
+        rightOffset: isMobileInitial ? 5 : 8,
       },
       handleScroll: true,
       handleScale: true,
@@ -285,18 +331,18 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
 
     hasFittedRef.current = false;
     setTimeout(() => {
-      chartRef.current?.timeScale().fitContent();
+      resetChartView();
     }, 60);
-  }, [selectedAsset?.id]);
+  }, [selectedAsset?.id, resetChartView]);
 
   // Adjust chart view whenever candle timeframe changes
   useEffect(() => {
     if (!chartRef.current || candles.length === 0) return;
     const timer = setTimeout(() => {
-      chartRef.current?.timeScale().fitContent();
+      resetChartView();
     }, 60);
     return () => clearTimeout(timer);
-  }, [timeframe]);
+  }, [timeframe, resetChartView]);
 
   // Update Series Visibility based on ChartType & Indicators
   useEffect(() => {
@@ -350,7 +396,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
     if (!hasFittedRef.current && sortedCandles.length > 0) {
       hasFittedRef.current = true;
       requestAnimationFrame(() => {
-        chartRef.current?.timeScale().fitContent();
+        resetChartView(sortedCandles.length);
       });
     }
 
@@ -474,7 +520,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
   };
 
   const handleResetZoom = () => {
-    if (chartRef.current) chartRef.current.timeScale().resetTimeScale();
+    resetChartView();
   };
 
   const toggleFullscreen = () => {
