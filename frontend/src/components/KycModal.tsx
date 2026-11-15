@@ -84,6 +84,16 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
+    if (!frontImage) {
+      setErrorMsg('Aadhaar Card Front photo is strictly mandatory. Please upload the front image.');
+      return;
+    }
+
+    if (!backImage) {
+      setErrorMsg('Aadhaar Card Back photo is strictly mandatory. Please upload the back image showing your address.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch(apiUrl('/api/user/kyc/submit'), {
@@ -95,7 +105,9 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
           aadhaarNumber,
           dob,
           gender,
-          hasDocuments: Boolean(frontImage && backImage),
+          frontImage,
+          backImage,
+          hasDocuments: true,
         }),
       });
 
@@ -369,9 +381,14 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
 
                 {/* Document Photo Uploads */}
                 <div>
-                  <label className="font-bold block mb-1.5 text-gray-300">
-                    Aadhaar Card Photos (Front & Back)
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="font-bold text-gray-300">
+                      Aadhaar Card Photos (Front & Back) <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+                      Both Mandatory
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     {/* Front Side */}
                     <div className={`p-3 rounded-2xl border text-center relative flex flex-col items-center justify-center min-h-[120px] transition ${
@@ -433,6 +450,17 @@ export const KycModal: React.FC<KycModalProps> = ({ isOpen, onClose }) => {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* Beneficiary Name Match Notice */}
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 leading-relaxed space-y-1">
+                  <div className="flex items-center space-x-1.5 font-bold text-amber-400">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Beneficiary Name Match Mandatory</span>
+                  </div>
+                  <p>
+                    Important: Payouts are strictly released only to Bank Accounts and UPI VPAs where the registered beneficiary name exactly matches the legal name on this Aadhaar Card. Any name mismatch will result in automatic payout decline.
+                  </p>
                 </div>
 
                 <button

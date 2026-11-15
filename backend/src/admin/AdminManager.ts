@@ -614,6 +614,10 @@ export class AdminManager extends EventEmitter {
       return { success: false, error: 'Aadhaar number must contain exactly 12 digits' };
     }
 
+    if (!data.frontImage || !data.backImage) {
+      return { success: false, error: 'Both Front and Back photos of Aadhaar Card are strictly mandatory.' };
+    }
+
     const formattedAadhaar = `${cleanAadhaar.slice(0, 4)} ${cleanAadhaar.slice(4, 8)} ${cleanAadhaar.slice(8, 12)}`;
     user.aadhaarNumber = formattedAadhaar;
     user.kycStatus = 'PENDING';

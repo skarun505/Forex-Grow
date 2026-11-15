@@ -276,6 +276,197 @@ class EmailService {
 
     return this.sendMail({ to: toEmail, subject, html });
   }
+
+  /**
+   * Send Deposit Proof Submission Confirmation Email to Trader
+   */
+  public async sendDepositSubmittedEmail(
+    toEmail: string,
+    traderName: string,
+    amount: number,
+    currency: string,
+    txnId: string,
+    utrNumber: string,
+    method: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const symbol = currency === 'INR' ? '₹' : '$';
+    const formattedAmount = `${symbol}${amount.toLocaleString('en-IN')}`;
+    const subject = `Deposit Request Received: ${formattedAmount} [${txnId}]`;
+
+    const html = `
+      <div style="background-color: #0c0f17; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px 20px; max-width: 520px; margin: 0 auto; border-radius: 16px; border: 1px solid #1f2738;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #00c679; margin: 0; font-size: 24px; font-weight: 900;">FOREX GROW</h2>
+          <p style="color: #64748b; font-size: 11px; margin-top: 4px; text-transform: uppercase;">Cashier & Deposit Settlement Desk</p>
+        </div>
+
+        <div style="background: #141926; border: 1px solid #232c40; border-radius: 12px; padding: 24px;">
+          <h3 style="color: #38bdf8; font-size: 18px; margin-top: 0;">
+            ⏳ Deposit Proof Received - Under Review
+          </h3>
+          <p style="color: #cbd5e1; font-size: 14px;">Hello <strong>${traderName}</strong>,</p>
+          <p style="color: #94a3b8; font-size: 13px; line-height: 1.5;">We have received your payment proof and UTR reference number. Our cashier operations desk is verifying the payment with bank clearance.</p>
+
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px;">
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Deposit Amount:</td>
+              <td style="padding: 10px 0; color: #00c679; font-weight: 900; text-align: right; font-size: 16px;">${formattedAmount}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">UTR / Reference No:</td>
+              <td style="padding: 10px 0; color: #ffffff; font-family: monospace; text-align: right; font-weight: bold;">${utrNumber}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Transaction ID:</td>
+              <td style="padding: 10px 0; color: #38bdf8; font-family: monospace; text-align: right;">${txnId}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Payment Rail:</td>
+              <td style="padding: 10px 0; color: #cbd5e1; text-align: right;">${method}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; color: #64748b;">Status:</td>
+              <td style="padding: 10px 0; color: #38bdf8; font-weight: bold; text-align: right;">VERIFYING UTR</td>
+            </tr>
+          </table>
+
+          <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">Once confirmed by our finance manager, the funds will be credited directly to your Live Real Balance instantly.</p>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
+          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
+        </div>
+      </div>
+    `;
+
+    return this.sendMail({ to: toEmail, subject, html });
+  }
+
+  /**
+   * Send Deposit Approved & Credited Email to Trader
+   */
+  public async sendDepositApprovedEmail(
+    toEmail: string,
+    traderName: string,
+    amount: number,
+    currency: string,
+    txnId: string,
+    newBalance: number
+  ): Promise<{ success: boolean; error?: string }> {
+    const symbol = currency === 'INR' ? '₹' : '$';
+    const formattedAmount = `${symbol}${amount.toLocaleString('en-IN')}`;
+    const formattedBalance = `${symbol}${newBalance.toLocaleString('en-IN')}`;
+    const subject = `Deposit Approved & Credited: ${formattedAmount} [${txnId}]`;
+
+    const html = `
+      <div style="background-color: #0c0f17; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px 20px; max-width: 520px; margin: 0 auto; border-radius: 16px; border: 1px solid #1f2738;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #00c679; margin: 0; font-size: 24px; font-weight: 900;">FOREX GROW</h2>
+          <p style="color: #64748b; font-size: 11px; margin-top: 4px; text-transform: uppercase;">Cashier & Settlement Vault</p>
+        </div>
+
+        <div style="background: #141926; border: 1px solid #00c679/30; border-radius: 12px; padding: 24px;">
+          <h3 style="color: #00c679; font-size: 18px; margin-top: 0;">
+            ✓ Deposit Approved & Credited!
+          </h3>
+          <p style="color: #cbd5e1; font-size: 14px;">Hello <strong>${traderName}</strong>,</p>
+          <p style="color: #94a3b8; font-size: 13px; line-height: 1.5;">Your deposit payment has been verified by the desk manager and successfully credited to your Live Real Balance!</p>
+
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px;">
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Credited Amount:</td>
+              <td style="padding: 10px 0; color: #00c679; font-weight: 900; text-align: right; font-size: 18px;">${formattedAmount}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">New Live Real Balance:</td>
+              <td style="padding: 10px 0; color: #38bdf8; font-weight: 900; text-align: right; font-size: 16px;">${formattedBalance}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Transaction Reference:</td>
+              <td style="padding: 10px 0; color: #ffffff; font-family: monospace; text-align: right;">${txnId}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; color: #64748b;">Status:</td>
+              <td style="padding: 10px 0; color: #00c679; font-weight: bold; text-align: right;">COMPLETED / CREDITED</td>
+            </tr>
+          </table>
+
+          <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">You can now open live positions directly on the trading terminal.</p>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
+          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
+        </div>
+      </div>
+    `;
+
+    return this.sendMail({ to: toEmail, subject, html });
+  }
+
+  /**
+   * Send Transaction Rejected Email to Trader (Deposit or Withdrawal)
+   */
+  public async sendTransactionRejectedEmail(
+    toEmail: string,
+    traderName: string,
+    amount: number,
+    currency: string,
+    txnId: string,
+    type: 'DEPOSIT' | 'WITHDRAWAL',
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const symbol = currency === 'INR' ? '₹' : '$';
+    const formattedAmount = `${symbol}${amount.toLocaleString('en-IN')}`;
+    const isWithdrawal = type === 'WITHDRAWAL';
+    const actionLabel = isWithdrawal ? 'Withdrawal Request' : 'Deposit Submission';
+    const subject = `${actionLabel} Declined: ${formattedAmount} [${txnId}]`;
+
+    const html = `
+      <div style="background-color: #0c0f17; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px 20px; max-width: 520px; margin: 0 auto; border-radius: 16px; border: 1px solid #1f2738;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #00c679; margin: 0; font-size: 24px; font-weight: 900;">FOREX GROW</h2>
+          <p style="color: #64748b; font-size: 11px; margin-top: 4px; text-transform: uppercase;">Cashier & Settlement Desk</p>
+        </div>
+
+        <div style="background: #141926; border: 1px solid #ef4444/30; border-radius: 12px; padding: 24px;">
+          <h3 style="color: #ef4444; font-size: 18px; margin-top: 0;">
+            ✕ ${actionLabel} Declined
+          </h3>
+          <p style="color: #cbd5e1; font-size: 14px;">Hello <strong>${traderName}</strong>,</p>
+          <p style="color: #94a3b8; font-size: 13px; line-height: 1.5;">Your recent ${type.toLowerCase()} transaction has been declined by the compliance settlement desk.</p>
+
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px;">
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Amount:</td>
+              <td style="padding: 10px 0; color: #ffffff; font-weight: 900; text-align: right; font-size: 16px;">${formattedAmount}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Transaction Reference:</td>
+              <td style="padding: 10px 0; color: #38bdf8; font-family: monospace; text-align: right;">${txnId}</td>
+            </tr>
+            ${reason ? `
+            <tr style="border-bottom: 1px solid #222a3d;">
+              <td style="padding: 10px 0; color: #64748b;">Decline Reason:</td>
+              <td style="padding: 10px 0; color: #f87171; text-align: right; font-weight: bold;">${reason}</td>
+            </tr>` : ''}
+            <tr>
+              <td style="padding: 10px 0; color: #64748b;">Status:</td>
+              <td style="padding: 10px 0; color: #ef4444; font-weight: bold; text-align: right;">DECLINED</td>
+            </tr>
+          </table>
+
+          ${isWithdrawal ? '<p style="color: #a3e635; font-size: 12px;">Notice: The requested withdrawal amount has been refunded back to your live real balance.</p>' : ''}
+          <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">For assistance or clarification, please reach out to our Customer Care team with your transaction reference.</p>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 11px;">
+          &copy; ${new Date().getFullYear()} Forex Grow Operations Desk.
+        </div>
+      </div>
+    `;
+
+    return this.sendMail({ to: toEmail, subject, html });
+  }
 }
 
 export const emailService = new EmailService();

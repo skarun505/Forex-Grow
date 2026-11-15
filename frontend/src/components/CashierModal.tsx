@@ -24,16 +24,18 @@ import {
   History,
   RefreshCw,
   Lock,
-  MessageCircle
+  MessageCircle,
+  ShieldAlert
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface CashierModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenKycModal?: () => void;
 }
 
-export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose }) => {
+export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose, onOpenKycModal }) => {
   const { account, theme } = useTrading();
   const isLight = theme === 'light';
 
@@ -349,6 +351,11 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
   const realBalanceLocal = account.realBalance;
 
   const handleSubmitWithdrawal = async () => {
+    if (!account.isKycVerified) {
+      setWithdrawError('Aadhaar KYC Verification is strictly required before requesting withdrawals. Please complete your Aadhaar identity verification first.');
+      return;
+    }
+
     if (numericWithdraw <= 0) {
       setWithdrawError('Please enter a valid withdrawal amount');
       return;
@@ -1143,6 +1150,33 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   </div>
                 </div>
 
+                {/* Aadhaar KYC Required Warning if Unverified */}
+                {!account.isKycVerified && (
+                  <div className="p-4 rounded-2xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-300 space-y-3 shadow-lg">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                        <ShieldAlert className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-white">Aadhaar KYC Verification Required</h4>
+                        <p className="text-xs text-amber-200/90 mt-1 leading-relaxed">
+                          In compliance with institutional financial regulations, only Aadhaar verified accounts can request payouts. Payouts are strictly locked until your Aadhaar is verified.
+                        </p>
+                      </div>
+                    </div>
+                    {onOpenKycModal && (
+                      <button
+                        type="button"
+                        onClick={onOpenKycModal}
+                        className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md flex items-center justify-center space-x-2"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Complete Aadhaar Verification Now</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Withdrawal Amount */}
                 <div>
                   <label className={`text-xs font-bold block mb-2 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
@@ -1208,6 +1242,17 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   </div>
                 </div>
 
+                {/* Mandatory Regulatory Warning: Beneficiary Name Mismatch Rule */}
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1 text-xs">
+                  <div className="flex items-center space-x-2 text-amber-400 font-bold">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>Strict Beneficiary Name Requirement</span>
+                  </div>
+                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                    ⚠️ <strong>Notice:</strong> Only the verified Aadhaar Card registered person can receive payout settlements. The receiving Bank Account / UPI beneficiary name <strong>must exactly match your verified Aadhaar Card name</strong> ({account.kycData?.fullName || account.name}). If any bank name mismatch happens, <strong>immediate transaction decline will occur</strong> and your payout will be cancelled.
+                  </p>
+                </div>
+
                 {/* Bank Details Lock Notice */}
                 {isBankDetailsLocked && (
                   <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center justify-between gap-2">
@@ -1244,6 +1289,10 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                         isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                       }`}
                     />
+                    <div className="text-[10px] text-amber-400/90 font-medium mt-1.5 flex items-center gap-1">
+                      <span>⚠️ Bank account linked to this UPI ID must bear your verified Aadhaar name:</span>
+                      <strong className="text-white underline">{account.kycData?.fullName || account.name}</strong>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1260,6 +1309,10 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                           isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#10141f] border-[#293246] text-white'
                         }`}
                       />
+                      <div className="text-[10px] text-amber-400/90 font-medium mt-1.5 flex items-center gap-1">
+                        <span>⚠️ Beneficiary name must strictly match your verified Aadhaar Card name:</span>
+                        <strong className="text-white underline">{account.kycData?.fullName || account.name}</strong>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -1366,13 +1419,17 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 </div>
                 <button
                   type="button"
-                  disabled={isSubmittingWithdraw || numericWithdraw <= 0 || account.realBalance < numericWithdraw}
+                  disabled={!account.isKycVerified || isSubmittingWithdraw || numericWithdraw <= 0 || account.realBalance < numericWithdraw}
                   onClick={handleSubmitWithdrawal}
                   className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black py-3 sm:py-3.5 px-6 rounded-2xl shadow-xl shadow-emerald-500/20 transition transform active:scale-[0.99] flex items-center justify-center space-x-2 text-xs sm:text-sm"
                 >
                   <ArrowUpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>
-                    {isSubmittingWithdraw ? 'Submitting Request...' : `Request Payout of ${curr.symbol}${numericWithdraw.toLocaleString()}`}
+                    {!account.isKycVerified
+                      ? 'Aadhaar Verification Required to Withdraw'
+                      : isSubmittingWithdraw
+                      ? 'Submitting Request...'
+                      : `Request Payout of ${curr.symbol}${numericWithdraw.toLocaleString()}`}
                   </span>
                 </button>
               </div>

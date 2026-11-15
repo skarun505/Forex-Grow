@@ -100,6 +100,10 @@ const MainLayout: React.FC = () => {
         <CashierModal
           isOpen={isCashierModalOpen}
           onClose={() => setIsCashierModalOpen(false)}
+          onOpenKycModal={() => {
+            setIsCashierModalOpen(false);
+            setIsKycModalOpen(true);
+          }}
         />
       </ErrorBoundary>
 

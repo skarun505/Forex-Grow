@@ -679,36 +679,6 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     }
   };
 
-  // Handle Manager Delete Trader Account
-  const handleDeleteTrader = async (user: UserAccount) => {
-    if (user.id === 'usr_quotex_vip_99') {
-      alert('Alex Rivera is the protected permanent demo account and cannot be deleted.');
-      return;
-    }
-    const confirmDelete = window.confirm(`Are you sure you want to permanently delete trader "${user.name}" (${user.email})? This action will remove all their trades, transactions and account history.`);
-    if (!confirmDelete) return;
-
-    try {
-      const res = await fetch(apiUrl(`/api/manager/users/${user.id}`), {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actorName: managerProfile.name,
-          actorId: managerProfile.id,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        alert(data.error || 'Failed to delete user');
-        return;
-      }
-      showManagerToast(`Trader "${user.name}" has been permanently deleted.`);
-      fetchManagerData();
-    } catch (err) {
-      alert('Network error while deleting trader');
-    }
-  };
-
   const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$';
     let res = '';
@@ -1597,8 +1567,8 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                         </button>
                       </div>
 
-                      {/* Password Reset & Account Deletion Actions */}
-                      <div className="flex items-center gap-2 pt-1">
+                      {/* Password Reset Action (Only Admin can delete users; Managers can reset passwords) */}
+                      <div className="pt-1">
                         <button
                           type="button"
                           onClick={() => {
@@ -1606,24 +1576,12 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                             setResetPasswordValue('');
                             setResetPasswordSuccess(null);
                           }}
-                          className="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold border border-amber-500/30 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
+                          className="w-full py-1.5 px-3 rounded-xl text-xs font-bold border border-amber-500/30 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
                           title="Reset Trader Password"
                         >
                           <Key className="w-3.5 h-3.5" />
                           <span>Reset Password</span>
                         </button>
-
-                        {u.id !== 'usr_quotex_vip_99' && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTrader(u)}
-                            className="py-1.5 px-3 rounded-xl text-xs font-bold border border-rose-500/30 bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
-                            title="Delete Trader Account"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Delete</span>
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>

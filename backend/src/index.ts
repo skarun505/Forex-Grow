@@ -588,6 +588,19 @@ app.post('/api/payment/deposit-proof', securityFirewall.getCashierRateLimiter(),
     },
   });
 
+  // Automated Security Notification: Dispatch deposit proof received email
+  if (user && user.email) {
+    emailService.sendDepositSubmittedEmail(
+      user.email,
+      user.name,
+      finalAmount,
+      txnCurrency,
+      txn.id,
+      utrNumber.trim(),
+      methodLabel
+    ).catch(e => console.error('[EMAIL] Failed to dispatch deposit submitted email:', e));
+  }
+
   res.json({
     success: true,
     reference: refCode,
@@ -607,6 +620,13 @@ app.post('/api/payment/withdraw-request', securityFirewall.getCashierRateLimiter
 
   if (!user) {
     return res.status(404).json({ error: 'Trader account not found. Please log in again.' });
+  }
+
+  // Regulatory Requirement: Only Aadhaar KYC Verified Traders Can Withdraw
+  if (!user.isKycVerified) {
+    return res.status(403).json({
+      error: 'Aadhaar KYC Verification is strictly required before requesting withdrawals. Please complete your Aadhaar identity verification first.'
+    });
   }
 
   const USD_INR_RATE = 95.0;
@@ -817,11 +837,9 @@ app.delete('/api/admin/users/:userId', (req, res) => {
 });
 
 app.delete('/api/manager/users/:userId', (req, res) => {
-  const result = adminManager.deleteUser(req.params.userId);
-  if (!result.success) {
-    return res.status(400).json({ error: result.error });
-  }
-  res.json(result);
+  return res.status(403).json({
+    error: 'Access Denied: Managers do not have permission to delete trader accounts. Only Super Admin has user deletion privileges.'
+  });
 });
 
 // Admin Password Reset Endpoint
@@ -1163,7 +1181,7 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
       realBalance: user.realBalance,
     });
 
-    // Automated Security Notification: Dispatch withdrawal approved email
+    // Automated Security Notification: Dispatch emails
     if (tx.type === 'WITHDRAWAL' && user.email) {
       emailService.sendWithdrawalApprovedEmail(
         user.email,
@@ -1173,6 +1191,15 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
         tx.id,
         tx.method
       ).catch(e => console.error('[EMAIL] Failed to dispatch withdrawal approved email:', e));
+    } else if (tx.type === 'DEPOSIT' && user.email) {
+      emailService.sendDepositApprovedEmail(
+        user.email,
+        user.name,
+        tx.amount,
+        tx.currency,
+        tx.id,
+        user.realBalance
+      ).catch(e => console.error('[EMAIL] Failed to dispatch deposit approved email:', e));
     }
   }
 
@@ -1196,6 +1223,18 @@ app.post('/api/admin/transactions/:id/reject', (req, res) => {
       activeAccountType: user.activeAccountType,
       currency: user.currency,
     });
+
+    if (user.email) {
+      emailService.sendTransactionRejectedEmail(
+        user.email,
+        user.name,
+        result.transaction!.amount,
+        result.transaction!.currency,
+        result.transaction!.id,
+        result.transaction!.type,
+        reason
+      ).catch(e => console.error('[EMAIL] Failed to dispatch transaction rejected email:', e));
+    }
   }
 
   res.json(result);
@@ -1337,6 +1376,9 @@ app.post('/api/user/kyc/submit', (req: express.Request, res: express.Response) =
   const { userId, fullName, aadhaarNumber, dob, gender, frontImage, backImage } = req.body;
   if (!userId || !fullName || !aadhaarNumber) {
     return res.status(400).json({ error: 'User ID, Full Legal Name, and 12-digit Aadhaar Number are required.' });
+  }
+  if (!frontImage || !backImage) {
+    return res.status(400).json({ error: 'Both Front and Back photos of Aadhaar Card are strictly mandatory.' });
   }
   const result = adminManager.submitKycData(String(userId), { fullName, aadhaarNumber, dob, gender, frontImage, backImage });
   if (!result.success) return res.status(400).json({ error: result.error });
@@ -1505,7 +1547,7 @@ app.post('/api/manager/transactions/:id/approve', (req: express.Request, res: ex
       realBalance: user.realBalance,
     });
 
-    // Automated Security Notification: Dispatch withdrawal approved email
+    // Automated Security Notification: Dispatch emails
     if (result.transaction!.type === 'WITHDRAWAL' && user.email) {
       emailService.sendWithdrawalApprovedEmail(
         user.email,
@@ -1515,6 +1557,15 @@ app.post('/api/manager/transactions/:id/approve', (req: express.Request, res: ex
         result.transaction!.id,
         result.transaction!.method
       ).catch(e => console.error('[EMAIL] Failed to dispatch withdrawal approved email:', e));
+    } else if (result.transaction!.type === 'DEPOSIT' && user.email) {
+      emailService.sendDepositApprovedEmail(
+        user.email,
+        user.name,
+        result.transaction!.amount,
+        result.transaction!.currency,
+        result.transaction!.id,
+        user.realBalance
+      ).catch(e => console.error('[EMAIL] Failed to dispatch deposit approved email:', e));
     }
   }
   res.json(result);
@@ -1538,6 +1589,18 @@ app.post('/api/manager/transactions/:id/reject', (req: express.Request, res: exp
       activeAccountType: user.activeAccountType,
       currency: user.currency,
     });
+
+    if (user.email) {
+      emailService.sendTransactionRejectedEmail(
+        user.email,
+        user.name,
+        result.transaction!.amount,
+        result.transaction!.currency,
+        result.transaction!.id,
+        result.transaction!.type,
+        reason
+      ).catch(e => console.error('[EMAIL] Failed to dispatch transaction rejected email:', e));
+    }
   }
   res.json(result);
 });
