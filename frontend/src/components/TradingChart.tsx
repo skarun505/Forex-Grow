@@ -21,7 +21,12 @@ import {
   RotateCcw,
   Clock,
   Timer,
+  ChevronDown,
 } from 'lucide-react';
+
+interface TradingChartProps {
+  onOpenAssetModal?: () => void;
+}
 
 const TIMEFRAMES: Array<{ id: TimeframeInterval; label: string; desc: string }> = [
   { id: '5s', label: '5s', desc: '5 seconds' },
@@ -34,7 +39,7 @@ const TIMEFRAMES: Array<{ id: TimeframeInterval; label: string; desc: string }> 
   { id: '5h', label: '5h', desc: '5 hours' },
 ];
 
-export const TradingChart: React.FC = () => {
+export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -487,19 +492,21 @@ export const TradingChart: React.FC = () => {
 
   return (
     <div className="relative w-full h-full flex flex-col bg-[#131722] overflow-hidden select-none">
-      {/* Mobile Streamlined Live Price & Candle Timer Pill */}
-      <div className="sm:hidden absolute top-2 left-2 z-20 flex items-center space-x-2 bg-[#1e2333]/90 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 shadow-lg">
-        <span className={`text-sm font-black mono-num ${isUp ? 'text-trade-green' : 'text-trade-red'}`}>
-          {currentPrice.toFixed(dec)}
+      {/* Mobile Currency Pair Dropdown Selector (Replaces raw pips numbers with clean asset picker) */}
+      <button
+        type="button"
+        onClick={onOpenAssetModal}
+        className="sm:hidden absolute top-2 left-2 z-20 flex items-center space-x-2 bg-[#1e2333]/95 hover:bg-[#252e42] active:scale-95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 shadow-xl transition"
+        title="Tap to change currency pair / market"
+      >
+        <span className="text-xs font-bold text-white tracking-tight truncate max-w-[125px]">
+          {selectedAsset?.name || 'EUR/USD (OTC)'}
         </span>
-        <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded">
+        <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-md">
           +{selectedAsset?.payout}%
         </span>
-        <div className="flex items-center space-x-1 font-mono text-[10px] text-amber-400 bg-black/30 px-1.5 py-0.5 rounded border border-amber-400/20">
-          <Timer className="w-2.5 h-2.5 text-emerald-400 animate-spin" style={{ animationDuration: '4s' }} />
-          <span className="font-bold">{candleRemainingSec}s</span>
-        </div>
-      </div>
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+      </button>
 
       {/* Desktop Top Floating Info & Asset Banner */}
       <div className="hidden sm:flex absolute top-4 left-5 z-20 items-center space-x-4 bg-[#1e2333]/90 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/5 shadow-2xl">

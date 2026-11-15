@@ -6,18 +6,18 @@ import { ForexGrowLogo } from './ForexGrowLogo';
 import { 
   ChevronDown, 
   RefreshCw, 
-  Wallet, 
   PlusCircle, 
-  Check, 
   Trophy, 
   Volume2, 
   VolumeX, 
   ShieldCheck, 
-  Globe2, 
   Sun, 
   Moon, 
   User,
-  LogOut
+  LogOut,
+  Send,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -26,6 +26,7 @@ interface HeaderProps {
   onOpenLeaderboardModal: () => void;
   onOpenCurrencyModal: () => void;
   onOpenKycModal?: () => void;
+  onOpenProfileModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLeaderboardModal,
   onOpenCurrencyModal,
   onOpenKycModal,
+  onOpenProfileModal,
 }) => {
   const {
     account,
@@ -50,6 +52,8 @@ export const Header: React.FC<HeaderProps> = ({
   const isLight = theme === 'light';
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isBalanceHidden, setIsBalanceHidden] = useState(false);
+  const [isRefillingDemo, setIsRefillingDemo] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const accountDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -112,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
         {selectedAsset && (
           <button
             onClick={onOpenAssetModal}
-            className={`flex items-center space-x-2 sm:space-x-3 transition border px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl text-left group shadow-sm ${
+            className={`hidden sm:flex items-center space-x-2 sm:space-x-3 transition border px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl text-left group shadow-sm ${
               isLight 
                 ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-800' 
                 : 'bg-[#1c2333] hover:bg-[#252e42] border-[#293246] text-white'
@@ -140,40 +144,8 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center space-x-1 sm:space-x-2.5">
-        {/* 1-Tap Quick Switch Pill (Mobile & Desktop) */}
-        <div className={`flex items-center p-0.5 rounded-xl border text-[10px] font-black shrink-0 ${
-          isLight ? 'bg-slate-200 border-slate-300' : 'bg-[#10141f] border-[#293246]'
-        }`}>
-          <button
-            type="button"
-            onClick={() => switchAccount('REAL')}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1 ${
-              account.activeAccountType === 'REAL'
-                ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
-                : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
-            }`}
-            title="Switch to Live Real Account"
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${account.activeAccountType === 'REAL' ? 'bg-slate-950 animate-pulse' : 'bg-emerald-500'}`} />
-            <span>REAL</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => switchAccount('DEMO')}
-            className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1 ${
-              account.activeAccountType === 'DEMO'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
-            }`}
-            title="Switch to Practice Demo Account"
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${account.activeAccountType === 'DEMO' ? 'bg-slate-950' : 'bg-amber-500'}`} />
-            <span>DEMO</span>
-          </button>
-        </div>
-
-        {/* Account Balance Pill & Detailed Modal Trigger */}
+      <div className="flex items-center space-x-1.5 sm:space-x-2.5">
+        {/* Quotex-Style Live / Demo Dropdown Trigger */}
         <div className="relative" ref={accountDropdownRef}>
           <button
             type="button"
@@ -181,65 +153,119 @@ export const Header: React.FC<HeaderProps> = ({
               setShowAccountDropdown(!showAccountDropdown);
               setShowUserMenu(false);
             }}
-            className={`flex items-center space-x-1 sm:space-x-1.5 border px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl transition shadow-sm ${
+            className={`flex items-center space-x-1.5 sm:space-x-2 border px-2.5 sm:px-3 py-1.5 rounded-xl sm:rounded-2xl transition shadow-sm ${
               account.activeAccountType === 'REAL'
-                ? isLight ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-400'
-                : isLight ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-amber-950/30 border-amber-500/40 text-amber-400'
+                ? isLight
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                  : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/40'
+                : isLight
+                ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                : 'bg-amber-950/40 border-amber-500/40 text-amber-400 hover:bg-amber-900/40'
             }`}
-            title="Click to view detailed account balances & cashier options"
+            title="Click to switch between Live and Demo account, or refill demo funds"
           >
-            <Wallet className="w-3.5 h-3.5 shrink-0 hidden xs:block" />
-            <span className="text-xs sm:text-sm font-black mono-num">
-              {formatCurrency(activeBalance, account.currency)}
+            <Send className={`w-3.5 h-3.5 rotate-[-30deg] shrink-0 ${
+              account.activeAccountType === 'REAL' ? 'text-emerald-400' : 'text-amber-400'
+            }`} />
+            <span className="text-[10px] sm:text-[11px] font-black tracking-wider uppercase">
+              {account.activeAccountType === 'REAL' ? 'LIVE' : 'DEMO'}
             </span>
-            <ChevronDown className="w-3 h-3 opacity-70 shrink-0" />
+            <span className="text-xs sm:text-sm font-black mono-num">
+              {isBalanceHidden ? '••••••' : formatCurrency(activeBalance, account.currency)}
+            </span>
+            <ChevronDown className={`w-3 h-3 opacity-70 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Account Details Dropdown */}
+          {/* Quotex-Style Account Dropdown Card */}
           {showAccountDropdown && (
-            <div className={`absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 ${
-              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a2130] border-[#293246] text-white'
+            <div className={`absolute right-0 mt-2 w-80 max-w-[calc(100vw-1.5rem)] border rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 ${
+              isLight ? 'bg-white border-slate-200 text-slate-800 shadow-slate-300/60' : 'bg-[#151924] border-[#273044] text-white'
             }`}>
-              <div className={`pb-2.5 mb-2 border-b flex items-center justify-between ${
-                isLight ? 'border-slate-200' : 'border-[#293246]'
+              {/* Top Banner Card: Standard / VIP profit badge + Eye toggle */}
+              <div className={`flex items-center justify-between p-2.5 rounded-xl border mb-3.5 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#1c2233] border-white/5'
               }`}>
-                <span className="text-xs font-black uppercase tracking-wider text-gray-400">Select Trading Account</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  account.activeAccountType === 'REAL' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-                }`}>
-                  Current: {account.activeAccountType}
-                </span>
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Send className="w-3.5 h-3.5 rotate-[-30deg]" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none">
+                      {account.vipLevel === 'VIP' ? 'VIP STATUS:' : 'STANDARD:'}
+                    </div>
+                    <div className="text-xs font-black text-emerald-400 mt-0.5">
+                      {account.vipLevel === 'VIP' ? '+2% profit' : '+0% profit'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBalanceHidden(!isBalanceHidden)}
+                  title={isBalanceHidden ? 'Show balance' : 'Hide balance'}
+                  className={`p-1.5 rounded-lg border transition ${
+                    isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-black/30 border-white/5 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {isBalanceHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
 
-              {/* 1. Live Real Account Card */}
+              {/* Trader Identity Block */}
+              <div className="mb-3">
+                <div className="text-sm font-black truncate">
+                  {account.email || account.phone || account.name}
+                </div>
+                <div className="text-xs text-gray-400 font-mono mt-0.5">
+                  ID: {account.id?.replace(/^usr_/, '') || '96128920'}
+                </div>
+                <div className="flex items-center space-x-2 text-xs text-gray-300 mt-1.5">
+                  <span className="text-gray-400">Currency:</span>
+                  <span className="font-bold font-mono text-white">{account.currency}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAccountDropdown(false);
+                      onOpenCurrencyModal();
+                    }}
+                    className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 transition uppercase"
+                  >
+                    CHANGE
+                  </button>
+                </div>
+              </div>
+
+              {/* Horizontal Divider */}
+              <div className={`border-t my-3 ${isLight ? 'border-slate-200' : 'border-white/10'}`} />
+
+              {/* Account Choice 1: Live Account */}
               <div
                 onClick={() => {
                   switchAccount('REAL');
                   setShowAccountDropdown(false);
                 }}
-                className={`p-3 rounded-2xl border cursor-pointer transition mb-2 ${
+                className={`flex items-start space-x-3 p-3 rounded-xl cursor-pointer border transition mb-2 ${
                   account.activeAccountType === 'REAL'
-                    ? 'border-emerald-500 bg-emerald-500/10 shadow-md'
-                    : isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-[#293246] hover:bg-white/5'
+                    ? 'border-emerald-500/50 bg-emerald-500/10'
+                    : isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-white/5 hover:bg-white/5'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center space-x-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-black">Live Real Account</span>
+                <div className="mt-0.5">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    account.activeAccountType === 'REAL' ? 'border-emerald-400 bg-emerald-500/20' : 'border-gray-500'
+                  }`}>
+                    {account.activeAccountType === 'REAL' && (
+                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                    )}
                   </div>
-                  {account.activeAccountType === 'REAL' && (
-                    <span className="text-[10px] font-black text-emerald-400 flex items-center space-x-0.5">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>ACTIVE</span>
-                    </span>
-                  )}
                 </div>
-                <div className="text-base sm:text-lg font-black mono-num text-emerald-400">
-                  {formatCurrency(account.realBalance, account.currency)}
-                </div>
-                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400">Real Market Trading</span>
+                <div className="flex-1">
+                  <div className="text-xs font-bold">Live Account</div>
+                  <div className="text-base font-black mono-num text-emerald-400 mt-0.5">
+                    {isBalanceHidden ? '••••••' : formatCurrency(account.realBalance, account.currency)}
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    The daily limit is not set
+                  </div>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -247,72 +273,58 @@ export const Header: React.FC<HeaderProps> = ({
                       setShowAccountDropdown(false);
                       onOpenCashierModal();
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] transition shadow"
+                    className="text-[10px] font-extrabold text-sky-400 hover:underline uppercase mt-0.5 block"
                   >
-                    + Deposit
+                    SET LIMIT
                   </button>
                 </div>
               </div>
 
-              {/* 2. Practice Demo Account Card */}
+              {/* Account Choice 2: Demo Account with Refill Option */}
               <div
                 onClick={() => {
                   switchAccount('DEMO');
                   setShowAccountDropdown(false);
                 }}
-                className={`p-3 rounded-2xl border cursor-pointer transition mb-2 ${
+                className={`flex items-start space-x-3 p-3 rounded-xl cursor-pointer border transition ${
                   account.activeAccountType === 'DEMO'
-                    ? 'border-amber-500 bg-amber-500/10 shadow-md'
-                    : isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-[#293246] hover:bg-white/5'
+                    ? 'border-amber-500/50 bg-amber-500/10'
+                    : isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-white/5 hover:bg-white/5'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center space-x-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-xs font-black">Practice Demo Account</span>
+                <div className="mt-0.5">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    account.activeAccountType === 'DEMO' ? 'border-amber-400 bg-amber-500/20' : 'border-gray-500'
+                  }`}>
+                    {account.activeAccountType === 'DEMO' && (
+                      <div className="w-2 h-2 rounded-full bg-amber-400" />
+                    )}
                   </div>
-                  {account.activeAccountType === 'DEMO' && (
-                    <span className="text-[10px] font-black text-amber-400 flex items-center space-x-0.5">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>ACTIVE</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold">Demo Account</span>
+                    <span className="text-[10px] text-gray-400">Practice</span>
+                  </div>
+                  <div className="flex items-center space-x-2.5 mt-0.5">
+                    <span className="text-base font-black mono-num text-amber-400">
+                      {isBalanceHidden ? '••••••' : formatCurrency(account.demoBalance, account.currency)}
                     </span>
-                  )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsRefillingDemo(true);
+                        resetDemoBalance();
+                        setTimeout(() => setIsRefillingDemo(false), 800);
+                      }}
+                      title="Refill practice demo balance back to default if washed out"
+                      className="p-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition active:scale-95"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRefillingDemo ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
                 </div>
-                <div className="text-base sm:text-lg font-black mono-num text-amber-400">
-                  {formatCurrency(account.demoBalance, account.currency)}
-                </div>
-                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400">Virtual Practice Funds</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      resetDemoBalance();
-                    }}
-                    title="Reset demo balance to initial funds"
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-[10px] transition flex items-center space-x-1"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Reset</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Currency & KYC quick info */}
-              <div
-                onClick={() => {
-                  setShowAccountDropdown(false);
-                  onOpenCurrencyModal();
-                }}
-                className={`pt-2 border-t p-1.5 text-xs flex items-center justify-between cursor-pointer rounded-xl hover:bg-white/5 ${
-                  isLight ? 'border-slate-200 text-slate-600' : 'border-[#293246]/60 text-gray-400'
-                }`}
-              >
-                <span className="flex items-center space-x-1.5">
-                  <Globe2 className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Currency: {currencyConfig.name}</span>
-                </span>
-                <span className="font-bold">{currencyConfig.flag} {currencyConfig.code}</span>
               </div>
             </div>
           )}
@@ -323,7 +335,11 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => {
-              setShowUserMenu(!showUserMenu);
+              if (onOpenProfileModal) {
+                onOpenProfileModal();
+              } else {
+                setShowUserMenu(!showUserMenu);
+              }
               setShowAccountDropdown(false);
             }}
             className={`flex items-center space-x-1 sm:space-x-2 border p-1 sm:px-2.5 sm:py-1.5 rounded-xl sm:rounded-2xl shadow-sm transition text-left ${

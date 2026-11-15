@@ -1,10 +1,11 @@
 import React from 'react';
 import { useTrading } from '../context/TradingContext';
 import { CURRENCY_CONFIGS } from '../utils/currency';
-import { CandlestickChart, Clock, Sparkles, Trophy, Wallet } from 'lucide-react';
+import { CandlestickChart, Clock, User, Trophy, Wallet } from 'lucide-react';
 
 interface MobileNavBarProps {
-  onOpenAssetModal: () => void;
+  onOpenAssetModal?: () => void;
+  onOpenProfileModal: () => void;
   onOpenCashierModal: () => void;
   onOpenLeaderboardModal: () => void;
   onOpenCurrencyModal: () => void;
@@ -13,7 +14,7 @@ interface MobileNavBarProps {
 }
 
 export const MobileNavBar: React.FC<MobileNavBarProps> = ({
-  onOpenAssetModal,
+  onOpenProfileModal,
   onOpenCashierModal,
   onOpenLeaderboardModal,
   onOpenCurrencyModal,
@@ -42,17 +43,6 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       >
         <CandlestickChart className="w-4 h-4" />
         <span className="text-[10px] mt-0.5 font-bold">Chart</span>
-      </button>
-
-      {/* Markets Tab */}
-      <button
-        onClick={onOpenAssetModal}
-        className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
-          isLight ? 'text-slate-500 hover:text-slate-800' : 'text-gray-400 hover:text-gray-200'
-        }`}
-      >
-        <Sparkles className="w-4 h-4 text-emerald-400" />
-        <span className="text-[10px] mt-0.5">Markets</span>
       </button>
 
       {/* Orders Tab with active badge */}
@@ -91,6 +81,22 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
       >
         <Trophy className="w-4 h-4 text-amber-500" />
         <span className="text-[10px] mt-0.5">Rank</span>
+      </button>
+
+      {/* Profile Tab */}
+      <button
+        onClick={onOpenProfileModal}
+        className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+          isLight ? 'text-slate-500 hover:text-slate-800' : 'text-gray-400 hover:text-gray-200'
+        }`}
+      >
+        <div className="relative">
+          <User className="w-4 h-4 text-sky-400" />
+          {account.isKycVerified && (
+            <span className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-emerald-400 border border-[#141824]" />
+          )}
+        </div>
+        <span className="text-[10px] mt-0.5">Profile</span>
       </button>
 
       {/* Cashier / Wallet Tab - Glowing Deposit Button */}

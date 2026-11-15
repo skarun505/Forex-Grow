@@ -15,6 +15,7 @@ import { ManagerDashboard } from './components/ManagerDashboard';
 import { LoginPage } from './components/LoginPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { KycModal } from './components/KycModal';
+import { ProfileModal } from './components/ProfileModal';
 
 const MainLayout: React.FC = () => {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -23,6 +24,7 @@ const MainLayout: React.FC = () => {
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
   const [isMobileTradesOpen, setIsMobileTradesOpen] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const { notification, theme } = useTrading();
 
@@ -44,6 +46,7 @@ const MainLayout: React.FC = () => {
         onOpenLeaderboardModal={() => setIsLeaderboardModalOpen(true)}
         onOpenCurrencyModal={() => setIsCurrencyModalOpen(true)}
         onOpenKycModal={() => setIsKycModalOpen(true)}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
       />
 
       {/* Main Trading Floor */}
@@ -51,7 +54,7 @@ const MainLayout: React.FC = () => {
         {/* Left / Top: Chart & Desktop Trades Drawer */}
         <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden relative">
           <div className="flex-1 relative overflow-hidden w-full h-full min-h-0">
-            <TradingChart />
+            <TradingChart onOpenAssetModal={() => setIsAssetModalOpen(true)} />
           </div>
 
           {/* Desktop Trades Drawer (Visible only on lg screens) */}
@@ -79,6 +82,7 @@ const MainLayout: React.FC = () => {
       {/* Mobile Bottom Dock Bar */}
       <MobileNavBar
         onOpenAssetModal={() => setIsAssetModalOpen(true)}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
         onOpenCashierModal={() => setIsCashierModalOpen(true)}
         onOpenLeaderboardModal={() => setIsLeaderboardModalOpen(true)}
         onOpenCurrencyModal={() => setIsCurrencyModalOpen(true)}
@@ -113,6 +117,15 @@ const MainLayout: React.FC = () => {
       <KycModal
         isOpen={isKycModalOpen}
         onClose={() => setIsKycModalOpen(false)}
+      />
+
+      {/* Trader Profile & Account Center Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onOpenKycModal={() => setIsKycModalOpen(true)}
+        onOpenCashierModal={() => setIsCashierModalOpen(true)}
+        onOpenCurrencyModal={() => setIsCurrencyModalOpen(true)}
       />
 
       {/* Trade Settlement Celebration / Outcome Modal */}
