@@ -170,12 +170,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [isSavingBalance, setIsSavingBalance] = useState<boolean>(false);
 
   // Cashflow & Custom Date Analytics State
+  const padDate = (n: number) => (n < 10 ? '0' + n : String(n));
   const [cashflowFromDate, setCashflowFromDate] = useState<string>(() => {
     const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+    return `${d.getFullYear()}-${padDate(d.getMonth() + 1)}-01`;
   });
   const [cashflowToDate, setCashflowToDate] = useState<string>(() => {
-    return new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    return `${d.getFullYear()}-${padDate(d.getMonth() + 1)}-${padDate(d.getDate())}`;
   });
   const [cashflowUserFilter, setCashflowUserFilter] = useState<string>('ALL');
   const [cashflowTypeFilter, setCashflowTypeFilter] = useState<'ALL' | 'DEPOSIT' | 'WITHDRAWAL'>('ALL');
@@ -1450,7 +1452,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         {activeTab === 'CASHFLOW' && (() => {
           // 1. Filter Transactions by Custom Date Range, Trader, Type, and Status
           const filteredCashflow = transactions.filter((t) => {
-            const txDate = new Date(t.timestamp).toISOString().slice(0, 10);
+            const d = new Date(t.timestamp);
+            const txDate = `${d.getFullYear()}-${padDate(d.getMonth() + 1)}-${padDate(d.getDate())}`;
             if (cashflowFromDate && txDate < cashflowFromDate) return false;
             if (cashflowToDate && txDate > cashflowToDate) return false;
             if (cashflowUserFilter !== 'ALL' && t.userId !== cashflowUserFilter) return false;

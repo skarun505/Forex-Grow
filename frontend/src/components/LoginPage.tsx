@@ -54,7 +54,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [concurrencyNotice, setConcurrencyNotice] = useState<string | null>(null);
-  const [concurrencyInfo, setConcurrencyInfo] = useState<{ activeCount: number; maxLimit: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -64,20 +63,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
         sessionStorage.removeItem('quotex_forced_logout_reason');
       }
     } catch {}
-
-    const checkConcurrency = async () => {
-      try {
-        const res = await fetch(apiUrl('/api/auth/concurrency-status'));
-        if (res.ok) {
-          const data = await res.json();
-          setConcurrencyInfo({ activeCount: data.activeCount, maxLimit: data.maxLimit });
-        }
-      } catch {}
-    };
-
-    checkConcurrency();
-    const timer = setInterval(checkConcurrency, 3000);
-    return () => clearInterval(timer);
   }, []);
 
   // Determine if identifier is phone number or email
@@ -302,23 +287,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                 </div>
               )}
 
-              {/* Real-time System Concurrency Indicator */}
-              {concurrencyInfo && (
-                <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-black/20 border border-white/5 text-[11px]">
-                  <div className="flex items-center space-x-2">
-                    <span className={`w-2 h-2 rounded-full ${
-                      concurrencyInfo.activeCount >= concurrencyInfo.maxLimit ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
-                    }`} />
-                    <span className="font-bold text-gray-300">
-                      Concurrent Active Logins: <span className={concurrencyInfo.activeCount >= concurrencyInfo.maxLimit ? 'text-amber-400' : 'text-emerald-400'}>{concurrencyInfo.activeCount} / {concurrencyInfo.maxLimit}</span>
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-gray-400">
-                    {concurrencyInfo.activeCount >= concurrencyInfo.maxLimit ? 'Next login auto-logs out others' : 'Max 2 Simultaneous'}
-                  </span>
-                </div>
-              )}
-
               {errorMsg && (
                 <div className="bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs p-3.5 rounded-2xl flex items-start space-x-2.5 animate-in fade-in">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -331,7 +299,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                 {/* Email or Phone Input */}
                 <div>
                   <label className={`text-xs font-bold block mb-1.5 ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
-                    {mode === 'TRADER' ? 'Email ID, Mobile Number or 12-digit Aadhaar' : 'Administrator / Manager Email'}
+                    {mode === 'TRADER' ? 'Email Address or Mobile Number' : 'Administrator / Manager Email'}
                   </label>
                   <div className={`flex items-center border rounded-2xl px-3.5 py-3 transition ${
                     isLight 
@@ -353,7 +321,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
                         mode === 'ADMIN' 
                           ? 'admin@forexgrow.com' 
                           : mode === 'MANAGER' 
-                          ? 'manager@forexgrow.com' 
+                          ? 'raksha@forexgrow.com' 
                           : 'Email or Mobile Number (+91...)'
                       }
                       className={`w-full bg-transparent text-sm focus:outline-none font-medium ${

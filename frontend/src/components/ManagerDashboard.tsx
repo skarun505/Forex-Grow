@@ -247,8 +247,8 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   // Current logged in manager profile
   const managerProfile = {
     id: 'usr_manager_ops_01',
-    name: 'Sarah Connor',
-    email: 'manager@forexgrow.com',
+    name: 'Raksha',
+    email: 'raksha@forexgrow.com',
     role: 'MANAGER' as const,
   };
 

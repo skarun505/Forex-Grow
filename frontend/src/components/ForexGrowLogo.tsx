@@ -207,7 +207,7 @@ export const ForexGrowLogo: React.FC<ForexGrowLogoProps> = ({
             </span>
           </div>
           {subtitle && (
-            <div className="text-[9px] sm:text-[10px] text-gray-400 font-medium truncate max-w-[210px] sm:max-w-none">
+            <div className="hidden sm:block text-[9px] sm:text-[10px] text-gray-400 font-medium truncate max-w-[280px]">
               {subtitle}
             </div>
           )}

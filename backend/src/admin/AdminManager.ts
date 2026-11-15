@@ -102,6 +102,8 @@ export class AdminManager extends EventEmitter {
             merged.role = 'ADMIN';
             await SupabaseDb.saveUser(merged);
           } else if (merged.id === 'usr_manager_ops_01') {
+            merged.name = 'Raksha';
+            merged.email = 'manager@forexgrow.com';
             merged.currency = 'INR';
             merged.realBalance = 0;
             merged.demoBalance = 0;
@@ -206,10 +208,10 @@ export class AdminManager extends EventEmitter {
     };
     this.users.set(primaryUser.id, primaryUser);
 
-    // Operations Manager Account: Sarah Connor (Zero balance as requested)
+    // Operations Manager Account: Raksha (Zero balance as requested)
     const opsManager: UserAccount = {
       id: 'usr_manager_ops_01',
-      name: 'Sarah Connor',
+      name: 'Raksha',
       email: 'manager@forexgrow.com',
       phone: '+15550002222',
       password: 'manager123',

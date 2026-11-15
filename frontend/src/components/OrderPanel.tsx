@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTrading } from '../context/TradingContext';
-import { CURRENCY_CONFIGS, formatCurrency, formatUSDToCurrency, getQuickAmountChips } from '../utils/currency';
+import { CURRENCY_CONFIGS, formatCurrency, getQuickAmountChips } from '../utils/currency';
 import { ArrowUp, ArrowDown, Clock, Plus, Minus } from 'lucide-react';
 
 const DURATION_PRESETS = [
@@ -16,24 +16,24 @@ const DURATION_PRESETS = [
 export const OrderPanel: React.FC = () => {
   const { selectedAsset, placeTrade, account, theme } = useTrading();
   const [duration, setDuration] = useState<number>(30);
-  const [amountUSD, setAmountUSD] = useState<number>(50);
 
   const isLight = theme === 'light';
   const curr = CURRENCY_CONFIGS[account.currency] || CURRENCY_CONFIGS.USD;
   const quickChips = getQuickAmountChips(account.currency);
+  const [amount, setAmount] = useState<number>(() => quickChips[0] || (account.currency === 'INR' ? 500 : 50));
 
-  // Automatically adjust amount when currency switches
+  // Automatically adjust amount to default chip when currency switches
   useEffect(() => {
-    const primaryChip = quickChips[0] || 50;
-    setAmountUSD(primaryChip / curr.rateAgainstUSD);
+    const primaryChip = quickChips[0] || (account.currency === 'INR' ? 500 : 50);
+    setAmount(primaryChip);
   }, [account.currency]);
 
   const payout = selectedAsset?.payout ?? 65;
-  const profitUSD = Number((amountUSD * (payout / 100)).toFixed(4));
-  const totalReturnUSD = Number((amountUSD + profitUSD).toFixed(4));
+  const profit = Number((amount * (payout / 100)).toFixed(2));
+  const totalReturn = Number((amount + profit).toFixed(2));
 
   const currentBalance = account.activeAccountType === 'DEMO' ? account.demoBalance : account.realBalance;
-  const isInsufficient = isNaN(amountUSD) || currentBalance < amountUSD || amountUSD <= 0;
+  const isInsufficient = isNaN(amount) || currentBalance < amount || amount <= 0;
 
   const getCurrencyStep = (code: string) => {
     switch (code) {
@@ -49,29 +49,28 @@ export const OrderPanel: React.FC = () => {
   };
 
   const handleAdjustAmount = (multiplier: number) => {
-    const stepLocal = getCurrencyStep(account.currency);
-    const validAmount = isNaN(amountUSD) || amountUSD <= 0 ? stepLocal / curr.rateAgainstUSD : amountUSD;
-    const currentLocal = Math.round(validAmount * curr.rateAgainstUSD);
-    const newLocal = Math.max(stepLocal, currentLocal + multiplier * stepLocal);
-    setAmountUSD(newLocal / curr.rateAgainstUSD);
+    const step = getCurrencyStep(account.currency);
+    const validAmount = isNaN(amount) || amount <= 0 ? step : amount;
+    const newAmount = Math.max(step, validAmount + multiplier * step);
+    setAmount(newAmount);
   };
 
   const handleSetQuickLocalAmount = (localAmount: number) => {
     if (localAmount > 0) {
-      setAmountUSD(localAmount / curr.rateAgainstUSD);
+      setAmount(localAmount);
     }
   };
 
   const handlePercentOfBalance = (percent: number) => {
     if (currentBalance <= 0) return;
-    const calculatedUSD = (currentBalance * percent) / 100;
-    const minUSD = getCurrencyStep(account.currency) / curr.rateAgainstUSD;
-    setAmountUSD(Math.max(minUSD, calculatedUSD));
+    const step = getCurrencyStep(account.currency);
+    const calculated = (currentBalance * percent) / 100;
+    setAmount(Math.max(step, Math.round(calculated)));
   };
 
   const handleTrade = (direction: 'UP' | 'DOWN') => {
     if (isInsufficient) return;
-    const finalAmount = Math.max(0.1, Number(amountUSD.toFixed(4)));
+    const finalAmount = Math.max(1, Number(amount.toFixed(2)));
     placeTrade(direction, finalAmount, duration);
   };
 
@@ -91,7 +90,7 @@ export const OrderPanel: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [amountUSD, duration, isInsufficient, currentBalance]);
+  }, [amount, duration, isInsufficient, currentBalance]);
 
   return (
     <>
@@ -134,9 +133,9 @@ export const OrderPanel: React.FC = () => {
           {/* Investment Amount */}
           <div>
             <div className="flex items-center justify-between text-xs font-semibold mb-2">
-              <span className={isLight ? 'text-slate-600' : 'text-gray-400'}>Investment ({curr.code})</span>
-              <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                ≈ {formatUSDToCurrency(amountUSD, account.currency)}
+              <span className={isLight ? 'text-slate-600' : 'text-gray-400'}>Investment Amount</span>
+              <span className={`text-[11px] font-mono font-bold ${isLight ? 'text-slate-800' : 'text-gray-300'}`}>
+                {formatCurrency(amount, account.currency)}
               </span>
             </div>
 
@@ -144,6 +143,7 @@ export const OrderPanel: React.FC = () => {
               isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#121620] border-[#2e354b]'
             }`}>
               <button
+                type="button"
                 onClick={() => handleAdjustAmount(-1)}
                 className={`p-2 rounded-xl transition ${
                   isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-[#222838]'
@@ -157,25 +157,26 @@ export const OrderPanel: React.FC = () => {
                   type="number"
                   inputMode="decimal"
                   pattern="[0-9]*"
-                  value={Math.round(amountUSD * curr.rateAgainstUSD) || ''}
+                  value={amount || ''}
                   placeholder="500"
                   onChange={(e) => {
                     const raw = e.target.value;
                     if (raw === '') {
-                      setAmountUSD(0);
+                      setAmount(0);
                       return;
                     }
-                    const localVal = parseFloat(raw);
-                    if (!isNaN(localVal) && localVal >= 0) {
-                      setAmountUSD(localVal / curr.rateAgainstUSD);
+                    const val = parseFloat(raw);
+                    if (!isNaN(val) && val >= 0) {
+                      setAmount(val);
                     }
                   }}
-                  className={`w-28 bg-transparent text-center text-xl font-black mono-num focus:outline-none ${
+                  className={`w-32 bg-transparent text-center text-xl font-black mono-num focus:outline-none ${
                     isLight ? 'text-slate-900' : 'text-white'
                   }`}
                 />
               </div>
               <button
+                type="button"
                 onClick={() => handleAdjustAmount(1)}
                 className={`p-2 rounded-xl transition ${
                   isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-[#222838]'
@@ -188,11 +189,11 @@ export const OrderPanel: React.FC = () => {
             {/* Quick Amount Chips in Local Currency */}
             <div className="flex justify-between items-center gap-1.5 mt-2">
               {quickChips.map((chip) => {
-                const currentLocal = Math.round(amountUSD * curr.rateAgainstUSD);
-                const isActive = Math.abs(currentLocal - chip) < 1;
+                const isActive = Math.abs(amount - chip) < 1;
                 return (
                   <button
                     key={chip}
+                    type="button"
                     onClick={() => handleSetQuickLocalAmount(chip)}
                     className={`flex-1 py-1.5 text-xs rounded-xl border font-bold transition truncate ${
                       isActive
@@ -211,6 +212,7 @@ export const OrderPanel: React.FC = () => {
               {[10, 25, 50, 100].map((pct) => (
                 <button
                   key={pct}
+                  type="button"
                   onClick={() => handlePercentOfBalance(pct)}
                   className={`flex-1 py-1 text-[11px] font-bold rounded-lg border transition ${
                     isLight
@@ -236,10 +238,10 @@ export const OrderPanel: React.FC = () => {
               <span className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Projected Return</span>
               <div className="text-right">
                 <div className={`text-lg font-black mono-num ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  {formatUSDToCurrency(totalReturnUSD, account.currency)}
+                  {formatCurrency(totalReturn, account.currency)}
                 </div>
                 <div className="text-xs font-bold text-emerald-500 mono-num">
-                  (+{formatUSDToCurrency(profitUSD, account.currency)})
+                  (+{formatCurrency(profit, account.currency)})
                 </div>
               </div>
             </div>
@@ -308,7 +310,7 @@ export const OrderPanel: React.FC = () => {
               type="button"
               onClick={() => handleSetQuickLocalAmount(chip)}
               className={`px-2 py-1 text-[10px] font-bold rounded-lg whitespace-nowrap transition active:scale-95 border ${
-                Math.round(amountUSD * curr.rateAgainstUSD) === chip
+                Math.abs(amount - chip) < 1
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-black'
                   : isLight
                   ? 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
@@ -377,17 +379,17 @@ export const OrderPanel: React.FC = () => {
                 type="number"
                 inputMode="decimal"
                 pattern="[0-9]*"
-                value={Math.round(amountUSD * curr.rateAgainstUSD) || ''}
+                value={amount || ''}
                 placeholder="500"
                 onChange={(e) => {
                   const raw = e.target.value;
                   if (raw === '') {
-                    setAmountUSD(0);
+                    setAmount(0);
                     return;
                   }
                   const val = parseFloat(raw);
                   if (!isNaN(val) && val >= 0) {
-                    setAmountUSD(val / curr.rateAgainstUSD);
+                    setAmount(val);
                   }
                 }}
                 className={`w-16 sm:w-20 bg-transparent text-center text-xs sm:text-sm font-black mono-num focus:outline-none ${
@@ -433,7 +435,7 @@ export const OrderPanel: React.FC = () => {
               </div>
             </div>
             <span className="text-[11px] font-mono font-bold bg-black/25 px-1.5 py-0.5 rounded">
-              +{formatUSDToCurrency(profitUSD, account.currency)}
+              +{formatCurrency(profit, account.currency)}
             </span>
           </button>
 
@@ -450,7 +452,7 @@ export const OrderPanel: React.FC = () => {
               </div>
             </div>
             <span className="text-[11px] font-mono font-bold bg-black/25 px-1.5 py-0.5 rounded">
-              +{formatUSDToCurrency(profitUSD, account.currency)}
+              +{formatCurrency(profit, account.currency)}
             </span>
           </button>
         </div>

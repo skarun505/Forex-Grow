@@ -416,16 +416,11 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
               FG
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h2 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  Forex Grow Cashier & Payout
-                </h2>
-                <span className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                  Verified Gateway
-                </span>
-              </div>
+              <h2 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                Deposit & Withdrawal
+              </h2>
               <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                Instant UPI & Bank Settlement Vault
+                Instant UPI & Net Banking Settlement
               </p>
             </div>
           </div>
@@ -570,25 +565,13 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 <button
                   type="button"
                   onClick={() => {
-                    const msg = `Hello Forex Grow Customer Care,\n\nI have made a deposit and need urgent confirmation:\nTrader: ${account.name} (${account.id})\nDeposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()}\nRef: ${depositSuccessData?.reference || 'N/A'}\nUTR: ${utrNumber || 'N/A'}\n\nPlease verify and credit my account.`;
+                    const msg = `Hello Forex Grow Customer Care,\n\nI have submitted a deposit and request instant verification & approval:\nTrader Name: ${account.name}\nTrader ID: ${account.id}\nDeposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()}\nReference ID: ${depositSuccessData?.reference || 'N/A'}\nUTR Number: ${utrNumber || 'N/A'}\n\nPlease verify and credit my live trading balance.`;
                     window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
                   }}
-                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
+                  className="w-full max-w-md py-3.5 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/10 transition active:scale-98"
                 >
                   <MessageCircle className="w-4 h-4 fill-current" />
-                  <span>Contact Payments Team on WhatsApp</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const msg = `Hello Forex Grow Customer Care,\n\nI have requested a payout and need urgent assistance:\nTrader: ${account.name} (${account.id})\nWithdrawal Amount: ${curr.symbol}${numericWithdraw.toLocaleString()}\nRef: ${withdrawSuccessData?.reference || 'N/A'}\nDestination: ${withdrawType === 'UPI' ? withdrawUpiId : bankAccountNumber}\n\nPlease confirm payout release.`;
-                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
-                  }}
-                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
-                >
-                  <MessageCircle className="w-4 h-4 fill-current" />
-                  <span>Contact Payments Team on WhatsApp</span>
+                  <span>WhatsApp for Instant Approval & Verification</span>
                 </button>
 
                 <div className="w-full max-w-md flex flex-col sm:flex-row gap-2.5">
@@ -1070,25 +1053,13 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                 <button
                   type="button"
                   onClick={() => {
-                    const msg = `Hello Forex Grow Customer Care,\n\nI have made a deposit and need urgent confirmation:\nTrader: ${account.name} (${account.id})\nDeposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()}\nRef: ${depositSuccessData?.reference || 'N/A'}\nUTR: ${utrNumber || 'N/A'}\n\nPlease verify and credit my account.`;
+                    const msg = `Hello Forex Grow Customer Care,\n\nI have requested a payout and request instant approval:\nTrader Name: ${account.name}\nTrader ID: ${account.id}\nWithdrawal Amount: ${curr.symbol}${numericWithdraw.toLocaleString()}\nReference ID: ${withdrawSuccessData?.reference || 'N/A'}\nDestination: ${withdrawType === 'UPI' ? withdrawUpiId : bankAccountNumber}\n\nPlease verify and release my payout.`;
                     window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
                   }}
-                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
+                  className="w-full max-w-md py-3.5 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/10 transition active:scale-98"
                 >
                   <MessageCircle className="w-4 h-4 fill-current" />
-                  <span>Contact Payments Team on WhatsApp</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const msg = `Hello Forex Grow Customer Care,\n\nI have requested a payout and need urgent assistance:\nTrader: ${account.name} (${account.id})\nWithdrawal Amount: ${curr.symbol}${numericWithdraw.toLocaleString()}\nRef: ${withdrawSuccessData?.reference || 'N/A'}\nDestination: ${withdrawType === 'UPI' ? withdrawUpiId : bankAccountNumber}\n\nPlease confirm payout release.`;
-                    window.open(`https://wa.me/919876543210?text=${encodeURIComponent(msg)}`, '_blank');
-                  }}
-                  className="w-full max-w-md py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 font-black text-xs flex items-center justify-center space-x-2 shadow-lg transition active:scale-98"
-                >
-                  <MessageCircle className="w-4 h-4 fill-current" />
-                  <span>Contact Payments Team on WhatsApp</span>
+                  <span>WhatsApp for Instant Payout Approval</span>
                 </button>
 
                 <div className="w-full max-w-md flex flex-col sm:flex-row gap-2.5">

@@ -223,8 +223,27 @@ export class MarketEngine extends EventEmitter {
     });
   }
 
+  private fourHourTimer?: NodeJS.Timeout;
+  private current4HourEpoch = -1;
+
+  public update4HourPayouts(force = false) {
+    const epoch4Hour = Math.floor(Date.now() / (4 * 3600 * 1000));
+    if (!force && epoch4Hour === this.current4HourEpoch) return;
+
+    this.current4HourEpoch = epoch4Hour;
+    for (const state of this.assets.values()) {
+      // Deterministic 4-hour fluctuation strictly between 50% and 70%
+      const seed = getAssetSeed(state.asset.id + '_4h_payout', epoch4Hour);
+      const rng = createSeededRandom(seed);
+      const newPayout = Math.floor(rng() * 21) + 50; // 50 to 70
+      state.asset.payout = newPayout;
+    }
+    this.emit('payouts_epoch_updated', this.getAssets());
+  }
+
   public start() {
     this.binanceFeed.start();
+    this.update4HourPayouts(true);
 
     if (!this.intervalTimer) {
       this.intervalTimer = setInterval(() => {
@@ -237,6 +256,12 @@ export class MarketEngine extends EventEmitter {
         this.updateSentiments();
       }, 2500);
     }
+
+    if (!this.fourHourTimer) {
+      this.fourHourTimer = setInterval(() => {
+        this.update4HourPayouts();
+      }, 60 * 1000);
+    }
   }
 
   private updateSentiments() {
@@ -246,16 +271,6 @@ export class MarketEngine extends EventEmitter {
       state.sentiment.bullPercent = newBull;
       state.sentiment.bearPercent = 100 - newBull;
       this.emit('sentiment_update', state.sentiment);
-
-      // Realistic market return fluctuation strictly between 50% and 70%
-      if (Math.random() < 0.12) {
-        const payoutShift = Math.random() < 0.5 ? -1 : 1;
-        const nextPayout = Math.max(50, Math.min(70, state.asset.payout + payoutShift));
-        if (nextPayout !== state.asset.payout) {
-          state.asset.payout = nextPayout;
-          this.emit('payout_updated', { assetId: state.asset.id, payout: nextPayout });
-        }
-      }
     }
   }
 
