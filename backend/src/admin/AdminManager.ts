@@ -8,7 +8,7 @@ export class AdminManager extends EventEmitter {
   private transactions: Transaction[] = [];
   private coupons: PromoCoupon[] = [];
   private auditLogs: AuditLog[] = [];
-  private totalVolumeUSD = 124800.00;
+  private totalVolumeUSD = 0.00;
   private paymentSettings: DepositPaymentSettings = {
     upiId: 'forexgrow@icici',
     upiName: 'Forex Grow Official Desk',
@@ -120,7 +120,7 @@ export class AdminManager extends EventEmitter {
 
       const dbTxns = await SupabaseDb.loadTransactions();
       if (dbTxns.length > 0) {
-        this.transactions = dbTxns.filter(t => t.userId === 'usr_quotex_vip_99' || !['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04'].includes(t.userId));
+        this.transactions = dbTxns.filter(t => t.id !== 'tx_init_01' && !['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04'].includes(t.userId));
       }
 
       const dbCoupons = await SupabaseDb.loadCoupons();
@@ -335,50 +335,42 @@ export class AdminManager extends EventEmitter {
       },
     ];
 
-    // Seed Initial Transactions (Only approved test transaction for Alex Rivera)
-    this.transactions = [
-      {
-        id: 'tx_init_01',
-        userId: 'usr_quotex_vip_99',
-        userName: 'Alex Rivera',
-        type: 'DEPOSIT',
-        amount: 10000.00,
-        amountUSD: 105.26,
-        currency: 'INR',
-        method: 'UPI Instant Payout',
-        address: 'alexrivera@okhdfcbank',
-        utrNumber: '202611140921',
-        status: 'APPROVED',
-        timestamp: Date.now() - 3600000 * 24,
-      },
-    ];
+    // No initial dummy transactions
+    this.transactions = [];
   }
 
   public getOverview(): AdminOverview {
-    const usersArr = Array.from(this.users.values());
-    const totalUsers = usersArr.length;
-    const activeTradersCount = usersArr.filter((u) => u.status === 'ACTIVE').length;
+    // Only real client trader accounts created hereafter (exclude ADMIN, MANAGER, and test sandbox account Alex Rivera)
+    const realTraders = Array.from(this.users.values()).filter(
+      (u) => u.role === 'TRADER' && u.id !== 'usr_quotex_vip_99'
+    );
+    const totalUsers = realTraders.length;
+    const activeTradersCount = realTraders.filter((u) => u.status === 'ACTIVE').length;
 
     let totalDepositsUSD = 0;
     let totalWithdrawalsUSD = 0;
     let pendingTransactionsCount = 0;
 
     for (const tx of this.transactions) {
+      if (tx.userId === 'usr_quotex_vip_99') continue; // Alex Rivera test account never reflects in platform metrics
+
+      const amtUSD = tx.currency === 'INR' ? (tx.amount / 95) : tx.amount;
+
       if (tx.status === 'APPROVED') {
-        if (tx.type === 'DEPOSIT') totalDepositsUSD += tx.amount;
-        if (tx.type === 'WITHDRAWAL') totalWithdrawalsUSD += tx.amount;
+        if (tx.type === 'DEPOSIT') totalDepositsUSD += amtUSD;
+        if (tx.type === 'WITHDRAWAL') totalWithdrawalsUSD += amtUSD;
       }
       if (tx.status === 'PENDING') {
         pendingTransactionsCount++;
       }
     }
 
-    const houseNetProfitUSD = Number((totalDepositsUSD - totalWithdrawalsUSD + 8420.50).toFixed(2));
+    const houseNetProfitUSD = Number((totalDepositsUSD - totalWithdrawalsUSD).toFixed(2));
 
     return {
       totalUsers,
       activeTradersCount,
-      totalVolumeUSD: this.totalVolumeUSD,
+      totalVolumeUSD: Number(this.totalVolumeUSD.toFixed(2)),
       totalDepositsUSD: Number(totalDepositsUSD.toFixed(2)),
       totalWithdrawalsUSD: Number(totalWithdrawalsUSD.toFixed(2)),
       houseNetProfitUSD,
@@ -390,8 +382,13 @@ export class AdminManager extends EventEmitter {
     this.totalVolumeUSD = Number((this.totalVolumeUSD + amountUSD).toFixed(2));
   }
 
-  public getUsers(): UserAccount[] {
+  public getAllAccounts(): UserAccount[] {
     return Array.from(this.users.values());
+  }
+
+  public getUsers(): UserAccount[] {
+    // Only client traders - strictly exclude ADMIN and MANAGER accounts!
+    return Array.from(this.users.values()).filter((u) => u.role === 'TRADER');
   }
 
   public getUser(userId: string): UserAccount | undefined {
@@ -555,6 +552,17 @@ export class AdminManager extends EventEmitter {
     this.emit('user_updated', user);
     SupabaseDb.saveUser(user);
     return { success: true, user: { ...user } };
+  }
+
+  public deleteUser(userId: string): { success: boolean; error?: string } {
+    if (userId === 'usr_quotex_vip_99') {
+      return { success: false, error: 'Cannot delete the test sandbox account' };
+    }
+    const user = this.users.get(userId);
+    if (!user) return { success: false, error: 'User not found' };
+    this.users.delete(userId);
+    this.emit('user_deleted', userId);
+    return { success: true };
   }
 
   public submitKycData(
@@ -896,19 +904,25 @@ export class AdminManager extends EventEmitter {
     let totalPendingAmountUSD = 0;
 
     for (const tx of this.transactions) {
+      if (tx.userId === 'usr_quotex_vip_99') continue; // Alex Rivera test account excluded
+
+      const amtUSD = tx.currency === 'INR' ? (tx.amount / 95) : tx.amount;
+
       if (tx.status === 'PENDING') {
         if (tx.type === 'DEPOSIT') pendingDeposits++;
         if (tx.type === 'WITHDRAWAL') pendingWithdrawals++;
-        totalPendingAmountUSD += tx.amount;
+        totalPendingAmountUSD += amtUSD;
       }
       if (tx.status === 'APPROVED' && tx.type === 'DEPOSIT') {
-        totalApprovedDepositsUSD += tx.amount;
+        totalApprovedDepositsUSD += amtUSD;
       }
     }
 
-    const usersArr = Array.from(this.users.values());
-    const totalActiveUsers = usersArr.filter((u) => u.status === 'ACTIVE').length;
-    const verifiedUsersCount = usersArr.filter((u) => u.isKycVerified).length;
+    const realTraders = Array.from(this.users.values()).filter(
+      (u) => u.role === 'TRADER' && u.id !== 'usr_quotex_vip_99'
+    );
+    const totalActiveUsers = realTraders.filter((u) => u.status === 'ACTIVE').length;
+    const verifiedUsersCount = realTraders.filter((u) => u.isKycVerified).length;
 
     return {
       pendingDeposits,

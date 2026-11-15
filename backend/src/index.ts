@@ -209,7 +209,7 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Please enter your password' });
   }
 
-  const users = adminManager.getUsers();
+  const users = adminManager.getAllAccounts();
   const cleanId = rawId.toLowerCase();
   const digitsOnly = rawId.replace(/\D/g, '');
 
@@ -640,6 +640,22 @@ app.get('/api/admin/overview', (req, res) => {
 
 app.get('/api/admin/users', (req, res) => {
   res.json(adminManager.getUsers());
+});
+
+app.delete('/api/admin/users/:userId', (req, res) => {
+  const result = adminManager.deleteUser(req.params.userId);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+  res.json(result);
+});
+
+app.delete('/api/manager/users/:userId', (req, res) => {
+  const result = adminManager.deleteUser(req.params.userId);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+  res.json(result);
 });
 
 app.post('/api/admin/users/create', (req, res) => {

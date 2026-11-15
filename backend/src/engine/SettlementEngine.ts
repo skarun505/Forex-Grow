@@ -302,7 +302,11 @@ export class SettlementEngine extends EventEmitter {
       user.demoBalance = Number((user.demoBalance - tradeAmount).toFixed(2));
     } else {
       user.realBalance = Number((user.realBalance - tradeAmount).toFixed(2));
-      this.adminManager.recordTradeVolume(tradeAmount);
+      // Alex Rivera is purely a test/sandbox account; only real trader accounts reflect in platform admin metrics
+      if (user.id !== 'usr_quotex_vip_99') {
+        const volumeUSD = user.currency === 'INR' ? tradeAmount / 95 : tradeAmount;
+        this.adminManager.recordTradeVolume(volumeUSD);
+      }
     }
     user.totalTrades++;
 

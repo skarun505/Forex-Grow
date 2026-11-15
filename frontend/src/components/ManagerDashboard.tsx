@@ -743,6 +743,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
   });
 
   const filteredUsers = users.filter((u) => {
+    if (u.role && u.role !== 'TRADER') return false;
     const q = userSearch.trim().toLowerCase();
     return (
       !q ||
@@ -985,7 +986,7 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
       }`}>
         {[
           { id: 'CASHIER', shortLabel: `Cashier (${pendingCount})`, label: 'Cashier Queue', icon: CreditCard, badge: pendingCount },
-          { id: 'TRADERS', shortLabel: `Traders (${users.length})`, label: 'Traders & KYC', icon: Users, badge: users.length },
+          { id: 'TRADERS', shortLabel: `Traders (${users.filter(u => !u.role || u.role === 'TRADER').length})`, label: 'Traders & KYC', icon: Users, badge: users.filter(u => !u.role || u.role === 'TRADER').length },
           { id: 'TRADES', shortLabel: 'Trades', label: 'Live Trades Desk', icon: Activity },
           { id: 'RISK', shortLabel: 'Risk', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
           { id: 'COUPONS', shortLabel: `Promos (${coupons.length})`, label: 'Special Promo Codes', icon: Tag, badge: coupons.length },
@@ -1324,14 +1325,14 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                         <div>
                           <div className="font-black text-sm flex items-center space-x-1.5">
                             <span>{u.name}</span>
+                            {u.id === 'usr_quotex_vip_99' && (
+                              <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                                TEST SANDBOX
+                              </span>
+                            )}
                             <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30">
                               {u.vipLevel}
                             </span>
-                            {u.role && u.role !== 'TRADER' && (
-                              <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
-                                {u.role}
-                              </span>
-                            )}
                           </div>
                           <div className={`text-xs truncate ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
                             {u.email}

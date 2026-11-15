@@ -740,9 +740,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
   const filteredUsers = users.filter(
     (u) =>
-      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.role === 'TRADER' &&
+      (u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.id.toLowerCase().includes(userSearch.toLowerCase())
+      u.id.toLowerCase().includes(userSearch.toLowerCase()))
   );
 
   const filteredTransactions = transactions.filter(
@@ -979,7 +980,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         }`}>
         {[
           { id: 'OVERVIEW', shortLabel: 'Summary', label: 'Platform Summary', icon: TrendingUp },
-          { id: 'USERS', shortLabel: `Traders (${users.length})`, label: 'Traders & Balances', icon: Users, badge: users.length },
+          { id: 'USERS', shortLabel: `Traders (${users.filter(u => u.role === 'TRADER').length})`, label: 'Traders & Balances', icon: Users, badge: users.filter(u => u.role === 'TRADER').length },
           { id: 'CASHFLOW', shortLabel: 'Cashflow', label: 'Cashflow & Date Analytics', icon: BarChart3 },
           { id: 'PAYMENTS', shortLabel: `Cashier (${overview?.pendingTransactionsCount || 0})`, label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
           { id: 'RISK', shortLabel: 'Risk Engine', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
@@ -1254,6 +1255,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       <div>
                         <div className={`font-black text-sm flex items-center space-x-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                           <span>{u.name}</span>
+                          {u.id === 'usr_quotex_vip_99' && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                              TEST SANDBOX
+                            </span>
+                          )}
                           <span className={`px-1.5 py-0.2 rounded text-[9px] font-black ${
                             u.vipLevel === 'VIP'
                               ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
@@ -1365,7 +1371,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     return (
                       <tr key={u.id} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
                         <td className="py-3.5 px-4">
-                          <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{u.name}</div>
+                          <div className={`font-bold flex items-center space-x-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            <span>{u.name}</span>
+                            {u.id === 'usr_quotex_vip_99' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                                TEST SANDBOX
+                              </span>
+                            )}
+                          </div>
                           <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{u.email}</div>
                           <div className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>{u.id}</div>
                         </td>
