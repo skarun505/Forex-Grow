@@ -35,9 +35,9 @@ export class SupabaseDb {
   // --- Users ---
   public static async loadUsers(): Promise<any[]> {
     try {
-      const { data, error } = await supabase.from('users').select('*');
+      const { data, error } = await supabase.from('users').select('*').neq('status', 'DELETED');
       if (error) throw error;
-      return (data || []).map((row) => ({
+      return (data || []).filter((row) => row.status !== 'DELETED').map((row) => ({
         id: row.id,
         name: row.name,
         email: row.email,
@@ -197,13 +197,27 @@ export class SupabaseDb {
     }
   }
 
-  public static async deleteUser(userId: string): Promise<void> {
+  public static async deleteUser(userId: string): Promise<boolean> {
     try {
-      await supabase.from('users').delete().eq('id', userId);
-      await supabase.from('trades').delete().eq('user_id', userId);
-      await supabase.from('transactions').delete().eq('user_id', userId);
+      // 1. Mark status = 'DELETED' so any simultaneous queries discard it immediately
+      await supabase.from('users').update({ status: 'DELETED' }).eq('id', userId);
+
+      // 2. Delete child records first to prevent foreign key errors
+      const { error: tErr } = await supabase.from('trades').delete().eq('user_id', userId);
+      if (tErr) console.warn('[SUPABASE] Warning deleting trades for user:', tErr.message);
+
+      const { error: txErr } = await supabase.from('transactions').delete().eq('user_id', userId);
+      if (txErr) console.warn('[SUPABASE] Warning deleting transactions for user:', txErr.message);
+
+      // 3. Delete parent row from users table
+      const { error: uErr } = await supabase.from('users').delete().eq('id', userId);
+      if (uErr) {
+        console.warn('[SUPABASE] Notice on row delete:', uErr.message);
+      }
+      return true;
     } catch (err: any) {
       console.error('Failed to delete user from Supabase:', err.message);
+      return false;
     }
   }
 

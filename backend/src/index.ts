@@ -1013,15 +1013,20 @@ app.get('/api/admin/users', (req, res) => {
   res.json(adminManager.getUsers());
 });
 
-app.delete('/api/admin/users/:userId', (req, res) => {
+app.delete('/api/admin/users/:userId', async (req, res) => {
   const userId = req.params.userId;
   const targetUser = adminManager.getUser(userId);
   const userEmail = targetUser?.email?.toLowerCase();
 
-  const result = adminManager.deleteUser(userId);
+  const result = await adminManager.deleteUser(userId);
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
+
+  // Clear trade history from settlement engine
+  try {
+    settlementEngine.clearUserHistory(userId);
+  } catch {}
 
   // 1. Purge active trader sessions
   if (traderAccountSessions.has(userId)) {

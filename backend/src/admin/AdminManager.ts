@@ -7,6 +7,8 @@ import { SupabaseDb } from '../db/supabase.js';
 
 export class AdminManager extends EventEmitter {
   private users: Map<string, UserAccount> = new Map();
+  private deletedUserIds: Set<string> = new Set(['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04']);
+  private deletedUserEmails: Set<string> = new Set();
   private transactions: Transaction[] = [];
   private coupons: PromoCoupon[] = [];
   private auditLogs: AuditLog[] = [];
@@ -91,17 +93,67 @@ export class AdminManager extends EventEmitter {
     return directData;
   }
 
+  public loadDeletedUsers() {
+    try {
+      const dir = this.getDataDir();
+      const dPath = path.resolve(dir, 'deleted_users.json');
+      if (fs.existsSync(dPath)) {
+        const raw = fs.readFileSync(dPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (typeof item === 'string') {
+              if (item.includes('@')) {
+                this.deletedUserEmails.add(item.toLowerCase());
+              } else {
+                this.deletedUserIds.add(item);
+              }
+            } else if (item && typeof item === 'object') {
+              if (item.id) this.deletedUserIds.add(item.id);
+              if (item.email) this.deletedUserEmails.add(item.email.toLowerCase());
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[AdminManager] Error loading deleted_users.json:', e.message);
+    }
+  }
+
+  public saveDeletedUsers() {
+    try {
+      const dir = this.getDataDir();
+      const dPath = path.resolve(dir, 'deleted_users.json');
+      const list = Array.from(this.deletedUserIds).map((id) => ({
+        id,
+        deletedAt: Date.now(),
+      }));
+      fs.writeFileSync(dPath, JSON.stringify(list, null, 2), 'utf8');
+    } catch (e: any) {
+      console.error('[AdminManager] Failed to persist deleted users to disk:', e.message);
+    }
+  }
+
   private loadLocalData() {
     try {
+      this.loadDeletedUsers();
       const dir = this.getDataDir();
       const uPath = path.resolve(dir, 'users.json');
       if (fs.existsSync(uPath)) {
         const raw = fs.readFileSync(uPath, 'utf8');
         const parsed: UserAccount[] = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          let hasDeletedToPurge = false;
           for (const u of parsed) {
+            if (this.deletedUserIds.has(u.id) || (u.email && this.deletedUserEmails.has(u.email.toLowerCase()))) {
+              hasDeletedToPurge = true;
+              continue;
+            }
             u.vipLevel = AdminManager.calculateVipLevel(u.realBalance, u.currency);
             this.users.set(u.id, u);
+          }
+          if (hasDeletedToPurge) {
+            this.saveLocalUsers();
           }
           console.log(`[AdminManager] Successfully loaded ${this.users.size} persisted trader accounts from local disk.`);
         }
@@ -219,11 +271,19 @@ export class AdminManager extends EventEmitter {
 
   private async initSupabaseSync() {
     try {
+      this.loadDeletedUsers();
       const dbUsers = await SupabaseDb.loadUsers();
       if (dbUsers.length > 0) {
-        const purgedIds = new Set(['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04']);
         for (const u of dbUsers) {
-          if (purgedIds.has(u.id)) continue;
+          // Permanently ignore and purge deleted users
+          if (
+            this.deletedUserIds.has(u.id) ||
+            (u.email && this.deletedUserEmails.has(u.email.toLowerCase())) ||
+            (u as any).status === 'DELETED'
+          ) {
+            SupabaseDb.deleteUser(u.id).catch(() => {});
+            continue;
+          }
 
           // Preserve seeded password, phone, role, bank details, risk settings
           const existing = this.users.get(u.id);
@@ -740,16 +800,35 @@ export class AdminManager extends EventEmitter {
     return { success: true, user: { ...user } };
   }
 
-  public deleteUser(userId: string): { success: boolean; error?: string } {
+  public async deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
     if (userId === 'usr_quotex_vip_99') {
       return { success: false, error: 'Cannot delete the test sandbox account' };
     }
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
+
+    // 1. Mark permanently deleted in tombstone registry
+    this.deletedUserIds.add(userId);
+    if (user.email) {
+      this.deletedUserEmails.add(user.email.toLowerCase());
+    }
+    this.saveDeletedUsers();
+
+    // 2. Remove from active users map & update users.json
     this.users.delete(userId);
     this.saveLocalUsers();
+
+    // 3. Purge transactions for this deleted user
+    this.transactions = this.transactions.filter(t => t.userId !== userId);
+    this.saveLocalTransactions();
+
+    // 4. Emit event
     this.emit('user_deleted', userId);
-    SupabaseDb.deleteUser(userId);
+
+    // 5. Permanently remove from Supabase (delete child trades/txns first, then user)
+    await SupabaseDb.deleteUser(userId);
+
+    console.log(`[AdminManager] Trader ${userId} (${user.email}) permanently deleted and registered in tombstone registry.`);
     return { success: true };
   }
 
