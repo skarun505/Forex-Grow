@@ -19,6 +19,7 @@ import {
   Sliders,
   DollarSign,
   TrendingUp,
+  Activity,
   AlertCircle,
   CheckCircle,
   ShieldAlert,
@@ -63,7 +64,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const { assets, theme, toggleTheme } = useTrading();
   const isLight = theme === 'light';
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'USERS' | 'CASHFLOW' | 'PAYMENTS' | 'RISK' | 'COUPONS' | 'MARKETS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'USERS' | 'CASHFLOW' | 'PAYMENTS' | 'TRADES' | 'RISK' | 'COUPONS' | 'MARKETS'>('OVERVIEW');
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({
     enabled: true,
     targetWinRate: 20,
@@ -80,6 +81,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [coupons, setCoupons] = useState<PromoCoupon[]>([]);
+  const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
+  const [tradeSearch, setTradeSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null);
   const [previewProofTx, setPreviewProofTx] = useState<Transaction | null>(null);
@@ -388,13 +391,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     setIsLoading(true);
     try {
       const headers = getAdminHeaders();
-      const [ovRes, uRes, txRes, cpnRes, psRes, riskRes] = await Promise.all([
+      const [ovRes, uRes, txRes, cpnRes, psRes, riskRes, trRes] = await Promise.all([
         fetch(apiUrl('/api/admin/overview'), { headers }).then((r) => r.json()).catch(() => null),
         fetch(apiUrl('/api/admin/users'), { headers }).then((r) => r.json()).catch(() => []),
         fetch(apiUrl('/api/admin/transactions'), { headers }).then((r) => r.json()).catch(() => []),
         fetch(apiUrl('/api/admin/coupons'), { headers }).then((r) => r.json()).catch(() => []),
         fetch(apiUrl('/api/payment/settings'), { headers }).then((r) => r.json()).catch(() => null),
         fetch(apiUrl('/api/admin/risk/settings'), { headers }).then((r) => r.json()).catch(() => null),
+        fetch(apiUrl('/api/admin/trades'), { headers }).then((r) => r.json()).catch(() => []),
       ]);
 
       // If token expired or access forbidden, clear stale session and redirect to admin login
@@ -410,6 +414,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       setUsers(Array.isArray(uRes) ? uRes : []);
       setTransactions(Array.isArray(txRes) ? txRes : []);
       setCoupons(Array.isArray(cpnRes) ? cpnRes : []);
+      setLiveTrades(Array.isArray(trRes) ? trRes : []);
       if (psRes?.settings) {
         setPaymentSettings(psRes.settings);
       }
@@ -901,6 +906,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const safeTransactions = Array.isArray(transactions) ? transactions : [];
   const safeCoupons = Array.isArray(coupons) ? coupons : [];
   const safeAssets = Array.isArray(assets) ? assets : [];
+  const safeLiveTrades = Array.isArray(liveTrades) ? liveTrades : [];
+
+  const filteredLiveTrades = safeLiveTrades.filter((t) => {
+    if (!tradeSearch) return true;
+    const q = tradeSearch.toLowerCase().trim();
+    return (
+      (t.userName || '').toLowerCase().includes(q) ||
+      (t.userId || '').toLowerCase().includes(q) ||
+      (t.assetId || '').toLowerCase().includes(q) ||
+      (t.status || '').toLowerCase().includes(q) ||
+      (t.direction || '').toLowerCase().includes(q)
+    );
+  });
 
   const filteredUsers = safeUsers.filter(
     (u) =>
@@ -1147,6 +1165,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           { id: 'USERS', shortLabel: `Traders (${safeUsers.filter(u => u.role === 'TRADER').length})`, label: 'Traders & Balances', icon: Users, badge: safeUsers.filter(u => u.role === 'TRADER').length },
           { id: 'CASHFLOW', shortLabel: 'Cashflow', label: 'Cashflow & Date Analytics', icon: BarChart3 },
           { id: 'PAYMENTS', shortLabel: `Cashier (${overview?.pendingTransactionsCount || 0})`, label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
+          { id: 'TRADES', shortLabel: `Live Trades (${safeLiveTrades.length})`, label: 'Live Trades Desk', icon: Activity, badge: safeLiveTrades.length },
           { id: 'RISK', shortLabel: 'Risk Engine', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
           { id: 'COUPONS', shortLabel: 'Coupons', label: 'Special Promo Coupons', icon: Tag, badge: safeCoupons.length },
           { id: 'MARKETS', shortLabel: 'Payouts', label: 'Asset Payout Customizer', icon: Sliders, badge: safeAssets.length },
@@ -2572,6 +2591,178 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB: LIVE TRADES DESK ================= */}
+        {activeTab === 'TRADES' && (
+          <div className="space-y-4 animate-in fade-in duration-150">
+            {/* Header with Search and Metrics */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className={`text-base font-black flex items-center space-x-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <Activity className="w-5 h-5 text-emerald-400" />
+                  <span>Live Trading Desk Stream</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                </h3>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                  Real-time administrative monitoring of active orders and settled binary option contracts across all platform traders
+                </p>
+              </div>
+
+              {/* Search & Count */}
+              <div className="flex items-center space-x-3">
+                <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#252c40]'
+                }`}>
+                  <Search className="w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search trader, asset, direction..."
+                    value={tradeSearch}
+                    onChange={(e) => setTradeSearch(e.target.value)}
+                    className="bg-transparent text-xs outline-none w-44 sm:w-56"
+                  />
+                  {tradeSearch && (
+                    <button onClick={() => setTradeSearch('')} className="text-gray-400 hover:text-white">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <span className={`text-xs font-mono font-bold px-2.5 py-1.5 rounded-xl border ${
+                  isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-[#181c2b] border-[#252c40] text-emerald-400'
+                }`}>
+                  {filteredLiveTrades.length} Contracts
+                </span>
+              </div>
+            </div>
+
+            {/* Trades Stream Table */}
+            <div className={`rounded-3xl border overflow-hidden shadow-xl ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#141824] border-[#222838]'
+            }`}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className={`border-b text-[10px] font-black uppercase tracking-wider ${
+                      isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-[#181c2b] border-[#252c40] text-gray-400'
+                    }`}>
+                      <th className="py-3 px-4">Trader</th>
+                      <th className="py-3 px-4">Asset</th>
+                      <th className="py-3 px-4">Direction</th>
+                      <th className="py-3 px-4">Amount (INR)</th>
+                      <th className="py-3 px-4">Entry</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Profit / Payout (INR)</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-mono">
+                    {filteredLiveTrades.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-gray-500">
+                          <Activity className="w-8 h-8 text-gray-500 mx-auto mb-2 opacity-50" />
+                          <p className="text-xs font-medium">No live trading contracts matching your filter.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredLiveTrades.map((t) => {
+                        const isUp = t.direction === 'UP';
+                        const isWon = t.status === 'WON';
+                        const isOpen = t.status === 'OPEN';
+                        const tradeCurrency = (t as any).currency || 'INR';
+                        const amtFmt = formatTxnAmount(t.amount, tradeCurrency);
+                        const profitAmt = formatTxnAmount(Math.abs(t.profit || 0), tradeCurrency);
+
+                        return (
+                          <tr key={t.id} className="hover:bg-white/5 transition">
+                            <td className="py-3 px-4 font-sans">
+                              <span className={`font-bold text-xs block ${isLight ? 'text-slate-900' : 'text-gray-100'}`}>
+                                {t.userName || 'Trader'}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-mono">{t.userId}</span>
+                            </td>
+                            <td className="py-3 px-4 font-bold">
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                isLight ? 'bg-slate-100 text-slate-800' : 'bg-[#1e2333] text-gray-200'
+                              }`}>
+                                {t.assetId.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded font-black text-[10px] ${
+                                isUp ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                              }`}>
+                                {t.direction} ({isUp ? 'CALL' : 'PUT'})
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-bold">
+                              <span className={`font-mono text-xs font-black block ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {amtFmt.primary}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-mono block">
+                                ({amtFmt.secondary})
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-gray-400 font-mono">
+                              {t.entryPrice.toFixed(4)}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded font-black text-[10px] ${
+                                isOpen
+                                  ? 'bg-sky-500/20 text-sky-400 animate-pulse'
+                                  : isWon
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : 'bg-rose-500/20 text-rose-400'
+                              }`}>
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right font-black">
+                              {isOpen ? (
+                                <span className="text-gray-400 font-mono text-xs">In Play...</span>
+                              ) : isWon ? (
+                                <div>
+                                  <span className="text-emerald-400 font-mono text-xs font-black block">+{profitAmt.primary}</span>
+                                  <span className="text-[10px] text-emerald-500/70 font-mono block">(+{profitAmt.secondary})</span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="text-rose-400 font-mono text-xs font-black block">-{amtFmt.primary}</span>
+                                  <span className="text-[10px] text-rose-500/70 font-mono block">(-{amtFmt.secondary})</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end space-x-1.5">
+                                <button
+                                  onClick={() => {
+                                    const u = safeUsers.find((x) => x.id === t.userId);
+                                    if (u) handleViewUserTrades(u);
+                                  }}
+                                  className="px-2 py-1 text-[11px] font-bold rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition"
+                                  title="Inspect trader trade history"
+                                >
+                                  History
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTrade(t.id)}
+                                  className="p-1 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                                  title="Delete trade record"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

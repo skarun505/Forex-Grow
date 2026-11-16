@@ -1683,6 +1683,9 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                         const isUp = t.direction === 'UP';
                         const isWon = t.status === 'WON';
                         const isOpen = t.status === 'OPEN';
+                        const tradeCurrency = (t as any).currency || 'INR';
+                        const amtFmt = formatTxnAmount(t.amount, tradeCurrency);
+                        const profitAmt = formatTxnAmount(Math.abs(t.profit || 0), tradeCurrency);
 
                         return (
                           <tr key={t.id} className="hover:bg-white/5 transition">
@@ -1700,7 +1703,8 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                               </span>
                             </td>
                             <td className="py-3 px-4 font-bold">
-                              ${t.amount.toFixed(2)}
+                              <span className="font-mono text-xs font-black text-white">{amtFmt.primary}</span>
+                              <span className="text-[10px] text-gray-400 block font-mono">({amtFmt.secondary})</span>
                             </td>
                             <td className="py-3 px-4 text-gray-400">
                               {t.entryPrice.toFixed(4)}
@@ -1718,11 +1722,17 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                             </td>
                             <td className="py-3 px-4 text-right font-black">
                               {isOpen ? (
-                                <span className="text-gray-400">In Play...</span>
+                                <span className="text-gray-400 font-mono text-xs">In Play...</span>
                               ) : isWon ? (
-                                <span className="text-emerald-400">+${(t.profit || 0).toFixed(2)}</span>
+                                <div>
+                                  <span className="text-emerald-400 font-mono text-xs font-black">+{profitAmt.primary}</span>
+                                  <span className="text-[10px] text-emerald-500/70 block font-mono">(+{profitAmt.secondary})</span>
+                                </div>
                               ) : (
-                                <span className="text-rose-400">-${t.amount.toFixed(2)}</span>
+                                <div>
+                                  <span className="text-rose-400 font-mono text-xs font-black">-{amtFmt.primary}</span>
+                                  <span className="text-[10px] text-rose-500/70 block font-mono">(-{amtFmt.secondary})</span>
+                                </div>
                               )}
                             </td>
                           </tr>

@@ -1919,18 +1919,31 @@ app.post('/api/manager/transactions/:id/reject', (req: express.Request, res: exp
   res.json(result);
 });
 
-app.get('/api/manager/trades', (req: express.Request, res: express.Response) => {
+const handleGetAllPlatformTrades = (req: express.Request, res: express.Response) => {
   const allUsers = adminManager.getUsers();
   const allTrades: any[] = [];
   for (const u of allUsers) {
     const userTrades = settlementEngine.getTradesForUser(u.id);
     if (userTrades) {
-      allTrades.push(...(userTrades.activeTrades || []), ...(userTrades.tradeHistory || []));
+      const active = (userTrades.activeTrades || []).map((t) => ({
+        ...t,
+        userName: u.name,
+        currency: u.currency || 'INR',
+      }));
+      const history = (userTrades.tradeHistory || []).map((t) => ({
+        ...t,
+        userName: u.name,
+        currency: u.currency || 'INR',
+      }));
+      allTrades.push(...active, ...history);
     }
   }
   allTrades.sort((a, b) => b.openTime - a.openTime);
-  res.json(allTrades.slice(0, 100));
-});
+  res.json(allTrades.slice(0, 200));
+};
+
+app.get('/api/admin/trades', handleGetAllPlatformTrades);
+app.get('/api/manager/trades', handleGetAllPlatformTrades);
 
 app.get('/api/manager/audit-logs', (req: express.Request, res: express.Response) => {
   res.json(adminManager.getAuditLogs());
