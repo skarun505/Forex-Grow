@@ -97,7 +97,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const saved = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.id && parsed.id !== 'usr_quotex_vip_99') {
+        if (parsed && parsed.id) {
           return {
             ...parsed,
             demoBalance: parsed.demoBalance ?? 700000.0,
@@ -227,7 +227,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
         if (savedUserRaw) {
           const parsed = JSON.parse(savedUserRaw);
-          if (parsed?.id && parsed.id !== 'usr_quotex_vip_99') userId = parsed.id;
+          if (parsed?.id) userId = parsed.id;
         }
       } catch (e) {}
 
@@ -328,8 +328,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 vipLevel: calculateVipLevel(action.account.realBalance, effectiveCurrency),
               };
 
-              // Only sync state if account is valid and not the obsolete Alex Rivera test account
-              if (action.account && action.account.id && action.account.id !== 'usr_quotex_vip_99') {
+              // Only sync state if account is valid
+              if (action.account && action.account.id) {
                 setAccount(mergedAccount);
                 try {
                   const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');

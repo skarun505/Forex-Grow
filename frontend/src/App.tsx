@@ -147,12 +147,6 @@ export const App: React.FC = () => {
     try {
       const saved = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
       const parsed = saved ? JSON.parse(saved) : null;
-      // Completely purge legacy Alex Rivera demo account from browser storage
-      if (parsed && (parsed.id === 'usr_quotex_vip_99' || parsed.email === 'alex.rivera@quotex.pro')) {
-        localStorage.removeItem('quotex_trader_user');
-        localStorage.removeItem('quotex_current_user');
-        return null;
-      }
       return parsed && parsed.role === 'TRADER' ? parsed : (parsed?.role ? null : parsed);
     } catch {
       return null;
@@ -183,13 +177,7 @@ export const App: React.FC = () => {
       try {
         const savedTrader = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
         const parsedTrader = savedTrader ? JSON.parse(savedTrader) : null;
-        if (parsedTrader && (parsedTrader.id === 'usr_quotex_vip_99' || parsedTrader.email === 'alex.rivera@quotex.pro')) {
-          localStorage.removeItem('quotex_trader_user');
-          localStorage.removeItem('quotex_current_user');
-          setTraderUser(null);
-        } else {
-          setTraderUser(parsedTrader && parsedTrader.role === 'TRADER' ? parsedTrader : (parsedTrader?.role ? null : parsedTrader));
-        }
+        setTraderUser(parsedTrader && parsedTrader.role === 'TRADER' ? parsedTrader : (parsedTrader?.role ? null : parsedTrader));
       } catch {
         setTraderUser(null);
       }
