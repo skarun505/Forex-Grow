@@ -250,7 +250,9 @@ export const App: React.FC = () => {
     }
     return (
       <TradingProvider>
-        <AdminDashboard />
+        <ErrorBoundary fallbackTitle="Admin Portal">
+          <AdminDashboard />
+        </ErrorBoundary>
       </TradingProvider>
     );
   }
@@ -268,7 +270,9 @@ export const App: React.FC = () => {
     }
     return (
       <TradingProvider>
-        <ManagerDashboard />
+        <ErrorBoundary fallbackTitle="Manager Desk">
+          <ManagerDashboard />
+        </ErrorBoundary>
       </TradingProvider>
     );
   }

@@ -32,11 +32,14 @@ export const TradesDrawer: React.FC<TradesDrawerProps> = ({ isMobileOpen, onClos
     return cleanTrade === cleanCurrent || cleanTrade.includes(cleanCurrent) || cleanCurrent.includes(cleanTrade);
   };
 
+  const safeActiveTrades = Array.isArray(activeTrades) ? activeTrades : [];
+  const safeTradeHistory = Array.isArray(tradeHistory) ? tradeHistory : [];
+
   // Filter trades so only the active account (DEMO or REAL) history and active trades show
-  const accountActiveTrades = activeTrades.filter(
+  const accountActiveTrades = safeActiveTrades.filter(
     (t) => !t.accountType || t.accountType === account.activeAccountType
   );
-  const accountTradeHistory = tradeHistory.filter(
+  const accountTradeHistory = safeTradeHistory.filter(
     (t) => !t.accountType || t.accountType === account.activeAccountType
   );
 

@@ -410,7 +410,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       }
 
       const payoutsMap: Record<string, number> = {};
-      assets.forEach((a) => {
+      (Array.isArray(assets) ? assets : []).forEach((a) => {
         payoutsMap[a.id] = a.payout;
       });
       setPayoutEdits(payoutsMap);
@@ -620,6 +620,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     try {
       const res = await fetch(apiUrl(`/api/admin/users/${user.id}`), {
         method: 'DELETE',
+        headers: getAdminHeaders(),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -638,7 +639,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     setSelectedUserForTrades(user);
     setTradesLoading(true);
     try {
-      const res = await fetch(apiUrl(`/api/admin/users/${user.id}/trades`));
+      const res = await fetch(apiUrl(`/api/admin/users/${user.id}/trades`), {
+        headers: getAdminHeaders(),
+      });
       const data = await res.json();
       setUserTrades(data);
     } catch (e) {
@@ -653,7 +656,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const handleDeleteTrade = async (tradeId: string) => {
     if (!confirm('Delete this trade record? This cannot be undone.')) return;
     try {
-      const res = await fetch(apiUrl(`/api/admin/trades/${tradeId}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/admin/trades/${tradeId}`), {
+        method: 'DELETE',
+        headers: getAdminHeaders(),
+      });
       if (res.ok && selectedUserForTrades) {
         await handleViewUserTrades(selectedUserForTrades);
         fetchAdminData();
@@ -668,7 +674,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     if (!selectedUserForTrades) return;
     if (!confirm(`Clear ALL trade history for ${selectedUserForTrades.name}? This cannot be undone.`)) return;
     try {
-      const res = await fetch(apiUrl(`/api/admin/users/${selectedUserForTrades.id}/trades`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/admin/users/${selectedUserForTrades.id}/trades`), {
+        method: 'DELETE',
+        headers: getAdminHeaders(),
+      });
       if (res.ok) {
         await handleViewUserTrades(selectedUserForTrades);
         fetchAdminData();
@@ -683,6 +692,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     try {
       const res = await fetch(apiUrl(`/api/admin/transactions/${txId}/approve`), {
         method: 'POST',
+        headers: getAdminHeaders(),
       });
       if (res.ok) fetchAdminData();
     } catch (e) {
@@ -697,7 +707,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     try {
       const res = await fetch(apiUrl(`/api/admin/transactions/${txId}/reject`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ reason }),
       });
       if (res.ok) fetchAdminData();
@@ -718,7 +728,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
       const res = await fetch(apiUrl('/api/admin/coupons'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAdminHeaders(),
         body: JSON.stringify({
           code: newCouponCode.trim().toUpperCase(),
           bonusPercentage: newBonusPct,
@@ -743,7 +753,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   // Handle Toggle Coupon
   const handleToggleCoupon = async (id: string) => {
     try {
-      await fetch(apiUrl(`/api/admin/coupons/${id}/toggle`), { method: 'POST' });
+      await fetch(apiUrl(`/api/admin/coupons/${id}/toggle`), {
+        method: 'POST',
+        headers: getAdminHeaders(),
+      });
       fetchAdminData();
     } catch (e) {
       console.error(e);
@@ -754,7 +767,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const handleDeleteCoupon = async (id: string) => {
     if (!confirm('Are you sure you want to delete this coupon?')) return;
     try {
-      await fetch(apiUrl(`/api/admin/coupons/${id}`), { method: 'DELETE' });
+      await fetch(apiUrl(`/api/admin/coupons/${id}`), {
+        method: 'DELETE',
+        headers: getAdminHeaders(),
+      });
       fetchAdminData();
     } catch (e) {
       console.error(e);
@@ -876,17 +892,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const safeUsers = Array.isArray(users) ? users : [];
   const safeTransactions = Array.isArray(transactions) ? transactions : [];
   const safeCoupons = Array.isArray(coupons) ? coupons : [];
+  const safeAssets = Array.isArray(assets) ? assets : [];
 
   const filteredUsers = safeUsers.filter(
     (u) =>
-      u && u.role === 'TRADER' &&
+      Boolean(u && typeof u === 'object' && u.role === 'TRADER') &&
       ((u.name || '').toLowerCase().includes(userSearch.toLowerCase()) ||
       (u.email || '').toLowerCase().includes(userSearch.toLowerCase()) ||
       (u.id || '').toLowerCase().includes(userSearch.toLowerCase()))
   );
 
   const filteredTransactions = safeTransactions.filter(
-    (t) => paymentFilter === 'ALL' || t.status === paymentFilter
+    (t) => Boolean(t && typeof t === 'object') && (paymentFilter === 'ALL' || t.status === paymentFilter)
   );
 
   return (
@@ -1124,7 +1141,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           { id: 'PAYMENTS', shortLabel: `Cashier (${overview?.pendingTransactionsCount || 0})`, label: 'Payout Requests & Deposits', icon: CreditCard, badge: overview?.pendingTransactionsCount },
           { id: 'RISK', shortLabel: 'Risk Engine', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings?.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
           { id: 'COUPONS', shortLabel: 'Coupons', label: 'Special Promo Coupons', icon: Tag, badge: safeCoupons.length },
-          { id: 'MARKETS', shortLabel: 'Payouts', label: 'Asset Payout Customizer', icon: Sliders, badge: assets.length },
+          { id: 'MARKETS', shortLabel: 'Payouts', label: 'Asset Payout Customizer', icon: Sliders, badge: safeAssets.length },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -2545,7 +2562,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {coupons.map((cpn) => (
+              {safeCoupons.map((cpn) => (
                 <div
                   key={cpn.id}
                   className={`border rounded-3xl p-5 space-y-3 transition ${
@@ -2945,7 +2962,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <div className={`border rounded-3xl p-5 shadow-xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 transition-colors ${
               isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#161a26] border-[#262c3e]'
             }`}>
-              {assets.map((asset) => (
+              {safeAssets.map((asset) => (
                 <div
                   key={asset.id}
                   className={`border rounded-2xl p-4 flex flex-col justify-between transition-colors ${
@@ -4289,13 +4306,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   {/* Active Trades */}
                   <div>
                     <h4 className={`text-xs font-black uppercase mb-3 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                      Active Open Trades ({userTrades.activeTrades.length})
+                      Active Open Trades ({(userTrades?.activeTrades || []).length})
                     </h4>
-                    {userTrades.activeTrades.length === 0 ? (
+                    {(userTrades?.activeTrades || []).length === 0 ? (
                       <p className={`text-xs ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>No active trades.</p>
                     ) : (
                       <div className="space-y-2">
-                        {userTrades.activeTrades.map((t) => (
+                        {(userTrades?.activeTrades || []).map((t) => (
                           <div key={t.id} className={`flex items-center justify-between p-3 border rounded-2xl ${
                             isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
                           }`}>
@@ -4328,13 +4345,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   {/* Trade History */}
                   <div>
                     <h4 className={`text-xs font-black uppercase mb-3 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                      Settled Trade History ({userTrades.tradeHistory.length})
+                      Settled Trade History ({(userTrades?.tradeHistory || []).length})
                     </h4>
-                    {userTrades.tradeHistory.length === 0 ? (
+                    {(userTrades?.tradeHistory || []).length === 0 ? (
                       <p className={`text-xs ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>No trade history records.</p>
                     ) : (
                       <div className="space-y-2">
-                        {userTrades.tradeHistory.map((t) => (
+                        {(userTrades?.tradeHistory || []).map((t) => (
                           <div key={t.id} className={`flex items-center justify-between p-3 border rounded-2xl ${
                             isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
                           }`}>

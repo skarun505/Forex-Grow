@@ -15,7 +15,9 @@ export const AssetSelectorModal: React.FC<AssetSelectorModalProps> = ({ isOpen, 
   const [filterCategory, setFilterCategory] = useState<'ALL' | AssetCategory>('ALL');
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem('forexgrow_favorites') || localStorage.getItem('quotex_favorites') || '["EURUSD_OTC", "BTCUSDT", "GOLD_OTC"]');
+      const raw = localStorage.getItem('forexgrow_favorites') || localStorage.getItem('quotex_favorites');
+      const parsed = raw ? JSON.parse(raw) : null;
+      return Array.isArray(parsed) ? parsed : ['EURUSD_OTC', 'BTCUSDT', 'GOLD_OTC'];
     } catch {
       return ['EURUSD_OTC', 'BTCUSDT', 'GOLD_OTC'];
     }
@@ -26,13 +28,19 @@ export const AssetSelectorModal: React.FC<AssetSelectorModalProps> = ({ isOpen, 
   const toggleFavorite = (e: React.MouseEvent, assetId: string) => {
     e.stopPropagation();
     setFavorites((prev) => {
-      const next = prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId];
-      localStorage.setItem('forexgrow_favorites', JSON.stringify(next));
+      const list = Array.isArray(prev) ? prev : [];
+      const next = list.includes(assetId) ? list.filter((id) => id !== assetId) : [...list, assetId];
+      try {
+        localStorage.setItem('forexgrow_favorites', JSON.stringify(next));
+      } catch {}
       return next;
     });
   };
 
-  const filteredAssets = assets
+  const safeAssets = Array.isArray(assets) ? assets : [];
+  const safeFavorites = Array.isArray(favorites) ? favorites : [];
+
+  const filteredAssets = safeAssets
     .filter((asset) => {
       const matchesCategory = filterCategory === 'ALL' || asset.category === filterCategory;
       const matchesSearch =
@@ -41,8 +49,8 @@ export const AssetSelectorModal: React.FC<AssetSelectorModalProps> = ({ isOpen, 
       return matchesCategory && matchesSearch;
     })
     .sort((a, b) => {
-      const aFav = favorites.includes(a.id) ? 1 : 0;
-      const bFav = favorites.includes(b.id) ? 1 : 0;
+      const aFav = safeFavorites.includes(a.id) ? 1 : 0;
+      const bFav = safeFavorites.includes(b.id) ? 1 : 0;
       if (bFav !== aFav) return bFav - aFav;
       return b.payout - a.payout;
     });

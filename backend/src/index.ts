@@ -248,10 +248,25 @@ app.post('/api/auth/send-register-otp', securityFirewall.getAuthRateLimiter(), a
     return res.status(400).json({ error: 'Please provide a valid email address' });
   }
 
-  // Check if trader already exists
-  const existing = adminManager.getAllAccounts().find(u => u.email && u.email.toLowerCase() === cleanEmail);
-  if (existing) {
+  // Check if trader already exists by email
+  const existingEmail = adminManager.getAllAccounts().find(u => u.email && u.email.toLowerCase() === cleanEmail);
+  if (existingEmail) {
     return res.status(400).json({ error: 'An account with this email address is already registered. Please log in.' });
+  }
+
+  // Check if trader already exists by phone number
+  if (cleanPhone) {
+    const rawCleanPhone = cleanPhone.replace(/[^\d]/g, '');
+    if (rawCleanPhone.length >= 7) {
+      const existingPhone = adminManager.getAllAccounts().find(u => {
+        if (!u.phone) return false;
+        const p = u.phone.replace(/[^\d]/g, '');
+        return p.length >= 7 && (p === rawCleanPhone || p.endsWith(rawCleanPhone) || rawCleanPhone.endsWith(p));
+      });
+      if (existingPhone) {
+        return res.status(400).json({ error: 'An account with this mobile phone number is already registered. Please use a different phone number.' });
+      }
+    }
   }
 
   // Generate 6-digit OTP

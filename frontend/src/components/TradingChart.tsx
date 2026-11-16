@@ -482,7 +482,8 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
 
     removeAllPriceLines();
 
-    const relevantTrades = activeTrades.filter(
+    const safeActiveTrades = Array.isArray(activeTrades) ? activeTrades : [];
+    const relevantTrades = safeActiveTrades.filter(
       (t) => t.assetId === selectedAsset?.id && (!t.accountType || t.accountType === account.activeAccountType)
     );
     for (const trade of relevantTrades) {

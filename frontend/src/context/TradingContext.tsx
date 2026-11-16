@@ -329,11 +329,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 socket.send(JSON.stringify({ type: 'SWITCH_CURRENCY', currency: effectiveCurrency }));
               }
 
-              setAssets(action.assets);
-              setActiveTrades(action.activeTrades);
-              setTradeHistory(action.tradeHistory);
-              if (action.leaderboard) setLeaderboard(action.leaderboard);
-              const found = action.assets.find((a) => a.id === selectedAssetIdRef.current);
+              setAssets(Array.isArray(action.assets) ? action.assets : []);
+              setActiveTrades(Array.isArray(action.activeTrades) ? action.activeTrades : []);
+              setTradeHistory(Array.isArray(action.tradeHistory) ? action.tradeHistory : []);
+              if (action.leaderboard) setLeaderboard(Array.isArray(action.leaderboard) ? action.leaderboard : []);
+              const found = Array.isArray(action.assets) ? action.assets.find((a) => a.id === selectedAssetIdRef.current) : null;
               if (found) setCurrentPrice(found.currentPrice);
               break;
             }
@@ -402,7 +402,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             case 'TRADE_OPENED':
               if (!isMutedRef.current) sounds.playTradePlaced();
-              setActiveTrades((prev) => [action.trade, ...prev]);
+              setActiveTrades((prev) => [action.trade, ...(Array.isArray(prev) ? prev : [])]);
               setAccount((prev) => ({
                 ...prev,
                 demoBalance: (action.trade.accountType ?? prev.activeAccountType) === 'DEMO' ? action.newBalance : prev.demoBalance,
@@ -412,8 +412,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'TRADE_SETTLED':
-              setActiveTrades((prev) => prev.filter((t) => t.id !== action.trade.id));
-              setTradeHistory((prev) => [action.trade, ...prev]);
+              setActiveTrades((prev) => (Array.isArray(prev) ? prev.filter((t) => t.id !== action.trade.id) : []));
+              setTradeHistory((prev) => [action.trade, ...(Array.isArray(prev) ? prev : [])]);
               setAccount((prev) => ({
                 ...prev,
                 demoBalance: (action.trade.accountType ?? prev.activeAccountType) === 'DEMO' ? action.newBalance : prev.demoBalance,
@@ -515,8 +515,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'TRADE_DELETED':
-              setActiveTrades((prev) => prev.filter((t) => t.id !== action.tradeId));
-              setTradeHistory((prev) => prev.filter((t) => t.id !== action.tradeId));
+              setActiveTrades((prev) => (Array.isArray(prev) ? prev.filter((t) => t.id !== action.tradeId) : []));
+              setTradeHistory((prev) => (Array.isArray(prev) ? prev.filter((t) => t.id !== action.tradeId) : []));
               break;
 
             case 'USER_HISTORY_CLEARED':
@@ -652,7 +652,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const limitAmt = Number(localStorage.getItem('forexgrow_daily_limit_' + account.id)) || 0;
         if (isLimitEnabled && limitAmt > 0) {
           const todayStart = new Date().setHours(0, 0, 0, 0);
-          const todayTrades = tradeHistory.filter((t) => t.openTime >= todayStart && t.accountType === 'REAL');
+          const todayTrades = (Array.isArray(tradeHistory) ? tradeHistory : []).filter((t) => t.openTime >= todayStart && t.accountType === 'REAL');
           let netLossToday = 0;
           for (const t of todayTrades) {
             if (t.status === 'LOST') {

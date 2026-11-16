@@ -24,7 +24,8 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({
   const { activeTrades, account, theme } = useTrading();
   const isLight = theme === 'light';
   const curr = CURRENCY_CONFIGS[account.currency] || CURRENCY_CONFIGS.USD;
-  const activeCount = activeTrades.filter(
+  const safeActiveTrades = Array.isArray(activeTrades) ? activeTrades : [];
+  const activeCount = safeActiveTrades.filter(
     (t) => !t.accountType || t.accountType === account.activeAccountType
   ).length;
 

@@ -8,7 +8,6 @@ import { SupabaseDb } from '../db/supabase.js';
 export class AdminManager extends EventEmitter {
   private users: Map<string, UserAccount> = new Map();
   private deletedUserIds: Set<string> = new Set(['usr_sat_01', 'usr_whale_02', 'usr_elena_03', 'usr_raj_04']);
-  private deletedUserEmails: Set<string> = new Set();
   private transactions: Transaction[] = [];
   private coupons: PromoCoupon[] = [];
   private auditLogs: AuditLog[] = [];
@@ -103,14 +102,9 @@ export class AdminManager extends EventEmitter {
         if (Array.isArray(parsed)) {
           for (const item of parsed) {
             if (typeof item === 'string') {
-              if (item.includes('@')) {
-                this.deletedUserEmails.add(item.toLowerCase());
-              } else {
-                this.deletedUserIds.add(item);
-              }
-            } else if (item && typeof item === 'object') {
-              if (item.id) this.deletedUserIds.add(item.id);
-              if (item.email) this.deletedUserEmails.add(item.email.toLowerCase());
+              this.deletedUserIds.add(item);
+            } else if (item && typeof item === 'object' && item.id) {
+              this.deletedUserIds.add(item.id);
             }
           }
         }
@@ -145,7 +139,7 @@ export class AdminManager extends EventEmitter {
         if (Array.isArray(parsed) && parsed.length > 0) {
           let hasDeletedToPurge = false;
           for (const u of parsed) {
-            if (this.deletedUserIds.has(u.id) || (u.email && this.deletedUserEmails.has(u.email.toLowerCase()))) {
+            if (this.deletedUserIds.has(u.id)) {
               hasDeletedToPurge = true;
               continue;
             }
@@ -278,7 +272,6 @@ export class AdminManager extends EventEmitter {
           // Permanently ignore and purge deleted users
           if (
             this.deletedUserIds.has(u.id) ||
-            (u.email && this.deletedUserEmails.has(u.email.toLowerCase())) ||
             (u as any).status === 'DELETED'
           ) {
             SupabaseDb.deleteUser(u.id).catch(() => {});
@@ -807,11 +800,8 @@ export class AdminManager extends EventEmitter {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
 
-    // 1. Mark permanently deleted in tombstone registry
+    // 1. Mark permanently deleted in tombstone registry (User ID usr_...)
     this.deletedUserIds.add(userId);
-    if (user.email) {
-      this.deletedUserEmails.add(user.email.toLowerCase());
-    }
     this.saveDeletedUsers();
 
     // 2. Remove from active users map & update users.json
