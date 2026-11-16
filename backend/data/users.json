@@ -57,7 +57,7 @@
       "microPipSniping": true
     },
     "status": "ACTIVE",
-    "totalTrades": 241,
+    "totalTrades": 243,
     "totalDepositedUSD": 8060.53,
     "createdAt": 1792145736606
   },
@@ -127,6 +127,23 @@
     "status": "ACTIVE",
     "totalTrades": 0,
     "totalDepositedUSD": 0,
+    "password": "forexgrow123",
+    "role": "TRADER",
+    "kycStatus": "APPROVED"
+  },
+  {
+    "id": "usr_1fa16b38",
+    "name": "Divyashree",
+    "email": "divyashree5522@gmail.com",
+    "demoBalance": 700000,
+    "realBalance": 5000,
+    "activeAccountType": "DEMO",
+    "currency": "INR",
+    "vipLevel": "STANDARD",
+    "isKycVerified": false,
+    "status": "ACTIVE",
+    "totalTrades": 0,
+    "totalDepositedUSD": 5000,
     "password": "forexgrow123",
     "role": "TRADER",
     "kycStatus": "APPROVED"

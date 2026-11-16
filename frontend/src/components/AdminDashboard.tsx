@@ -3882,18 +3882,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               <div className="space-y-4 py-2">
                 <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono space-y-2">
                   <div className="font-sans font-bold text-emerald-400 text-sm">✅ Trader Account Verified & Created!</div>
+                  <div className="text-[11px] text-sky-400 font-sans">✉️ Login ID, password & account specifications sent to {createdSlip.email}</div>
+                  <div><strong>Login ID:</strong> <span className="text-sky-300 font-bold">{createdSlip.id}</span></div>
                   <div><strong>Name:</strong> {createdSlip.name}</div>
                   <div><strong>Email:</strong> {createdSlip.email}</div>
                   <div><strong>Phone:</strong> {createdSlip.phone}</div>
-                  <div><strong>Password:</strong> {createdSlip.password}</div>
+                  <div><strong>Password:</strong> <span className="text-emerald-400 font-bold">{createdSlip.password}</span></div>
                   <div><strong>Currency:</strong> {createdSlip.currency}</div>
-                  <div><strong>Demo:</strong> ${createdSlip.demoBalance.toLocaleString()}</div>
-                  <div><strong>Real:</strong> ${createdSlip.realBalance.toLocaleString()}</div>
+                  <div><strong>Demo:</strong> {createdSlip.currency === 'USD' ? '$' : '₹'}{createdSlip.demoBalance.toLocaleString()}</div>
+                  <div><strong>Real:</strong> {createdSlip.currency === 'USD' ? '$' : '₹'}{createdSlip.realBalance.toLocaleString()}</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    const text = `🌟 FOREX GROW TRADING CREDENTIALS 🌟\nName: ${createdSlip.name}\nEmail: ${createdSlip.email}\nPhone: ${createdSlip.phone}\nPassword: ${createdSlip.password}\nCurrency: ${createdSlip.currency}\nTerminal: ${createdSlip.url}`;
+                    const text = `🌟 FOREX GROW TRADING CREDENTIALS 🌟\nLogin ID: ${createdSlip.id}\nName: ${createdSlip.name}\nEmail: ${createdSlip.email}\nPhone: ${createdSlip.phone}\nPassword: ${createdSlip.password}\nDemo Balance: ${createdSlip.currency === 'USD' ? '$' : '₹'}${createdSlip.demoBalance.toLocaleString()}\nCurrency: ${createdSlip.currency}\nTerminal: ${createdSlip.url}`;
                     navigator.clipboard.writeText(text);
                     alert('Credentials copied to clipboard!');
                   }}

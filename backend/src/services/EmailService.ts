@@ -529,6 +529,156 @@ class EmailService {
 
     return this.sendMail({ to: toEmail, subject, html });
   }
+
+  /**
+   * Send Official Account Onboarding & Credentials Slip to Client
+   */
+  public async sendAccountCredentialsEmail(params: {
+    toEmail: string;
+    clientName: string;
+    loginId: string;
+    password?: string;
+    currency?: string;
+    demoBalance?: number;
+    realBalance?: number;
+    vipLevel?: string;
+    isKycVerified?: boolean;
+  }): Promise<{ success: boolean; error?: string }> {
+    const {
+      toEmail,
+      clientName,
+      loginId,
+      password = 'Trader@2026',
+      currency = 'INR',
+      demoBalance = 700000,
+      realBalance = 0,
+      vipLevel = 'STANDARD',
+      isKycVerified = false,
+    } = params;
+
+    const baseUrl = process.env.PUBLIC_APP_URL || process.env.APP_BASE_URL || 'https://forex-grow.onrender.com';
+    const loginUrl = `${baseUrl}/login`;
+    const currSymbol = currency === 'USD' ? '$' : '₹';
+    const formattedDemo = `${currSymbol}${Number(demoBalance).toLocaleString('en-IN')}`;
+    const formattedReal = `${currSymbol}${Number(realBalance).toLocaleString('en-IN')}`;
+
+    const subject = `Welcome to Forex Grow: Your Trading Credentials [Login ID: ${loginId}]`;
+
+    const html = `
+      <div style="background-color: #0c0f17; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px 20px; max-width: 540px; margin: 0 auto; border-radius: 16px; border: 1px solid #1f2738;">
+        <!-- Header Branding -->
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #00c679; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">FOREX GROW</h2>
+          <p style="color: #64748b; font-size: 11px; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Official Account Onboarding & Trading Credentials</p>
+        </div>
+
+        <div style="background: #141926; border: 1px solid #232c40; border-radius: 12px; padding: 24px;">
+          <div style="display: inline-block; background: rgba(0, 198, 121, 0.1); border: 1px solid rgba(0, 198, 121, 0.3); border-radius: 20px; padding: 4px 12px; margin-bottom: 16px;">
+            <span style="color: #00c679; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">✓ Account Activated</span>
+          </div>
+
+          <h3 style="color: #ffffff; font-size: 18px; margin-top: 0; margin-bottom: 8px;">
+            Welcome to the Trading Floor, ${clientName}!
+          </h3>
+          <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin-top: 0;">
+            Your Forex Grow institutional binary trading account has been successfully generated. Below are your official login credentials and account specifications:
+          </p>
+
+          <!-- Credentials Card -->
+          <div style="background: #0b0e15; border: 1px solid #1e2638; border-radius: 10px; padding: 18px; margin: 20px 0;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Trader Name:</td>
+                <td style="padding: 10px 0; color: #ffffff; font-weight: bold; text-align: right;">${clientName}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Login ID / User ID:</td>
+                <td style="padding: 10px 0; color: #38bdf8; font-family: monospace; font-size: 14px; font-weight: bold; text-align: right;">${loginId}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Registered Email:</td>
+                <td style="padding: 10px 0; color: #cbd5e1; font-family: monospace; text-align: right;">${toEmail}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Password:</td>
+                <td style="padding: 10px 0; color: #00c679; font-family: monospace; font-size: 15px; font-weight: 900; text-align: right; letter-spacing: 0.5px;">${password}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Practice Demo Capital:</td>
+                <td style="padding: 10px 0; color: #f59e0b; font-weight: 900; text-align: right; font-size: 14px;">${formattedDemo}</td>
+              </tr>
+              ${realBalance > 0 ? `
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Live Real Balance:</td>
+                <td style="padding: 10px 0; color: #00c679; font-weight: 900; text-align: right; font-size: 14px;">${formattedReal}</td>
+              </tr>
+              ` : ''}
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Base Currency:</td>
+                <td style="padding: 10px 0; color: #cbd5e1; font-weight: bold; text-align: right;">${currency}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #171d2b;">
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">VIP Tier:</td>
+                <td style="padding: 10px 0; color: #a855f7; font-weight: bold; text-align: right;">${vipLevel}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; color: #64748b; font-weight: 600;">KYC Status:</td>
+                <td style="padding: 10px 0; color: ${isKycVerified ? '#00c679' : '#f59e0b'}; font-weight: bold; text-align: right;">
+                  ${isKycVerified ? 'VERIFIED' : 'PENDING REVIEW'}
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Direct Login Call to Action -->
+          <div style="text-align: center; margin: 28px 0 20px 0;">
+            <a href="${loginUrl}" style="background-color: #00c679; color: #0a0d14; text-decoration: none; font-size: 14px; font-weight: 900; padding: 14px 28px; border-radius: 8px; display: inline-block; letter-spacing: 0.3px;">
+              Launch Trading Terminal & Log In →
+            </a>
+            <p style="color: #64748b; font-size: 11px; margin-top: 10px;">
+              Direct Link: <a href="${loginUrl}" style="color: #38bdf8; text-decoration: underline;">${loginUrl}</a>
+            </p>
+          </div>
+
+          <!-- Security Recommendations -->
+          <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 8px; padding: 12px 16px; margin-top: 20px;">
+            <p style="color: #f59e0b; font-size: 11px; margin: 0; line-height: 1.5;">
+              <strong>Security Advice:</strong> Please keep your credentials strictly confidential. For enhanced security, you can update your password at any time inside your terminal's Profile Settings.
+            </p>
+          </div>
+
+          <!-- Contact Support Box -->
+          <div style="background: #090c13; border: 1px solid #1a2233; border-radius: 8px; padding: 14px; margin-top: 16px; text-align: center;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0 0 4px 0;">Need help or have questions about trading?</p>
+            <p style="color: #38bdf8; font-size: 12px; font-weight: bold; margin: 0;">
+              WhatsApp & Phone Support: <a href="https://wa.me/919180169771" style="color: #38bdf8; text-decoration: none;">+91 9180169771</a>
+            </p>
+            <p style="color: #64748b; font-size: 10px; margin: 4px 0 0 0;">Official Support Email: support.forexgrow@gmail.com</p>
+          </div>
+        </div>
+
+        ${this.getLegalEmailFooterHtml()}
+      </div>
+    `;
+
+    const text = `
+Welcome to Forex Grow, ${clientName}!
+
+Your trading account has been created successfully.
+
+Login ID: ${loginId}
+Email: ${toEmail}
+Password: ${password}
+Demo Practice Balance: ${formattedDemo}
+Currency: ${currency}
+Login URL: ${loginUrl}
+
+Customer Support: +91 9180169771
+Email: support.forexgrow@gmail.com
+    `.trim();
+
+    return this.sendMail({ to: toEmail, subject, html, text });
+  }
 }
 
 export const emailService = new EmailService();

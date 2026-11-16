@@ -341,6 +341,19 @@ app.post('/api/auth/verify-register-otp', securityFirewall.getAuthRateLimiter(),
 
   pendingRegisterOtps.delete(cleanEmail);
 
+  // Send Welcome Email with Client Login ID and Password
+  emailService.sendAccountCredentialsEmail({
+    toEmail: createResult.user.email,
+    clientName: createResult.user.name,
+    loginId: createResult.user.id,
+    password: record.password || createResult.user.password || 'Trader@2026',
+    currency: createResult.user.currency,
+    demoBalance: createResult.user.demoBalance,
+    realBalance: createResult.user.realBalance,
+    vipLevel: createResult.user.vipLevel,
+    isKycVerified: createResult.user.isKycVerified,
+  }).catch((err) => console.error('[EMAIL] Failed to send credentials email on register-otp:', err));
+
   // Generate login session token
   const sessionToken = `jwt_session_${createResult.user.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   let accountSessions = traderAccountSessions.get(createResult.user.id);
@@ -1127,9 +1140,23 @@ app.post('/api/manager/users/:userId/reset-password', (req, res) => {
 
 app.post('/api/admin/users/create', (req, res) => {
   const result = adminManager.createUser(req.body);
-  if (!result.success) {
+  if (!result.success || !result.user) {
     return res.status(400).json({ error: result.error });
   }
+
+  // Send Welcome Email with Client Login ID and Password
+  emailService.sendAccountCredentialsEmail({
+    toEmail: result.user.email,
+    clientName: result.user.name,
+    loginId: result.user.id,
+    password: req.body.password || result.user.password || 'Trader@2026',
+    currency: result.user.currency,
+    demoBalance: result.user.demoBalance,
+    realBalance: result.user.realBalance,
+    vipLevel: result.user.vipLevel,
+    isKycVerified: result.user.isKycVerified,
+  }).catch((err) => console.error('[EMAIL] Failed to send credentials email on admin create:', err));
+
   res.json(result);
 });
 
@@ -1717,7 +1744,21 @@ app.post('/api/manager/users/create', (req: express.Request, res: express.Respon
       role: 'MANAGER',
     },
   });
-  if (!result.success) return res.status(400).json({ error: result.error });
+  if (!result.success || !result.user) return res.status(400).json({ error: result.error });
+
+  // Send Welcome Email with Client Login ID and Password
+  emailService.sendAccountCredentialsEmail({
+    toEmail: result.user.email,
+    clientName: result.user.name,
+    loginId: result.user.id,
+    password: password || result.user.password || 'Trader@2026',
+    currency: result.user.currency,
+    demoBalance: result.user.demoBalance,
+    realBalance: result.user.realBalance,
+    vipLevel: result.user.vipLevel,
+    isKycVerified: result.user.isKycVerified,
+  }).catch((err) => console.error('[EMAIL] Failed to send credentials email on manager create:', err));
+
   res.json(result);
 });
 

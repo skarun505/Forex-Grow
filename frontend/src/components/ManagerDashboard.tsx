@@ -814,15 +814,16 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     const text = `🌟 FOREX GROW TRADING ACCOUNT CREDENTIALS 🌟
 -----------------------------------------
 Client Name: ${createdClientSlip.name}
+Login ID: ${createdClientSlip.id}
 Login (Email): ${createdClientSlip.email}
 Login (Mobile): ${createdClientSlip.phone}
 Password: ${createdClientSlip.password}
 Account Currency: ${createdClientSlip.currency}
-Demo Balance: $${createdClientSlip.demoBalance.toLocaleString()}
-Live Real Balance: $${createdClientSlip.realBalance.toLocaleString()}
+Demo Balance: ${createdClientSlip.currency === 'USD' ? '$' : '₹'}${createdClientSlip.demoBalance.toLocaleString()}
+Live Real Balance: ${createdClientSlip.currency === 'USD' ? '$' : '₹'}${createdClientSlip.realBalance.toLocaleString()}
 Terminal URL: ${createdClientSlip.url}
 -----------------------------------------
-Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobile Number.`;
+Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Email, or Mobile Number.`;
     navigator.clipboard.writeText(text);
     setSlipCopied(true);
     setTimeout(() => setSlipCopied(false), 2500);
@@ -2301,9 +2302,16 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                 </div>
 
                 <div className="p-4 rounded-2xl bg-black/40 border border-emerald-500/30 space-y-2.5 font-mono text-xs">
+                  <div className="text-[11px] text-sky-400 font-sans pb-1">
+                    ✉️ Login ID, password & account specifications sent to {createdClientSlip.email}
+                  </div>
                   <div className="flex justify-between border-b border-white/10 pb-2 font-sans font-bold">
                     <span className="text-gray-400">Client Name:</span>
                     <span className="text-white">{createdClientSlip.name}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-gray-400 font-sans">Login ID:</span>
+                    <span className="text-sky-400 font-bold">{createdClientSlip.id}</span>
                   </div>
                   <div className="flex justify-between border-b border-white/10 pb-2">
                     <span className="text-gray-400 font-sans">Email ID:</span>
@@ -2323,11 +2331,11 @@ Issued by Forex Grow Desk Operations. Direct login supported with Email or Mobil
                   </div>
                   <div className="flex justify-between border-b border-white/10 pb-2">
                     <span className="text-gray-400 font-sans">Demo Balance:</span>
-                    <span className="text-white">${createdClientSlip.demoBalance.toLocaleString()}</span>
+                    <span className="text-white">{createdClientSlip.currency === 'USD' ? '$' : '₹'}{createdClientSlip.demoBalance.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between border-b border-white/10 pb-2">
                     <span className="text-gray-400 font-sans">Live Real Balance:</span>
-                    <span className="text-emerald-400">${createdClientSlip.realBalance.toLocaleString()}</span>
+                    <span className="text-emerald-400">{createdClientSlip.currency === 'USD' ? '$' : '₹'}{createdClientSlip.realBalance.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between pt-1">
                     <span className="text-gray-400 font-sans">Terminal URL:</span>
