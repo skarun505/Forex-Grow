@@ -223,15 +223,53 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const connect = () => {
       let userId = '';
-      try {
-        const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
-        if (savedUserRaw) {
-          const parsed = JSON.parse(savedUserRaw);
-          if (parsed?.id) userId = parsed.id;
-        }
-      } catch (e) {}
+      let tabToken = '';
+      const isAdminPortal = window.location.pathname.startsWith('/admin');
+      const isManagerPortal = window.location.pathname.startsWith('/manager');
 
-      const tabToken = sessionStorage.getItem('forexgrow_tab_token') || localStorage.getItem('forexgrow_auth_token') || '';
+      if (isAdminPortal) {
+        try {
+          const adminRaw = localStorage.getItem('quotex_admin_user');
+          if (adminRaw) {
+            const parsed = JSON.parse(adminRaw);
+            userId = parsed?.id || '';
+          }
+        } catch {}
+        tabToken =
+          sessionStorage.getItem('forexgrow_admin_tab_token') ||
+          localStorage.getItem('forexgrow_admin_token') ||
+          sessionStorage.getItem('forexgrow_tab_token') ||
+          localStorage.getItem('forexgrow_auth_token') ||
+          '';
+      } else if (isManagerPortal) {
+        try {
+          const mgrRaw = localStorage.getItem('quotex_manager_user');
+          if (mgrRaw) {
+            const parsed = JSON.parse(mgrRaw);
+            userId = parsed?.id || '';
+          }
+        } catch {}
+        tabToken =
+          sessionStorage.getItem('forexgrow_manager_tab_token') ||
+          localStorage.getItem('forexgrow_manager_token') ||
+          sessionStorage.getItem('forexgrow_tab_token') ||
+          localStorage.getItem('forexgrow_auth_token') ||
+          '';
+      } else {
+        try {
+          const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+          if (savedUserRaw) {
+            const parsed = JSON.parse(savedUserRaw);
+            if (parsed?.id) userId = parsed.id;
+          }
+        } catch (e) {}
+        tabToken =
+          sessionStorage.getItem('forexgrow_tab_token') ||
+          localStorage.getItem('forexgrow_trader_token') ||
+          localStorage.getItem('forexgrow_auth_token') ||
+          '';
+      }
+
       const baseWsUrl = getWsUrl();
       const delim = baseWsUrl.includes('?') ? '&' : '?';
       const authenticatedWsUrl = `${baseWsUrl}${delim}userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(tabToken)}`;
@@ -568,23 +606,24 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               } catch {}
 
               // Account-specific device validation: check if this logout targets our account
-              if (action.targetUserId) {
-                try {
-                  const storedTraderStr = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
-                  if (storedTraderStr) {
-                    const parsed = JSON.parse(storedTraderStr);
-                    if (parsed.id && parsed.id !== action.targetUserId) {
-                      // Different trader account! Do NOT logout!
-                      break;
-                    }
-                  }
-                } catch {}
+              let currentTraderId = '';
+              try {
+                const storedTraderStr = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+                if (storedTraderStr) {
+                  const parsed = JSON.parse(storedTraderStr);
+                  currentTraderId = parsed?.id || '';
+                }
+              } catch {}
+
+              // If this tab has no trader session or does not match the target trader, do NOT logout!
+              if (!currentTraderId || (action.targetUserId && currentTraderId !== action.targetUserId)) {
+                break;
               }
 
               // If this tab is the device that just signed in, ignore the eviction
               if (action.exceptToken) {
                 try {
-                  const myTabToken = sessionStorage.getItem('forexgrow_tab_token');
+                  const myTabToken = sessionStorage.getItem('forexgrow_tab_token') || localStorage.getItem('forexgrow_trader_token');
                   if (myTabToken && myTabToken === action.exceptToken) {
                     break;
                   }
@@ -598,6 +637,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // Purge TRADER credentials only - Admin and Manager credentials remain completely intact!
                 localStorage.removeItem('quotex_trader_user');
                 localStorage.removeItem('quotex_current_user');
+                localStorage.removeItem('forexgrow_trader_token');
                 localStorage.removeItem('forexgrow_auth_token');
                 sessionStorage.removeItem('forexgrow_tab_token');
               } catch {}

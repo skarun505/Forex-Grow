@@ -118,16 +118,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
           return;
         }
 
-        if (data.token) {
-          localStorage.setItem('forexgrow_auth_token', data.token);
-          sessionStorage.setItem('forexgrow_tab_token', data.token);
-        }
-
         if (mode === 'ADMIN') {
+          if (data.token) {
+            localStorage.setItem('forexgrow_admin_token', data.token);
+            sessionStorage.setItem('forexgrow_admin_tab_token', data.token);
+          }
           localStorage.setItem('quotex_admin_user', JSON.stringify(data.user));
         } else if (mode === 'MANAGER') {
+          if (data.token) {
+            localStorage.setItem('forexgrow_manager_token', data.token);
+            sessionStorage.setItem('forexgrow_manager_tab_token', data.token);
+          }
           localStorage.setItem('quotex_manager_user', JSON.stringify(data.user));
         } else {
+          if (data.token) {
+            localStorage.setItem('forexgrow_trader_token', data.token);
+            localStorage.setItem('forexgrow_auth_token', data.token);
+            sessionStorage.setItem('forexgrow_tab_token', data.token);
+          }
           localStorage.setItem('quotex_trader_user', JSON.stringify(data.user));
           localStorage.setItem('quotex_current_user', JSON.stringify(data.user));
         }
@@ -209,6 +217,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, mode = 'TR
       }
 
       if (data.token) {
+        localStorage.setItem('forexgrow_trader_token', data.token);
         localStorage.setItem('forexgrow_auth_token', data.token);
         sessionStorage.setItem('forexgrow_tab_token', data.token);
       }

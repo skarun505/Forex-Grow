@@ -169,7 +169,10 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
 
   const handleLogout = async () => {
     try {
-      const token = localStorage.getItem('forexgrow_auth_token');
+      const token =
+        sessionStorage.getItem('forexgrow_manager_tab_token') ||
+        localStorage.getItem('forexgrow_manager_token') ||
+        localStorage.getItem('forexgrow_auth_token');
       await fetch(apiUrl('/api/auth/logout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,7 +180,8 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
       });
     } catch {}
     localStorage.removeItem('quotex_manager_user');
-    localStorage.removeItem('forexgrow_auth_token');
+    localStorage.removeItem('forexgrow_manager_token');
+    sessionStorage.removeItem('forexgrow_manager_tab_token');
     window.history.pushState({}, '', '/manager');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
@@ -362,7 +366,12 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   };
 
   const getManagerHeaders = () => {
-    const token = localStorage.getItem('forexgrow_auth_token') || sessionStorage.getItem('forexgrow_tab_token') || '';
+    const token =
+      sessionStorage.getItem('forexgrow_manager_tab_token') ||
+      localStorage.getItem('forexgrow_manager_token') ||
+      sessionStorage.getItem('forexgrow_tab_token') ||
+      localStorage.getItem('forexgrow_auth_token') ||
+      '';
     return {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -384,9 +393,10 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
         fetch(apiUrl('/api/manager/coupons'), { headers }).then((r) => r.json()).catch(() => []),
       ]);
 
-      if (uRes?.code === 'FORBIDDEN_ROOT' || (uRes && !Array.isArray(uRes) && uRes.error)) {
+      if (uRes?.code === 'FORBIDDEN_ROOT' || uRes?.code === 'FORBIDDEN_MANAGER' || (uRes && !Array.isArray(uRes) && uRes.error)) {
         localStorage.removeItem('quotex_manager_user');
-        localStorage.removeItem('forexgrow_auth_token');
+        localStorage.removeItem('forexgrow_manager_token');
+        sessionStorage.removeItem('forexgrow_manager_tab_token');
         window.history.pushState({}, '', '/manager');
         window.dispatchEvent(new PopStateEvent('popstate'));
         return;

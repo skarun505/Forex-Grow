@@ -61,7 +61,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleLogout = async () => {
     if (!confirm('Are you sure you want to log out of your trading terminal?')) return;
     try {
-      const token = localStorage.getItem('forexgrow_auth_token');
+      const token =
+        sessionStorage.getItem('forexgrow_tab_token') ||
+        localStorage.getItem('forexgrow_trader_token') ||
+        localStorage.getItem('forexgrow_auth_token');
       await fetch(apiUrl('/api/auth/logout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,7 +73,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     } catch {}
     localStorage.removeItem('quotex_trader_user');
     localStorage.removeItem('quotex_current_user');
+    localStorage.removeItem('forexgrow_trader_token');
     localStorage.removeItem('forexgrow_auth_token');
+    sessionStorage.removeItem('forexgrow_tab_token');
     window.history.pushState({}, '', '/login');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };

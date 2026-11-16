@@ -147,7 +147,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
   const handleLogout = async () => {
     try {
-      const token = localStorage.getItem('forexgrow_auth_token');
+      const token =
+        sessionStorage.getItem('forexgrow_admin_tab_token') ||
+        localStorage.getItem('forexgrow_admin_token') ||
+        localStorage.getItem('forexgrow_auth_token');
       await fetch(apiUrl('/api/auth/logout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,7 +158,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       });
     } catch {}
     localStorage.removeItem('quotex_admin_user');
-    localStorage.removeItem('forexgrow_auth_token');
+    localStorage.removeItem('forexgrow_admin_token');
+    sessionStorage.removeItem('forexgrow_admin_tab_token');
     window.history.pushState({}, '', '/admin');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
@@ -374,7 +378,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
   // Payout Adjustments State
   const getAdminHeaders = () => {
-    const token = localStorage.getItem('forexgrow_auth_token') || sessionStorage.getItem('forexgrow_tab_token') || '';
+    const token =
+      sessionStorage.getItem('forexgrow_admin_tab_token') ||
+      localStorage.getItem('forexgrow_admin_token') ||
+      sessionStorage.getItem('forexgrow_tab_token') ||
+      localStorage.getItem('forexgrow_auth_token') ||
+      '';
     return {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -404,7 +413,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       // If token expired or access forbidden, clear stale session and redirect to admin login
       if (uRes?.code === 'FORBIDDEN_ROOT' || (uRes && !Array.isArray(uRes) && uRes.error)) {
         localStorage.removeItem('quotex_admin_user');
-        localStorage.removeItem('forexgrow_auth_token');
+        localStorage.removeItem('forexgrow_admin_token');
+        sessionStorage.removeItem('forexgrow_admin_tab_token');
         window.history.pushState({}, '', '/admin');
         window.dispatchEvent(new PopStateEvent('popstate'));
         return;
