@@ -2082,7 +2082,9 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
   };
   clients.set(ws, session);
 
-  const account = settlementEngine.getAccount();
+  const account = (session.userId && adminManager.getUser(session.userId))
+    ? adminManager.getUser(session.userId)!
+    : settlementEngine.getAccount();
   const assets = marketEngine.getAssets();
   const activeTrades = settlementEngine.getActiveTrades();
   const tradeHistory = settlementEngine.getTradeHistory();

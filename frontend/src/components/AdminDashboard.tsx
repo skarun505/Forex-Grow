@@ -82,7 +82,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [coupons, setCoupons] = useState<PromoCoupon[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null);
+  const [previewProofTx, setPreviewProofTx] = useState<Transaction | null>(null);
+  const [proofImageError, setProofImageError] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const openProofModal = (tx: Transaction) => {
+    setPreviewProofTx(tx);
+    setPreviewProofUrl(tx.proofImage || null);
+    setProofImageError(false);
+  };
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -1304,15 +1312,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                                 <span className="font-black text-emerald-400">{amtFmt.primary}</span>
                                 <span className="text-[10px] text-gray-400">({amtFmt.secondary})</span>
                                 <span className="text-gray-400">• {tx.method}</span>
-                                {tx.proofImage && (
+                                {tx.proofImage && tx.proofImage !== 'proof_attached.png' ? (
                                   <button
-                                    onClick={() => setPreviewProofUrl(tx.proofImage || null)}
+                                    onClick={() => openProofModal(tx)}
                                     className="text-xs text-sky-400 hover:text-sky-300 underline font-semibold flex items-center space-x-0.5"
                                   >
                                     <Eye className="w-3 h-3" />
                                     <span>Proof Slip</span>
                                   </button>
-                                )}
+                                ) : tx.utrNumber ? (
+                                  <button
+                                    onClick={() => openProofModal(tx)}
+                                    className="text-xs text-amber-400 hover:text-amber-300 underline font-semibold flex items-center space-x-0.5"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>UTR Slip</span>
+                                  </button>
+                                ) : null}
                               </div>
                               {tx.bankDetails && (
                                 <div className="text-[10px] font-mono text-amber-400">
@@ -2368,15 +2384,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             </button>
                           </div>
                         )}
-                        {tx.proofImage && (
+                        {tx.proofImage && tx.proofImage !== 'proof_attached.png' ? (
                           <button
-                            onClick={() => setPreviewProofUrl(tx.proofImage || null)}
+                            onClick={() => openProofModal(tx)}
                             className="w-full py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5"
                           >
                             <ImageIcon className="w-3.5 h-3.5" />
                             <span>View Payment Proof Slip</span>
                           </button>
-                        )}
+                        ) : tx.utrNumber ? (
+                          <button
+                            onClick={() => openProofModal(tx)}
+                            className="w-full py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Verify UTR Reference</span>
+                          </button>
+                        ) : null}
                       </div>
                     )}
 
@@ -2486,13 +2510,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                               </div>
                             ) : null}
 
-                            {tx.proofImage ? (
+                            {tx.proofImage && tx.proofImage !== 'proof_attached.png' ? (
                               <button
-                                onClick={() => setPreviewProofUrl(tx.proofImage || null)}
+                                onClick={() => openProofModal(tx)}
                                 className="flex items-center space-x-1 text-xs font-bold text-emerald-500 hover:text-emerald-600 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-lg transition"
                               >
                                 <ImageIcon className="w-3.5 h-3.5" />
                                 <span>View Slip</span>
+                              </button>
+                            ) : tx.utrNumber ? (
+                              <button
+                                onClick={() => openProofModal(tx)}
+                                className="flex items-center space-x-1 text-xs font-bold text-amber-500 hover:text-amber-600 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-lg transition"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Verify UTR</span>
                               </button>
                             ) : null}
 
@@ -4399,23 +4431,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         </div>
       )}
 
-      {/* ================= MODAL: PAYMENT SCREENSHOT PROOF PREVIEW ================= */}
-      {previewProofUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-          <div className={`w-full max-w-xl border rounded-3xl p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col transition-colors ${
+      {/* ================= MODAL: PAYMENT SCREENSHOT PROOF & UTR VERIFICATION ================= */}
+      {(previewProofTx || previewProofUrl) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
+          <div className={`w-full max-w-xl border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col transition-colors ${
             isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
           }`}>
+            {/* Header */}
             <div className={`flex items-center justify-between pb-3 border-b ${
               isLight ? 'border-slate-200' : 'border-[#2e354b]'
             }`}>
-              <div className="flex items-center space-x-2">
-                <ImageIcon className="w-5 h-5 text-emerald-500" />
-                <h3 className={`font-bold text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  Payment Screenshot Slip Verification
-                </h3>
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`font-black text-sm sm:text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    Payment Slip & UTR Verification
+                  </h3>
+                  {previewProofTx && (
+                    <p className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      {previewProofTx.userName} · {previewProofTx.paymentRail || 'UPI'} · {new Date(previewProofTx.timestamp).toLocaleString()}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
-                onClick={() => setPreviewProofUrl(null)}
+                onClick={() => { setPreviewProofUrl(null); setPreviewProofTx(null); setProofImageError(false); }}
                 className={`p-1.5 rounded-xl transition ${
                   isLight ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
                 }`}
@@ -4424,24 +4466,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-auto rounded-2xl border border-dashed border-slate-300 dark:border-white/10 bg-slate-900/50 flex items-center justify-center p-2 min-h-[300px]">
-              <img
-                src={previewProofUrl}
-                alt="Payment Slip Proof"
-                className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-lg"
-              />
+            {/* Transaction summary banner */}
+            {previewProofTx && (
+              <div className={`p-3 rounded-2xl border flex flex-wrap items-center justify-between gap-2 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121622] border-[#252c3f]'
+              }`}>
+                <div>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>Amount to Credit</span>
+                  <div className="text-base font-black text-emerald-400 font-mono">
+                    {formatTxnAmount(previewProofTx.amount, previewProofTx.currency).primary}
+                    <span className="text-xs text-gray-400 ml-1 font-normal">
+                      ({formatTxnAmount(previewProofTx.amount, previewProofTx.currency).secondary})
+                    </span>
+                  </div>
+                </div>
+
+                {previewProofTx.utrNumber && (
+                  <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl">
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-emerald-500 tracking-wider block">UTR Reference</span>
+                      <span className="text-xs font-mono font-black text-emerald-400 select-all">{previewProofTx.utrNumber}</span>
+                    </div>
+                    <button
+                      onClick={() => handleCopy(previewProofTx.utrNumber || '', `modal-utr-${previewProofTx.id}`)}
+                      className="p-1 hover:text-emerald-300 text-emerald-500 transition"
+                      title="Copy UTR"
+                    >
+                      {copiedId === `modal-utr-${previewProofTx.id}` ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Proof Image or Clean Fallback */}
+            <div className="flex-1 overflow-auto rounded-2xl border border-dashed border-slate-300 dark:border-white/10 bg-slate-900/60 flex items-center justify-center p-3 min-h-[260px]">
+              {previewProofUrl && previewProofUrl !== 'proof_attached.png' && !proofImageError ? (
+                <div className="flex flex-col items-center space-y-2 max-w-full">
+                  <img
+                    src={previewProofUrl}
+                    alt="Payment Slip Proof"
+                    onError={() => setProofImageError(true)}
+                    className="max-h-[50vh] max-w-full object-contain rounded-xl shadow-2xl border border-white/10"
+                  />
+                  <a
+                    href={previewProofUrl}
+                    download={`payment-proof-${previewProofTx?.utrNumber || 'slip'}.jpg`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-bold text-sky-400 hover:text-sky-300 hover:underline flex items-center space-x-1 pt-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Full Receipt Image</span>
+                  </a>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 max-w-md">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-white">No Screenshot Receipt Attached</h4>
+                    <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      The trader submitted this deposit using the direct UTR transaction reference number.
+                    </p>
+                  </div>
+                  {previewProofTx?.utrNumber && (
+                    <div className="bg-black/40 border border-amber-500/30 rounded-xl px-4 py-2 flex items-center space-x-2">
+                      <span className="font-mono text-xs font-bold text-amber-400">UTR: {previewProofTx.utrNumber}</span>
+                      <button
+                        onClick={() => handleCopy(previewProofTx.utrNumber || '', 'card-utr')}
+                        className="text-gray-400 hover:text-white"
+                      >
+                        {copiedId === 'card-utr' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  )}
+                  <p className={`text-[11px] font-medium ${isLight ? 'text-slate-400' : 'text-gray-400'}`}>
+                    💡 Check your business UPI app (PhonePe / GPay / Banking) statement for this 12-digit UTR reference before approving.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <span className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                Verify UTR and paid amount before approving
+            {/* Bottom Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5">
+              <span className={`text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                Verify bank receipt before crediting funds
               </span>
-              <button
-                onClick={() => setPreviewProofUrl(null)}
-                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-md transition"
-              >
-                Close Preview
-              </button>
+              <div className="flex items-center space-x-2">
+                {previewProofTx && previewProofTx.status === 'PENDING' && (
+                  <>
+                    <button
+                      onClick={async () => {
+                        await handleRejectPayment(previewProofTx.id);
+                        setPreviewProofUrl(null);
+                        setPreviewProofTx(null);
+                      }}
+                      className="px-3.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 text-xs font-bold rounded-xl transition"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await handleApprovePayment(previewProofTx.id);
+                        setPreviewProofUrl(null);
+                        setPreviewProofTx(null);
+                      }}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold rounded-xl shadow-md transition"
+                    >
+                      Approve & Credit
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => { setPreviewProofUrl(null); setPreviewProofTx(null); setProofImageError(false); }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/10 hover:bg-white/15 text-white'
+                  }`}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

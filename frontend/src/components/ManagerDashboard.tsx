@@ -114,6 +114,14 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [userSearch, setUserSearch] = useState('');
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [selectedProofImg, setSelectedProofImg] = useState<string | null>(null);
+  const [selectedProofTx, setSelectedProofTx] = useState<Transaction | null>(null);
+  const [managerProofImgError, setManagerProofImgError] = useState(false);
+
+  const openManagerProofModal = (tx: Transaction) => {
+    setSelectedProofTx(tx);
+    setSelectedProofImg(tx.proofImage || null);
+    setManagerProofImgError(false);
+  };
 
   // Global Manager Display Currency: Primary is strictly INR, next only USD
   const [displayCurrency, setDisplayCurrency] = useState<'INR' | 'USD'>('INR');
@@ -1318,15 +1326,23 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                       {/* Right: Amount & Actions */}
                       <div className="flex items-center justify-between md:justify-end space-x-4 border-t md:border-t-0 pt-3 md:pt-0">
                         {/* Attached Screenshot Button */}
-                        {tx.proofImage && (
+                        {tx.proofImage && tx.proofImage !== 'proof_attached.png' ? (
                           <button
-                            onClick={() => setSelectedProofImg(tx.proofImage!)}
+                            onClick={() => openManagerProofModal(tx)}
                             className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400 text-xs font-bold hover:bg-sky-500/20 transition"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>Proof Image</span>
+                            <span>Proof Slip</span>
                           </button>
-                        )}
+                        ) : tx.utrNumber ? (
+                          <button
+                            onClick={() => openManagerProofModal(tx)}
+                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs font-bold hover:bg-amber-500/20 transition"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Verify UTR</span>
+                          </button>
+                        ) : null}
 
                         {/* Amount - Primary INR */}
                         <div className="text-right">
@@ -2236,36 +2252,82 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
       </main>
       </div>
 
-      {/* Proof Image Fullscreen Modal */}
-      {selectedProofImg && (
+      {/* Proof Image & UTR Verification Modal */}
+      {(selectedProofTx || selectedProofImg) && (
         <div
-          onClick={() => setSelectedProofImg(null)}
+          onClick={() => { setSelectedProofImg(null); setSelectedProofTx(null); setManagerProofImgError(false); }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`max-w-xl w-full rounded-3xl p-4 border flex flex-col space-y-3 ${
+            className={`max-w-xl w-full rounded-3xl p-5 border flex flex-col space-y-4 shadow-2xl ${
               isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161a29] border-[#252c40] text-white'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider">Payment Proof Verification</span>
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider block">Payment Slip & UTR Verification</span>
+                {selectedProofTx && (
+                  <p className="text-[11px] text-gray-400 font-medium">
+                    {selectedProofTx.userName} · {selectedProofTx.paymentRail || 'UPI'}
+                  </p>
+                )}
+              </div>
               <button
-                onClick={() => setSelectedProofImg(null)}
-                className="p-1 hover:text-white text-gray-400"
+                onClick={() => { setSelectedProofImg(null); setSelectedProofTx(null); setManagerProofImgError(false); }}
+                className="p-1 hover:text-white text-gray-400 text-sm font-bold"
               >
                 ✕
               </button>
             </div>
-            <div className="max-h-[70vh] overflow-hidden rounded-2xl border border-white/10 flex items-center justify-center bg-black">
-              <img src={selectedProofImg} alt="Proof Screenshot" className="max-w-full max-h-[65vh] object-contain" />
+
+            {selectedProofTx?.utrNumber && (
+              <div className="flex items-center justify-between bg-sky-500/10 border border-sky-500/30 p-3 rounded-2xl">
+                <div>
+                  <span className="text-[9px] font-black uppercase text-sky-400 tracking-wider block">UTR Reference Number</span>
+                  <span className="text-xs font-mono font-black text-sky-300 select-all">{selectedProofTx.utrNumber}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedProofTx.utrNumber || '');
+                    setCopiedUtr(selectedProofTx.utrNumber || '');
+                    setTimeout(() => setCopiedUtr(null), 2000);
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 rounded-lg transition"
+                >
+                  {copiedUtr === selectedProofTx.utrNumber ? 'Copied!' : 'Copy UTR'}
+                </button>
+              </div>
+            )}
+
+            <div className="max-h-[55vh] overflow-auto rounded-2xl border border-white/10 flex items-center justify-center bg-black/60 p-2 min-h-[200px]">
+              {selectedProofImg && selectedProofImg !== 'proof_attached.png' && !managerProofImgError ? (
+                <img
+                  src={selectedProofImg}
+                  alt="Proof Screenshot"
+                  onError={() => setManagerProofImgError(true)}
+                  className="max-w-full max-h-[50vh] object-contain rounded-xl shadow-lg"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-6 text-center space-y-2 max-w-sm">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                    ⚠️
+                  </div>
+                  <h4 className="text-sm font-bold text-white">No Screenshot Uploaded by Trader</h4>
+                  <p className="text-xs text-gray-400">
+                    The trader submitted this deposit using direct UTR reference. Verify the transaction in your bank statement.
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="flex justify-end">
+
+            <div className="flex items-center justify-between pt-1 border-t border-white/5">
+              <span className="text-[11px] text-gray-400 font-medium">Verify UTR before approving</span>
               <button
-                onClick={() => setSelectedProofImg(null)}
-                className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs rounded-xl"
+                onClick={() => { setSelectedProofImg(null); setSelectedProofTx(null); setManagerProofImgError(false); }}
+                className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs rounded-xl transition"
               >
-                Close Proof
+                Close Slip
               </button>
             </div>
           </div>

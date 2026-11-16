@@ -8,7 +8,7 @@ import { SupabaseDb } from '../db/supabase.js';
 export class SettlementEngine extends EventEmitter {
   private activeTrades: Map<string, Trade> = new Map();
   private tradeHistory: Trade[] = [];
-  private currentUserId: string = 'usr_quotex_vip_99';
+  private currentUserId: string = '';
 
   private leaderboard: LeaderboardTrader[] = [];
   private previousRanks: Map<string, number> = new Map();
@@ -128,26 +128,21 @@ export class SettlementEngine extends EventEmitter {
   }
 
   public getAccount(): UserAccount {
-    const user = this.adminManager.getUser(this.currentUserId);
+    const user = this.currentUserId ? this.adminManager.getUser(this.currentUserId) : null;
     if (user) return { ...user };
-    const fallback = this.adminManager.getUsers()[0];
-    if (fallback) {
-      this.currentUserId = fallback.id;
-      return { ...fallback };
-    }
     return {
-      id: 'usr_quotex_vip_99',
-      name: 'Alex Rivera',
-      email: 'alex.rivera@quotex.pro',
+      id: '',
+      name: 'Trader',
+      email: '',
       demoBalance: 700000.00,
-      realBalance: 10000.00,
-      activeAccountType: 'REAL',
+      realBalance: 0.00,
+      activeAccountType: 'DEMO',
       currency: 'INR',
       vipLevel: 'STANDARD',
-      isKycVerified: true,
+      isKycVerified: false,
       status: 'ACTIVE',
-      totalTrades: 34,
-      totalDepositedUSD: 1250.00,
+      totalTrades: 0,
+      totalDepositedUSD: 0.00,
     };
   }
 

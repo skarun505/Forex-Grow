@@ -92,19 +92,34 @@ const getSessionTimeframe = (): TimeframeInterval => {
 
 export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
-  const [account, setAccount] = useState<UserAccount>({
-    id: 'usr_quotex_vip_99',
-    name: 'Alex Rivera',
-    email: 'alex.rivera@quotex.pro',
-    demoBalance: 700000.0,
-    realBalance: 10000.0,
-    activeAccountType: 'REAL',
-    currency: getSessionCurrency(),
-    vipLevel: 'STANDARD',
-    isKycVerified: true,
-    status: 'ACTIVE',
-    totalTrades: 34,
-    totalDepositedUSD: 1250.0,
+  const [account, setAccount] = useState<UserAccount>(() => {
+    try {
+      const saved = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id && parsed.id !== 'usr_quotex_vip_99') {
+          return {
+            ...parsed,
+            demoBalance: parsed.demoBalance ?? 700000.0,
+            currency: getSessionCurrency() || parsed.currency || 'INR',
+          };
+        }
+      }
+    } catch {}
+    return {
+      id: '',
+      name: 'Trader',
+      email: '',
+      demoBalance: 700000.0,
+      realBalance: 0.0,
+      activeAccountType: 'DEMO',
+      currency: getSessionCurrency(),
+      vipLevel: 'STANDARD',
+      isKycVerified: false,
+      status: 'ACTIVE',
+      totalTrades: 0,
+      totalDepositedUSD: 0.0,
+    };
   });
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAssetId, setSelectedAssetId] = useState<string>(getSessionAsset);
@@ -212,7 +227,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
         if (savedUserRaw) {
           const parsed = JSON.parse(savedUserRaw);
-          if (parsed?.id) userId = parsed.id;
+          if (parsed?.id && parsed.id !== 'usr_quotex_vip_99') userId = parsed.id;
         }
       } catch (e) {}
 
@@ -313,16 +328,21 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 vipLevel: calculateVipLevel(action.account.realBalance, effectiveCurrency),
               };
 
-              setAccount(mergedAccount);
-              try {
-                const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
-                if (savedUserRaw) {
-                  const saved = JSON.parse(savedUserRaw);
-                  const synced = { ...saved, ...mergedAccount };
-                  localStorage.setItem('quotex_trader_user', JSON.stringify(synced));
-                  localStorage.setItem('quotex_current_user', JSON.stringify(synced));
-                }
-              } catch (e) {}
+              // Only sync state if account is valid and not the obsolete Alex Rivera test account
+              if (action.account && action.account.id && action.account.id !== 'usr_quotex_vip_99') {
+                setAccount(mergedAccount);
+                try {
+                  const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+                  if (savedUserRaw) {
+                    const saved = JSON.parse(savedUserRaw);
+                    if (saved && saved.id === action.account.id) {
+                      const synced = { ...saved, ...mergedAccount };
+                      localStorage.setItem('quotex_trader_user', JSON.stringify(synced));
+                      localStorage.setItem('quotex_current_user', JSON.stringify(synced));
+                    }
+                  }
+                } catch (e) {}
+              }
 
               // If tab session currency differs from backend account currency, sync backend
               if (effectiveCurrency !== action.account.currency && socket.readyState === WebSocket.OPEN) {

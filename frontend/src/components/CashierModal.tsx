@@ -271,7 +271,31 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
     setProofFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
-      setProofImage(reader.result as string);
+      const rawDataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxWidth = 1200;
+          const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.82);
+            setProofImage(compressed);
+            return;
+          }
+        } catch (err) {
+          console.warn('Canvas compression fallback:', err);
+        }
+        setProofImage(rawDataUrl);
+      };
+      img.onerror = () => {
+        setProofImage(rawDataUrl);
+      };
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -297,7 +321,7 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
           currency: account.currency,
           amountUSD: depositAmountUSD,
           utrNumber: finalUtr,
-          proofImage: proofImage || 'proof_attached.png',
+          proofImage: proofImage || undefined,
           promoCode: appliedPromo || undefined,
           paymentRail: depositRail,
           bankDetails: depositRail === 'BANK' ? {

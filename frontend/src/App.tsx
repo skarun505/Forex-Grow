@@ -147,6 +147,12 @@ export const App: React.FC = () => {
     try {
       const saved = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
       const parsed = saved ? JSON.parse(saved) : null;
+      // Completely purge legacy Alex Rivera demo account from browser storage
+      if (parsed && (parsed.id === 'usr_quotex_vip_99' || parsed.email === 'alex.rivera@quotex.pro')) {
+        localStorage.removeItem('quotex_trader_user');
+        localStorage.removeItem('quotex_current_user');
+        return null;
+      }
       return parsed && parsed.role === 'TRADER' ? parsed : (parsed?.role ? null : parsed);
     } catch {
       return null;
@@ -177,7 +183,13 @@ export const App: React.FC = () => {
       try {
         const savedTrader = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
         const parsedTrader = savedTrader ? JSON.parse(savedTrader) : null;
-        setTraderUser(parsedTrader && parsedTrader.role === 'TRADER' ? parsedTrader : (parsedTrader?.role ? null : parsedTrader));
+        if (parsedTrader && (parsedTrader.id === 'usr_quotex_vip_99' || parsedTrader.email === 'alex.rivera@quotex.pro')) {
+          localStorage.removeItem('quotex_trader_user');
+          localStorage.removeItem('quotex_current_user');
+          setTraderUser(null);
+        } else {
+          setTraderUser(parsedTrader && parsedTrader.role === 'TRADER' ? parsedTrader : (parsedTrader?.role ? null : parsedTrader));
+        }
       } catch {
         setTraderUser(null);
       }
@@ -279,12 +291,21 @@ export const App: React.FC = () => {
 
   // ================= 3. TRADER TERMINAL SLUG (/ or /login) =================
   if (!traderUser || currentPath === '/login' || currentPath === '/register') {
+    // If user is not logged in and typed an arbitrary URL (like /co), cleanly normalize URL to /login
+    if (!traderUser && currentPath !== '/login' && currentPath !== '/register') {
+      window.history.replaceState({}, '', '/login');
+    }
     return (
       <LoginPage
         mode="TRADER"
         onLoginSuccess={handleTraderLoginSuccess}
       />
     );
+  }
+
+  // If authenticated trader entered an unknown or stale subpath (e.g. /co, /abc), normalize to '/'
+  if (currentPath !== '/') {
+    window.history.replaceState({}, '', '/');
   }
 
   // Authenticated Trader Terminal Floor
