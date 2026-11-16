@@ -305,7 +305,11 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
       setDepositError('Please enter a valid deposit amount');
       return;
     }
-    const finalUtr = utrNumber.trim() || ('43' + Math.floor(1000000000 + Math.random() * 9000000000).toString());
+    const finalUtr = utrNumber.trim();
+    if (!finalUtr || finalUtr.length < 6) {
+      setDepositError('Please enter your 12-digit transaction UTR / Reference number from your payment receipt');
+      return;
+    }
 
     setDepositError(null);
     setIsSubmittingDeposit(true);
@@ -1001,26 +1005,15 @@ Deposit Amount: ${curr.symbol}${numericDeposit.toLocaleString()} (${account.curr
                   </span>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className={`text-[11px] font-semibold ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
-                        Transaction UTR / Reference Number (12 Digits) *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const rand = '43' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
-                          setUtrNumber(rand);
-                        }}
-                        className="text-[10px] text-emerald-500 hover:text-emerald-400 font-bold hover:underline"
-                      >
-                        Auto-Fill Sample UTR
-                      </button>
-                    </div>
+                    <label className={`text-[11px] font-semibold block mb-1 ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                      Transaction UTR / Reference Number (12 Digits) *
+                    </label>
                     <input
                       type="text"
                       value={utrNumber}
-                      onChange={(e) => setUtrNumber(e.target.value)}
-                      placeholder="e.g. 431092819281 (or click Auto-Fill Sample UTR)"
+                      onChange={(e) => setUtrNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                      placeholder="Enter 12-digit UPI / Bank UTR Reference (e.g. 431092819281)"
+                      maxLength={22}
                       className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none ${
                         isLight 
                           ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400' 
