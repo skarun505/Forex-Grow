@@ -180,7 +180,7 @@ export const AssetSelectorModal: React.FC<AssetSelectorModalProps> = ({ isOpen, 
                   </div>
 
                   <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-black text-xs sm:text-sm px-2.5 py-1 rounded-xl">
-                    +{asset.payout}%
+                    +{asset.payout ?? 99}%
                   </div>
                 </div>
               </div>

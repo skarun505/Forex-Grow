@@ -543,17 +543,50 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
       <button
         type="button"
         onClick={onOpenAssetModal}
-        className="sm:hidden absolute top-2 left-2 z-20 flex items-center space-x-2 bg-[#1e2333]/95 hover:bg-[#252e42] active:scale-95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 shadow-xl transition"
+        className="sm:hidden absolute top-2 left-2 z-20 flex items-center space-x-1.5 bg-[#1e2333]/95 hover:bg-[#252e42] active:scale-95 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 shadow-xl transition"
         title="Tap to change currency pair / market"
       >
-        <span className="text-xs font-bold text-white tracking-tight truncate max-w-[125px]">
+        <span className="text-xs font-bold text-white tracking-tight truncate max-w-[110px]">
           {selectedAsset?.name || 'EUR/USD (OTC)'}
         </span>
         <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-md">
-          +{selectedAsset?.payout}%
+          +{selectedAsset?.payout ?? 99}%
         </span>
-        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+        <ChevronDown className="w-3 h-3 text-gray-400" />
       </button>
+
+      {/* Mobile Live Next Candle Predictor Indicator Bar (Top Right of Chart) */}
+      <div className="sm:hidden absolute top-2 right-2 z-20 flex flex-col bg-[#1e2333]/95 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/10 shadow-xl max-w-[185px]">
+        <div className="flex items-center justify-between text-[9px] font-black tracking-tight mb-0.5 space-x-2">
+          <span className="text-emerald-400 flex items-center space-x-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>BUY {bullPct}%</span>
+          </span>
+          <span className="text-rose-400 flex items-center space-x-0.5">
+            <span>{bearPct}% SELL</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+          </span>
+        </div>
+
+        {/* Dual Split Animated Gradient Indicator Bar */}
+        <div className="w-full h-1.5 bg-[#0b0e14] rounded-full overflow-hidden flex relative border border-white/10 shadow-inner">
+          <div
+            style={{ width: `${bullPct}%` }}
+            className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-trade-green transition-all duration-500 rounded-l-full shadow-sm shadow-emerald-500/50"
+          />
+          <div
+            style={{ width: `${bearPct}%` }}
+            className="h-full bg-gradient-to-r from-trade-red via-rose-500 to-rose-600 transition-all duration-500 rounded-r-full shadow-sm shadow-rose-500/50"
+          />
+        </div>
+
+        <div className="flex items-center justify-between text-[8px] font-mono mt-0.5">
+          <span className={bullPct >= 50 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+            {bullPct >= 50 ? '▲ NEXT CALL' : '▼ NEXT PUT'}
+          </span>
+          <span className="text-amber-400 font-bold">{candleRemainingSec}s</span>
+        </div>
+      </div>
 
       {/* Desktop Top Floating Info & Asset Banner (Click to switch currency pair) */}
       <div 
@@ -582,7 +615,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
                 isUp ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'
               }`}
             >
-              <span>+{selectedAsset?.payout}%</span>
+              <span>+{selectedAsset?.payout ?? 99}%</span>
             </span>
 
             {/* Live New Candle Countdown Timer */}
@@ -598,6 +631,30 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
                     ? `${Math.floor(candleRemainingSec / 60)}m ${candleRemainingSec % 60}s`
                     : `${candleRemainingSec}s`}
                 </span>
+              </div>
+            </div>
+
+            {/* Desktop Live Next Candle Predictor Indicator Bar */}
+            <div
+              title="Next Candle Probability Indicator (Live Buy vs Sell Prediction)"
+              className="hidden md:flex flex-col justify-center bg-[#121620]/90 border border-white/10 px-3 py-1 rounded-xl shadow-inner min-w-[170px]"
+            >
+              <div className="flex items-center justify-between text-[10px] font-black tracking-tight mb-0.5">
+                <span className="text-emerald-400">BUY {bullPct}%</span>
+                <span className={bullPct >= 50 ? 'text-emerald-400 font-bold text-[9px]' : 'text-rose-400 font-bold text-[9px]'}>
+                  {bullPct >= 50 ? '▲ CALL' : '▼ PUT'}
+                </span>
+                <span className="text-rose-400">SELL {bearPct}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-[#0b0e14] rounded-full overflow-hidden flex relative border border-white/10">
+                <div
+                  style={{ width: `${bullPct}%` }}
+                  className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-trade-green transition-all duration-500 rounded-l-full"
+                />
+                <div
+                  style={{ width: `${bearPct}%` }}
+                  className="h-full bg-gradient-to-r from-trade-red via-rose-500 to-rose-600 transition-all duration-500 rounded-r-full"
+                />
               </div>
             </div>
           </div>
