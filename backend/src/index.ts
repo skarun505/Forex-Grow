@@ -1747,7 +1747,12 @@ app.get('/api/manager/overview', (req: express.Request, res: express.Response) =
 });
 
 app.get('/api/manager/users', (req: express.Request, res: express.Response) => {
-  res.json(adminManager.getUsers());
+  // Only Super Admin can view passwords and complete credentials; strip passwords for Manager
+  const users = adminManager.getUsers().map((u) => {
+    const { password, ...safeUser } = u;
+    return safeUser;
+  });
+  res.json(users);
 });
 
 app.post('/api/manager/users/create', (req: express.Request, res: express.Response) => {

@@ -37,6 +37,8 @@ import {
   Sparkles,
   CheckCircle2,
   Eye,
+  EyeOff,
+  Phone,
   Image as ImageIcon,
   Check,
   Copy,
@@ -221,6 +223,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [selectedUserForTrades, setSelectedUserForTrades] = useState<UserAccount | null>(null);
   const [userTrades, setUserTrades] = useState<{ activeTrades: Trade[]; tradeHistory: Trade[] } | null>(null);
   const [tradesLoading, setTradesLoading] = useState(false);
+
+  // Complete User Data Modal & Password Peek State (Admin-Only access)
+  const [selectedUserForDetails, setSelectedUserForDetails] = useState<UserAccount | null>(null);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (userId: string) => {
+    setRevealedPasswords((prev) => ({ ...prev, [userId]: !prev[userId] }));
+  };
 
   // New Coupon Modal State
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
@@ -1499,9 +1509,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                           </span>
                         </div>
                         <div className={`text-[11px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                          {u.email} {u.phone ? `• ${u.phone}` : ''}
+                          {u.email}
                         </div>
+                        {u.phone && (
+                          <div className="text-[11px] text-emerald-400 font-mono flex items-center space-x-1 mt-0.5">
+                            <Phone className="w-3 h-3 shrink-0" />
+                            <span>{u.phone}</span>
+                          </div>
+                        )}
                         <div className="text-[10px] font-mono text-gray-500">ID: {u.id}</div>
+                        {/* Admin Password View & Peek */}
+                        <div className="flex items-center space-x-1.5 mt-1 text-xs font-mono">
+                          <span className="text-[11px] text-gray-400 font-sans">Pass:</span>
+                          <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            {revealedPasswords[u.id] ? (u.password || 'Trader@2026') : '••••••••'}
+                          </span>
+                          <button
+                            onClick={() => togglePasswordVisibility(u.id)}
+                            title={revealedPasswords[u.id] ? "Hide password" : "Show password"}
+                            className="p-0.5 text-gray-400 hover:text-white"
+                          >
+                            {revealedPasswords[u.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(u.password || 'Trader@2026');
+                              showAdminToast(`Copied password for ${u.name}`);
+                            }}
+                            title="Copy password"
+                            className="p-0.5 text-gray-400 hover:text-white"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center space-x-1 shrink-0">
                         {u.isKycVerified ? (
@@ -1548,6 +1588,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
                     {/* Bottom Actions */}
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <button
+                        onClick={() => setSelectedUserForDetails(u)}
+                        className="px-2.5 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1"
+                        title="View complete user data & credentials"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Data</span>
+                      </button>
                       <button
                         onClick={() => openDirectBalanceModal(u)}
                         className="flex-1 min-w-[90px] py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition shadow-sm text-center flex items-center justify-center space-x-1"
@@ -1637,7 +1685,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             )}
                           </div>
                           <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{u.email}</div>
-                          <div className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>{u.id}</div>
+                          {u.phone && (
+                            <div className="text-[11px] text-emerald-400 font-mono flex items-center space-x-1 mt-0.5">
+                              <Phone className="w-3 h-3 shrink-0" />
+                              <span>{u.phone}</span>
+                            </div>
+                          )}
+                          <div className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>ID: {u.id}</div>
+                          {/* Admin Password View & Peek */}
+                          <div className="flex items-center space-x-1.5 mt-1 text-[11px] font-mono">
+                            <span className="text-gray-400 font-sans text-[10px]">Pass:</span>
+                            <span className="font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                              {revealedPasswords[u.id] ? (u.password || 'Trader@2026') : '••••••••'}
+                            </span>
+                            <button
+                              onClick={() => togglePasswordVisibility(u.id)}
+                              title={revealedPasswords[u.id] ? "Hide password" : "Show password"}
+                              className="p-0.5 text-gray-400 hover:text-white"
+                            >
+                              {revealedPasswords[u.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(u.password || 'Trader@2026');
+                                showAdminToast(`Copied password for ${u.name}`);
+                              }}
+                              title="Copy password"
+                              className="p-0.5 text-gray-400 hover:text-white"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
                         </td>
                         <td className="py-3.5 px-3">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
@@ -1679,7 +1757,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             {u.status}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-right space-x-2">
+                        <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            onClick={() => setSelectedUserForDetails(u)}
+                            className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                            title="View complete user profile, password & credentials"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Full Data</span>
+                          </button>
                           {u.kycStatus === 'PENDING' && (
                             <button
                               onClick={() => setSelectedTraderForKyc(u)}
@@ -5038,6 +5124,332 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: COMPLETE USER DATA & CREDENTIALS (ADMIN ONLY) ================= */}
+      {selectedUserForDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className={`w-full max-w-2xl border rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#181d2c] border-[#2c344a] text-white'
+          }`}>
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${
+              isLight ? 'border-slate-200 bg-slate-50' : 'border-[#2c344a] bg-[#141824]'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center font-bold">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      Complete Trader Profile: {selectedUserForDetails.name}
+                    </h3>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      ADMIN RESTRICTED
+                    </span>
+                  </div>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Master Identity, Credentials, Bank & KYC Record
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedUserForDetails(null)}
+                className={`p-1.5 rounded-xl transition ${
+                  isLight ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-200' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+              {/* Credentials Card (Email, Phone, Password, ID) */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121622] border-[#22283a]'
+              }`}>
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-purple-400 flex items-center space-x-1.5">
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Access Credentials & Contact Information</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* User ID */}
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">User Account ID</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono font-bold text-sky-400">{selectedUserForDetails.id}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedUserForDetails.id);
+                          showAdminToast('Copied User ID');
+                        }}
+                        className="p-1 hover:text-white text-gray-400"
+                        title="Copy ID"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Email Address</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono font-bold text-gray-200 truncate">{selectedUserForDetails.email}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedUserForDetails.email);
+                          showAdminToast('Copied Email Address');
+                        }}
+                        className="p-1 hover:text-white text-gray-400 shrink-0"
+                        title="Copy Email"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Phone */}
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Phone / Mobile</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono font-bold text-emerald-400">
+                        {selectedUserForDetails.phone || 'Not submitted'}
+                      </span>
+                      {selectedUserForDetails.phone && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedUserForDetails.phone!);
+                            showAdminToast('Copied Phone Number');
+                          }}
+                          className="p-1 hover:text-white text-gray-400"
+                          title="Copy Phone"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Account Password</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono font-black text-amber-400 tracking-wider">
+                        {revealedPasswords[selectedUserForDetails.id]
+                          ? (selectedUserForDetails.password || 'Trader@2026')
+                          : '••••••••••••'}
+                      </span>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => togglePasswordVisibility(selectedUserForDetails.id)}
+                          title={revealedPasswords[selectedUserForDetails.id] ? "Hide password" : "Show password"}
+                          className="p-1 text-gray-400 hover:text-white"
+                        >
+                          {revealedPasswords[selectedUserForDetails.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedUserForDetails.password || 'Trader@2026');
+                            showAdminToast(`Copied password for ${selectedUserForDetails.name}`);
+                          }}
+                          className="p-1 text-gray-400 hover:text-white"
+                          title="Copy Password"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Account Status & Balances */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121622] border-[#22283a]'
+              }`}>
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center space-x-1.5">
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>Account State & Balances</span>
+                </h4>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Live Real Balance</span>
+                    <span className="font-mono font-black text-emerald-400 text-sm mt-0.5 block">
+                      {formatUserBal(selectedUserForDetails.realBalance, selectedUserForDetails.currency).primary}
+                    </span>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Demo Balance</span>
+                    <span className="font-mono font-bold text-amber-400 text-sm mt-0.5 block">
+                      {formatUserBal(selectedUserForDetails.demoBalance, selectedUserForDetails.currency).primary}
+                    </span>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">VIP Level</span>
+                    <span className="font-bold text-sky-400 text-xs mt-0.5 block">
+                      {selectedUserForDetails.vipLevel}
+                    </span>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Account Status</span>
+                    <span className={`font-black text-xs mt-0.5 block ${
+                      selectedUserForDetails.status === 'ACTIVE' ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {selectedUserForDetails.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* KYC Aadhaar Details */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121622] border-[#22283a]'
+              }`}>
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-sky-400 flex items-center space-x-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Aadhaar KYC Identity Verification</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Aadhaar Number</span>
+                    <span className="font-mono font-bold text-amber-400 mt-0.5 block">
+                      {selectedUserForDetails.aadhaarNumber || selectedUserForDetails.kycData?.aadhaarNumber || 'Not submitted'}
+                    </span>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">KYC Status</span>
+                    <span className={`font-bold mt-0.5 block ${
+                      selectedUserForDetails.isKycVerified ? 'text-emerald-400' : 'text-amber-400'
+                    }`}>
+                      {selectedUserForDetails.isKycVerified ? 'Verified ✓' : 'Pending Verification'}
+                    </span>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Date of Birth / Gender</span>
+                    <span className="text-gray-300 mt-0.5 block">
+                      {selectedUserForDetails.kycData?.dob || 'N/A'} {selectedUserForDetails.kycData?.gender ? `· ${selectedUserForDetails.kycData.gender}` : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Aadhaar Images if available */}
+                {(selectedUserForDetails.kycData?.frontImage || selectedUserForDetails.kycData?.backImage) && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Front</span>
+                      <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                        <img src={selectedUserForDetails.kycData.frontImage} alt="Front" className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-gray-400 font-bold block mb-1">Aadhaar Back</span>
+                      <div className="w-full h-32 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                        <img src={selectedUserForDetails.kycData.backImage} alt="Back" className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Saved Bank Details if available */}
+              {selectedUserForDetails.savedBankDetails && (
+                <div className={`p-4 rounded-2xl border space-y-3 ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121622] border-[#22283a]'
+                }`}>
+                  <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center space-x-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Trader Withdrawal Bank & UPI Account</span>
+                  </h4>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block">Bank Name</span>
+                      <span className="font-bold text-white mt-0.5 block truncate">
+                        {selectedUserForDetails.savedBankDetails.bankName || 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block">Account Number</span>
+                      <span className="font-mono font-bold text-emerald-400 mt-0.5 block truncate">
+                        {selectedUserForDetails.savedBankDetails.accountNumber || 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block">IFSC Code</span>
+                      <span className="font-mono font-bold text-sky-400 mt-0.5 block truncate">
+                        {selectedUserForDetails.savedBankDetails.ifscCode || 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#181c2b] border-[#262c3e]'}`}>
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block">Trader UPI ID</span>
+                      <span className="font-mono font-bold text-amber-400 mt-0.5 block truncate">
+                        {selectedUserForDetails.savedBankDetails.upiId || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className={`px-6 py-4 border-t flex items-center justify-between gap-3 ${
+              isLight ? 'border-slate-200 bg-slate-50' : 'border-[#2c344a] bg-[#141824]'
+            }`}>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = selectedUserForDetails;
+                    setSelectedUserForDetails(null);
+                    openDirectBalanceModal(u);
+                  }}
+                  className="px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center space-x-1"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Balances</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = selectedUserForDetails;
+                    setSelectedUserForDetails(null);
+                    handleViewUserTrades(u);
+                  }}
+                  className="px-3 py-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Trades ({selectedUserForDetails.totalTrades || 0})</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedUserForDetails(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${
+                  isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300' : 'bg-[#222838] hover:bg-[#2c3347] text-white border-[#2e354b]'
+                }`}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
