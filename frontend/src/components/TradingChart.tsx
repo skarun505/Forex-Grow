@@ -555,39 +555,6 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
         <ChevronDown className="w-3 h-3 text-gray-400" />
       </button>
 
-      {/* Mobile Live Next Candle Predictor Indicator Bar (Top Right of Chart) */}
-      <div className="sm:hidden absolute top-2 right-2 z-20 flex flex-col bg-[#1e2333]/95 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/10 shadow-xl max-w-[185px]">
-        <div className="flex items-center justify-between text-[9px] font-black tracking-tight mb-0.5 space-x-2">
-          <span className="text-emerald-400 flex items-center space-x-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>BUY {bullPct}%</span>
-          </span>
-          <span className="text-rose-400 flex items-center space-x-0.5">
-            <span>{bearPct}% SELL</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
-          </span>
-        </div>
-
-        {/* Dual Split Animated Gradient Indicator Bar */}
-        <div className="w-full h-1.5 bg-[#0b0e14] rounded-full overflow-hidden flex relative border border-white/10 shadow-inner">
-          <div
-            style={{ width: `${bullPct}%` }}
-            className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-trade-green transition-all duration-500 rounded-l-full shadow-sm shadow-emerald-500/50"
-          />
-          <div
-            style={{ width: `${bearPct}%` }}
-            className="h-full bg-gradient-to-r from-trade-red via-rose-500 to-rose-600 transition-all duration-500 rounded-r-full shadow-sm shadow-rose-500/50"
-          />
-        </div>
-
-        <div className="flex items-center justify-between text-[8px] font-mono mt-0.5">
-          <span className={bullPct >= 50 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-            {bullPct >= 50 ? '▲ NEXT CALL' : '▼ NEXT PUT'}
-          </span>
-          <span className="text-amber-400 font-bold">{candleRemainingSec}s</span>
-        </div>
-      </div>
-
       {/* Desktop Top Floating Info & Asset Banner (Click to switch currency pair) */}
       <div 
         onClick={onOpenAssetModal}
