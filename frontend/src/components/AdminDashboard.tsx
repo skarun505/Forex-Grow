@@ -847,9 +847,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payout: val }),
       });
-      alert(`Payout for ${assetId} updated to +${val}% across all live clients!`);
+      showAdminToast(`✅ Payout for ${assetId} updated to +${val}% across all live clients!`);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleBulkPayout = async (payoutPct: number) => {
+    try {
+      const res = await fetch(apiUrl('/api/admin/assets/payout/bulk'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payout: payoutPct }),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        setPayoutEdits((prev) => {
+          const updated = { ...prev };
+          safeAssets.forEach((a) => {
+            updated[a.id] = payoutPct;
+          });
+          return updated;
+        });
+        showAdminToast(`⚡ Applied +${payoutPct}% Fixed Return across all 23 live markets!`);
+      }
+    } catch (e: any) {
+      console.error('Failed to set bulk payout:', e);
     }
   };
 
@@ -3317,8 +3340,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <div>
               <h3 className={`text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Live Market Payout Margins</h3>
               <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                Adjust the payout percentage for any market. Changes immediately take effect on all client charts!
+                Configure payout percentage for any market. Changes immediately reflect across all live trader terminals and settlement engines.
               </p>
+            </div>
+
+            {/* 99% Fixed Return Master Controller Banner */}
+            <div className={`border rounded-3xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+              isLight ? 'bg-emerald-50/50 border-emerald-200' : 'bg-gradient-to-r from-emerald-950/40 to-teal-950/20 border-emerald-500/30'
+            }`}>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                    ⚡ Quotex Standard Mode
+                  </span>
+                  <span className="text-xs font-bold text-gray-400">Fixed 99% Return System</span>
+                </div>
+                <h4 className={`text-base font-black mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Global Market Return Controller
+                </h4>
+                <p className={`text-xs mt-0.5 max-w-xl ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>
+                  Enable 99% fixed return across all 23 live assets. Winning contracts return 99% net profit (e.g. ₹500 trade wins ₹495). Both frontend charts and backend settlement stay 100% synchronized.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                <button
+                  onClick={() => handleBulkPayout(99)}
+                  className="px-4 py-2.5 rounded-xl font-black text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/25 flex items-center space-x-1.5 transition active:scale-95"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>⚡ Set 99% Fixed Return (All)</span>
+                </button>
+                <button
+                  onClick={() => handleBulkPayout(95)}
+                  className="px-3 py-2.5 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-gray-200 border border-white/10 transition"
+                >
+                  95%
+                </button>
+                <button
+                  onClick={() => handleBulkPayout(90)}
+                  className="px-3 py-2.5 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-gray-200 border border-white/10 transition"
+                >
+                  90%
+                </button>
+                <button
+                  onClick={() => handleBulkPayout(85)}
+                  className="px-3 py-2.5 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-gray-200 border border-white/10 transition"
+                >
+                  85%
+                </button>
+              </div>
             </div>
 
             <div className={`border rounded-3xl p-5 shadow-xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 transition-colors ${

@@ -1,6 +1,9 @@
 import { EventEmitter } from 'events';
+import fs from 'fs';
+import path from 'path';
 import { Asset, Candle, Tick, Sentiment } from '../types.js';
 import { BinanceFeed } from './BinanceFeed.js';
+import { SupabaseDb } from '../db/supabase.js';
 
 export const SUPPORTED_TIMEFRAMES = [5, 15, 30, 60, 300, 600, 3600, 18000];
 
@@ -38,12 +41,106 @@ export class MarketEngine extends EventEmitter {
   private sentimentTimer: NodeJS.Timeout | null = null;
   private readonly candleIntervalSeconds = 5;
   private binanceFeed: BinanceFeed;
+  private fixed99ReturnMode: boolean = true;
+  private customPayouts: Map<string, number> = new Map();
+
+  private getDataDir(): string {
+    const cwd = process.cwd();
+    const candidate = path.resolve(cwd, 'backend', 'data');
+    if (fs.existsSync(path.resolve(cwd, 'backend'))) {
+      if (!fs.existsSync(candidate)) {
+        try { fs.mkdirSync(candidate, { recursive: true }); } catch {}
+      }
+      return candidate;
+    }
+    const directData = path.resolve(cwd, 'data');
+    if (!fs.existsSync(directData)) {
+      try { fs.mkdirSync(directData, { recursive: true }); } catch {}
+    }
+    return directData;
+  }
+
+  public saveLocalPayouts() {
+    try {
+      const dir = this.getDataDir();
+      const pPath = path.resolve(dir, 'payout_settings.json');
+      const obj = {
+        fixed99: this.fixed99ReturnMode,
+        customPayouts: Object.fromEntries(this.customPayouts.entries()),
+      };
+      fs.writeFileSync(pPath, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (e: any) {
+      console.error('[MarketEngine] Failed to save payout_settings.json:', e.message);
+    }
+  }
+
+  public loadLocalPayouts() {
+    try {
+      const dir = this.getDataDir();
+      const pPath = path.resolve(dir, 'payout_settings.json');
+      if (fs.existsSync(pPath)) {
+        const raw = fs.readFileSync(pPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (parsed) {
+          if (typeof parsed.fixed99 === 'boolean') {
+            this.fixed99ReturnMode = parsed.fixed99;
+          }
+          if (parsed.customPayouts && typeof parsed.customPayouts === 'object') {
+            for (const [k, v] of Object.entries(parsed.customPayouts)) {
+              if (typeof v === 'number') this.customPayouts.set(k, v);
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[MarketEngine] Error loading local payout settings:', e.message);
+    }
+  }
+
+  private async initSupabasePayouts() {
+    try {
+      const sbPayouts = await SupabaseDb.loadPayoutSettings();
+      if (sbPayouts) {
+        if (typeof sbPayouts.fixed99 === 'boolean') {
+          this.fixed99ReturnMode = sbPayouts.fixed99;
+        }
+        if (sbPayouts.customPayouts && typeof sbPayouts.customPayouts === 'object') {
+          for (const [k, v] of Object.entries(sbPayouts.customPayouts)) {
+            if (typeof v === 'number') this.customPayouts.set(k, v);
+          }
+        }
+      }
+      this.applyActivePayouts();
+      this.saveLocalPayouts();
+      console.log(`[MarketEngine] Synced payout settings from Supabase (Fixed 99% Return: ${this.fixed99ReturnMode})`);
+    } catch (e: any) {
+      console.warn('[MarketEngine] Supabase payouts sync warning:', e.message);
+    }
+  }
+
+  public applyActivePayouts() {
+    for (const state of this.assets.values()) {
+      if (this.fixed99ReturnMode) {
+        state.asset.payout = 99;
+      } else {
+        const custom = this.customPayouts.get(state.asset.id);
+        if (typeof custom === 'number') {
+          state.asset.payout = custom;
+        } else {
+          state.asset.payout = 99;
+        }
+      }
+    }
+  }
 
   constructor() {
     super();
     this.binanceFeed = new BinanceFeed();
     this.initializeAssets();
     this.setupBinanceIntegration();
+    this.loadLocalPayouts();
+    this.applyActivePayouts();
+    this.initSupabasePayouts();
   }
 
   private initializeAssets() {
@@ -57,36 +154,36 @@ export class MarketEngine extends EventEmitter {
       volatility: number;
       isRealFeed?: boolean;
     }> = [
-      // Major Crypto (Live Binance Stream) - Dynamic Returns 50% to 70%
-      { id: 'BTCUSDT', name: 'Bitcoin (BTC/USDT)', category: 'crypto', payout: 68, basePrice: 69500.00, decimalPlaces: 2, volatility: 22.0, isRealFeed: true },
-      { id: 'ETHUSDT', name: 'Ethereum (ETH/USDT)', category: 'crypto', payout: 65, basePrice: 2545.00, decimalPlaces: 2, volatility: 1.4, isRealFeed: true },
-      { id: 'SOLUSDT', name: 'Solana (SOL/USDT)', category: 'crypto', payout: 62, basePrice: 179.20, decimalPlaces: 2, volatility: 0.28, isRealFeed: true },
-      { id: 'BNBUSDT', name: 'BNB (BNB/USDT)', category: 'crypto', payout: 60, basePrice: 585.50, decimalPlaces: 2, volatility: 0.45, isRealFeed: true },
-      { id: 'DOGEUSDT', name: 'Dogecoin (DOGE/USDT)', category: 'crypto', payout: 57, basePrice: 0.1652, decimalPlaces: 4, volatility: 0.0008, isRealFeed: true },
-      { id: 'XRPUSDT', name: 'Ripple (XRP/USDT)', category: 'crypto', payout: 58, basePrice: 0.5280, decimalPlaces: 4, volatility: 0.0015, isRealFeed: true },
-      { id: 'ADAUSDT', name: 'Cardano (ADA/USDT)', category: 'crypto', payout: 54, basePrice: 0.3540, decimalPlaces: 4, volatility: 0.0012, isRealFeed: true },
-      { id: 'AVAXUSDT', name: 'Avalanche (AVAX/USDT)', category: 'crypto', payout: 56, basePrice: 26.80, decimalPlaces: 2, volatility: 0.08, isRealFeed: true },
+      // Major Crypto (Live Binance Stream) - Fixed 99% Return
+      { id: 'BTCUSDT', name: 'Bitcoin (BTC/USDT)', category: 'crypto', payout: 99, basePrice: 69500.00, decimalPlaces: 2, volatility: 22.0, isRealFeed: true },
+      { id: 'ETHUSDT', name: 'Ethereum (ETH/USDT)', category: 'crypto', payout: 99, basePrice: 2545.00, decimalPlaces: 2, volatility: 1.4, isRealFeed: true },
+      { id: 'SOLUSDT', name: 'Solana (SOL/USDT)', category: 'crypto', payout: 99, basePrice: 179.20, decimalPlaces: 2, volatility: 0.28, isRealFeed: true },
+      { id: 'BNBUSDT', name: 'BNB (BNB/USDT)', category: 'crypto', payout: 99, basePrice: 585.50, decimalPlaces: 2, volatility: 0.45, isRealFeed: true },
+      { id: 'DOGEUSDT', name: 'Dogecoin (DOGE/USDT)', category: 'crypto', payout: 99, basePrice: 0.1652, decimalPlaces: 4, volatility: 0.0008, isRealFeed: true },
+      { id: 'XRPUSDT', name: 'Ripple (XRP/USDT)', category: 'crypto', payout: 99, basePrice: 0.5280, decimalPlaces: 4, volatility: 0.0015, isRealFeed: true },
+      { id: 'ADAUSDT', name: 'Cardano (ADA/USDT)', category: 'crypto', payout: 99, basePrice: 0.3540, decimalPlaces: 4, volatility: 0.0012, isRealFeed: true },
+      { id: 'AVAXUSDT', name: 'Avalanche (AVAX/USDT)', category: 'crypto', payout: 99, basePrice: 26.80, decimalPlaces: 2, volatility: 0.08, isRealFeed: true },
 
-      // Forex OTC Currency Pairs - Random Returns strictly between 50% and 70%
-      { id: 'EURUSD_OTC', name: 'EUR/USD (OTC)', category: 'forex', payout: 68, basePrice: 1.08640, decimalPlaces: 5, volatility: 0.00015 },
-      { id: 'GBPUSD_OTC', name: 'GBP/USD (OTC)', category: 'forex', payout: 64, basePrice: 1.29820, decimalPlaces: 5, volatility: 0.00018 },
-      { id: 'USDJPY_OTC', name: 'USD/JPY (OTC)', category: 'forex', payout: 58, basePrice: 153.250, decimalPlaces: 3, volatility: 0.035 },
-      { id: 'AUDUSD_OTC', name: 'AUD/USD (OTC)', category: 'forex', payout: 55, basePrice: 0.65800, decimalPlaces: 5, volatility: 0.00014 },
-      { id: 'USDCAD_OTC', name: 'USD/CAD (OTC)', category: 'forex', payout: 62, basePrice: 1.39200, decimalPlaces: 5, volatility: 0.00016 },
-      { id: 'USDCHF_OTC', name: 'USD/CHF (OTC)', category: 'forex', payout: 52, basePrice: 0.86700, decimalPlaces: 5, volatility: 0.00013 },
-      { id: 'EURJPY_OTC', name: 'EUR/JPY (OTC)', category: 'forex', payout: 67, basePrice: 166.450, decimalPlaces: 3, volatility: 0.038 },
-      { id: 'GBPJPY_OTC', name: 'GBP/JPY (OTC)', category: 'forex', payout: 70, basePrice: 198.900, decimalPlaces: 3, volatility: 0.045 },
-      { id: 'NZDUSD_OTC', name: 'NZD/USD (OTC)', category: 'forex', payout: 54, basePrice: 0.59600, decimalPlaces: 5, volatility: 0.00015 },
+      // Forex OTC Currency Pairs - Fixed 99% Return
+      { id: 'EURUSD_OTC', name: 'EUR/USD (OTC)', category: 'forex', payout: 99, basePrice: 1.08640, decimalPlaces: 5, volatility: 0.00015 },
+      { id: 'GBPUSD_OTC', name: 'GBP/USD (OTC)', category: 'forex', payout: 99, basePrice: 1.29820, decimalPlaces: 5, volatility: 0.00018 },
+      { id: 'USDJPY_OTC', name: 'USD/JPY (OTC)', category: 'forex', payout: 99, basePrice: 153.250, decimalPlaces: 3, volatility: 0.035 },
+      { id: 'AUDUSD_OTC', name: 'AUD/USD (OTC)', category: 'forex', payout: 99, basePrice: 0.65800, decimalPlaces: 5, volatility: 0.00014 },
+      { id: 'USDCAD_OTC', name: 'USD/CAD (OTC)', category: 'forex', payout: 99, basePrice: 1.39200, decimalPlaces: 5, volatility: 0.00016 },
+      { id: 'USDCHF_OTC', name: 'USD/CHF (OTC)', category: 'forex', payout: 99, basePrice: 0.86700, decimalPlaces: 5, volatility: 0.00013 },
+      { id: 'EURJPY_OTC', name: 'EUR/JPY (OTC)', category: 'forex', payout: 99, basePrice: 166.450, decimalPlaces: 3, volatility: 0.038 },
+      { id: 'GBPJPY_OTC', name: 'GBP/JPY (OTC)', category: 'forex', payout: 99, basePrice: 198.900, decimalPlaces: 3, volatility: 0.045 },
+      { id: 'NZDUSD_OTC', name: 'NZD/USD (OTC)', category: 'forex', payout: 99, basePrice: 0.59600, decimalPlaces: 5, volatility: 0.00015 },
 
-      // Commodities - Returns between 50% and 70%
-      { id: 'GOLD_OTC', name: 'Gold XAU/USD (OTC)', category: 'commodities', payout: 69, basePrice: 2748.80, decimalPlaces: 2, volatility: 0.65 },
-      { id: 'SILVER_OTC', name: 'Silver XAG/USD (OTC)', category: 'commodities', payout: 58, basePrice: 33.65, decimalPlaces: 2, volatility: 0.03 },
-      { id: 'BRENT_OTC', name: 'Crude Oil Brent (OTC)', category: 'commodities', payout: 59, basePrice: 73.20, decimalPlaces: 2, volatility: 0.06 },
+      // Commodities - Fixed 99% Return
+      { id: 'GOLD_OTC', name: 'Gold XAU/USD (OTC)', category: 'commodities', payout: 99, basePrice: 2748.80, decimalPlaces: 2, volatility: 0.65 },
+      { id: 'SILVER_OTC', name: 'Silver XAG/USD (OTC)', category: 'commodities', payout: 99, basePrice: 33.65, decimalPlaces: 2, volatility: 0.03 },
+      { id: 'BRENT_OTC', name: 'Crude Oil Brent (OTC)', category: 'commodities', payout: 99, basePrice: 73.20, decimalPlaces: 2, volatility: 0.06 },
 
-      // Stock Market Indices - Returns between 50% and 70%
-      { id: 'US30_OTC', name: 'Wall Street 30 / Dow (OTC)', category: 'indices', payout: 63, basePrice: 42150.0, decimalPlaces: 1, volatility: 8.5 },
-      { id: 'SPX500_OTC', name: 'US 500 / S&P 500 (OTC)', category: 'indices', payout: 61, basePrice: 5740.0, decimalPlaces: 1, volatility: 1.2 },
-      { id: 'NAS100_OTC', name: 'US Tech 100 / NASDAQ (OTC)', category: 'indices', payout: 66, basePrice: 20120.0, decimalPlaces: 1, volatility: 4.8 },
+      // Stock Market Indices - Fixed 99% Return
+      { id: 'US30_OTC', name: 'Wall Street 30 / Dow (OTC)', category: 'indices', payout: 99, basePrice: 42150.0, decimalPlaces: 1, volatility: 8.5 },
+      { id: 'SPX500_OTC', name: 'US 500 / S&P 500 (OTC)', category: 'indices', payout: 99, basePrice: 5740.0, decimalPlaces: 1, volatility: 1.2 },
+      { id: 'NAS100_OTC', name: 'US Tech 100 / NASDAQ (OTC)', category: 'indices', payout: 99, basePrice: 20120.0, decimalPlaces: 1, volatility: 4.8 },
     ];
 
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -227,11 +324,24 @@ export class MarketEngine extends EventEmitter {
   private current4HourEpoch = -1;
 
   public update4HourPayouts(force = false) {
+    if (this.fixed99ReturnMode) {
+      // 99% Fixed Return mode: All assets stay locked at 99%!
+      for (const state of this.assets.values()) {
+        state.asset.payout = 99;
+      }
+      return;
+    }
+
     const epoch4Hour = Math.floor(Date.now() / (4 * 3600 * 1000));
     if (!force && epoch4Hour === this.current4HourEpoch) return;
 
     this.current4HourEpoch = epoch4Hour;
     for (const state of this.assets.values()) {
+      const custom = this.customPayouts.get(state.asset.id);
+      if (typeof custom === 'number') {
+        state.asset.payout = custom;
+        continue;
+      }
       // Deterministic 4-hour fluctuation strictly between 50% and 70%
       const seed = getAssetSeed(state.asset.id + '_4h_payout', epoch4Hour);
       const rng = createSeededRandom(seed);
@@ -359,9 +469,52 @@ export class MarketEngine extends EventEmitter {
   public setAssetPayout(assetId: string, payout: number): boolean {
     const state = this.assets.get(assetId);
     if (!state) return false;
-    state.asset.payout = Math.max(10, Math.min(98, Math.round(payout)));
+    const cleanPayout = Math.max(10, Math.min(99, Math.round(payout)));
+    state.asset.payout = cleanPayout;
+    this.customPayouts.set(assetId, cleanPayout);
+    this.saveLocalPayouts();
+    SupabaseDb.savePayoutSettings({
+      fixed99: this.fixed99ReturnMode,
+      customPayouts: Object.fromEntries(this.customPayouts.entries()),
+    }).catch(() => {});
     this.emit('payout_updated', { assetId, payout: state.asset.payout });
     return true;
+  }
+
+  public setAllAssetsPayout(payout: number): void {
+    const cleanPayout = Math.max(10, Math.min(99, Math.round(payout)));
+    this.fixed99ReturnMode = (cleanPayout === 99);
+    for (const state of this.assets.values()) {
+      state.asset.payout = cleanPayout;
+      this.customPayouts.set(state.asset.id, cleanPayout);
+    }
+    this.saveLocalPayouts();
+    SupabaseDb.savePayoutSettings({
+      fixed99: this.fixed99ReturnMode,
+      customPayouts: Object.fromEntries(this.customPayouts.entries()),
+    }).catch(() => {});
+    this.emit('payouts_epoch_updated', this.getAssets());
+  }
+
+  public isFixed99Return(): boolean {
+    return this.fixed99ReturnMode;
+  }
+
+  public setFixed99Return(enabled: boolean): void {
+    this.fixed99ReturnMode = enabled;
+    if (enabled) {
+      for (const state of this.assets.values()) {
+        state.asset.payout = 99;
+      }
+    } else {
+      this.applyActivePayouts();
+    }
+    this.saveLocalPayouts();
+    SupabaseDb.savePayoutSettings({
+      fixed99: this.fixed99ReturnMode,
+      customPayouts: Object.fromEntries(this.customPayouts.entries()),
+    }).catch(() => {});
+    this.emit('payouts_epoch_updated', this.getAssets());
   }
 
   public setExactAssetPrice(assetId: string, exactPrice: number): number {

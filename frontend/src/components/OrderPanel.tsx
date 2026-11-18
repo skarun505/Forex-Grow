@@ -14,7 +14,7 @@ const DURATION_PRESETS = [
 ];
 
 export const OrderPanel: React.FC = () => {
-  const { selectedAsset, placeTrade, account, theme } = useTrading();
+  const { selectedAsset, placeTrade, account, theme, sentiment } = useTrading();
   const [duration, setDuration] = useState<number>(30);
 
   const isLight = theme === 'light';
@@ -28,9 +28,13 @@ export const OrderPanel: React.FC = () => {
     setAmount(primaryChip);
   }, [account.currency]);
 
-  const payout = selectedAsset?.payout ?? 65;
+  // Default to 99% fixed return
+  const payout = selectedAsset?.payout ?? 99;
   const profit = Number((amount * (payout / 100)).toFixed(2));
   const totalReturn = Number((amount + profit).toFixed(2));
+
+  const bullPct = sentiment?.bullPercent ?? 68;
+  const bearPct = sentiment?.bearPercent ?? 32;
 
   const currentBalance = account.activeAccountType === 'DEMO' ? account.demoBalance : account.realBalance;
   const isInsufficient = isNaN(amount) || currentBalance < amount || amount <= 0;
@@ -248,8 +252,52 @@ export const OrderPanel: React.FC = () => {
           </div>
         </div>
 
+        {/* Live Next Candle Predictor & Sentiment Indicator */}
+        <div className={`mt-3 p-3 rounded-2xl border transition ${
+          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#141824] border-white/5'
+        }`}>
+          <div className="flex items-center justify-between text-[11px] font-black tracking-wide mb-1.5">
+            <div className="flex items-center space-x-1.5 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>BUY / CALL {bullPct}%</span>
+            </div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+              NEXT CANDLE:{' '}
+              <span className={bullPct >= 50 ? 'text-emerald-400' : 'text-rose-400'}>
+                {bullPct >= 50 ? 'BULLISH ▲' : 'BEARISH ▼'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-1.5 text-rose-400">
+              <span>SELL / PUT {bearPct}%</span>
+              <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Dual Split Animated Gradient Indicator Bar */}
+          <div className="w-full h-3 bg-[#0c0f17] rounded-full overflow-hidden flex relative border border-white/5 shadow-inner">
+            <div
+              style={{ width: `${bullPct}%` }}
+              className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-trade-green transition-all duration-500 rounded-l-full shadow-sm shadow-emerald-500/50"
+            />
+            <div
+              style={{ width: `${bearPct}%` }}
+              className="h-full bg-gradient-to-r from-trade-red via-rose-500 to-rose-600 transition-all duration-500 rounded-r-full shadow-sm shadow-rose-500/50"
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[9px] text-gray-400 mt-1.5 font-semibold px-0.5">
+            <span className="flex items-center space-x-1">
+              <span className="text-amber-400">⚡</span>
+              <span>Live Market Indicator</span>
+            </span>
+            <span className={bullPct >= 60 ? 'text-emerald-400 font-bold' : bearPct >= 60 ? 'text-rose-400 font-bold' : 'text-gray-400'}>
+              {bullPct >= 60 ? 'Strong Call / Up Momentum' : bearPct >= 60 ? 'Strong Put / Down Momentum' : 'Consolidation / Range'}
+            </span>
+          </div>
+        </div>
+
         {/* Action Buttons */}
-        <div className="space-y-3 pt-4">
+        <div className="space-y-3 pt-3">
           {isInsufficient && (
             <div className="text-xs text-center text-rose-500 font-bold bg-rose-500/10 py-1.5 rounded-xl border border-rose-500/20">
               Insufficient funds
@@ -419,6 +467,38 @@ export const OrderPanel: React.FC = () => {
             ⚠️ Insufficient funds ({formatCurrency(currentBalance, account.currency)} available)
           </div>
         )}
+
+        {/* Mobile Live Next Candle Predictor & Indicator Bar */}
+        <div className="bg-[#121622]/95 border border-white/10 rounded-xl px-2.5 py-1.5 shadow-md">
+          <div className="flex items-center justify-between text-[10px] font-black tracking-tight mb-1">
+            <div className="flex items-center space-x-1 text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>BUY {bullPct}%</span>
+            </div>
+            <div className="text-[9px] text-gray-300 font-bold uppercase tracking-wider flex items-center space-x-1">
+              <span className="text-gray-400">NEXT CANDLE:</span>
+              <span className={bullPct >= 50 ? 'text-emerald-400 font-black' : 'text-rose-400 font-black'}>
+                {bullPct >= 50 ? 'BULLISH ▲' : 'BEARISH ▼'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-1 text-rose-400">
+              <span>SELL {bearPct}%</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Dual Split Animated Gradient Indicator Bar */}
+          <div className="w-full h-2 bg-[#0b0e14] rounded-full overflow-hidden flex relative border border-white/10 shadow-inner">
+            <div
+              style={{ width: `${bullPct}%` }}
+              className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-trade-green transition-all duration-500 rounded-l-full shadow-sm shadow-emerald-500/50"
+            />
+            <div
+              style={{ width: `${bearPct}%` }}
+              className="h-full bg-gradient-to-r from-trade-red via-rose-500 to-rose-600 transition-all duration-500 rounded-r-full shadow-sm shadow-rose-500/50"
+            />
+          </div>
+        </div>
 
         {/* Row 2: Big Dual UP and DOWN Buttons side-by-side with Return Amount */}
         <div className="grid grid-cols-2 gap-2">

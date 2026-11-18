@@ -604,11 +604,11 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
         </div>
       </div>
 
-      {/* Floating Quotex Sentiment Meter (Left Edge) - Hidden on mobile to keep chart uncluttered */}
-      <div className="hidden sm:flex absolute left-4 top-28 z-20 flex-col items-center bg-[#1e2333]/85 backdrop-blur-md p-2 rounded-2xl border border-white/5 shadow-xl w-12">
-        <span className="text-[9px] font-bold text-emerald-400 mb-1">{bullPct}%</span>
+      {/* Floating Quotex Sentiment Meter (Left Edge) - Active on Mobile & Desktop */}
+      <div className="flex absolute left-2 sm:left-4 top-20 sm:top-28 z-20 flex-col items-center bg-[#1e2333]/90 backdrop-blur-md px-1 py-1.5 sm:p-2 rounded-xl sm:rounded-2xl border border-white/10 shadow-xl w-8 sm:w-12">
+        <span className="text-[8px] sm:text-[9px] font-black text-emerald-400 mb-1 leading-none">{bullPct}%</span>
         {/* Dual Color Vertical Bar */}
-        <div className="w-2.5 h-32 bg-[#121620] rounded-full overflow-hidden flex flex-col relative border border-white/5">
+        <div className="w-1.5 sm:w-2.5 h-20 sm:h-32 bg-[#121620] rounded-full overflow-hidden flex flex-col relative border border-white/5">
           <div
             style={{ height: `${bullPct}%` }}
             className="w-full bg-gradient-to-b from-trade-green to-emerald-500 transition-all duration-700 rounded-t-full shadow-lg shadow-emerald-500/50"
@@ -618,8 +618,8 @@ export const TradingChart: React.FC<TradingChartProps> = ({ onOpenAssetModal }) 
             className="w-full bg-gradient-to-t from-trade-red to-rose-500 transition-all duration-700 rounded-b-full shadow-lg shadow-rose-500/50"
           />
         </div>
-        <span className="text-[9px] font-bold text-rose-400 mt-1">{bearPct}%</span>
-        <span className="text-[8px] font-semibold text-gray-400 uppercase mt-1 tracking-tighter">SENT</span>
+        <span className="text-[8px] sm:text-[9px] font-black text-rose-400 mt-1 leading-none">{bearPct}%</span>
+        <span className="text-[7px] sm:text-[8px] font-bold text-gray-400 uppercase mt-0.5 sm:mt-1 tracking-tighter">SIG</span>
       </div>
 
       {/* Floating Chart Toolbar (Docked cleanly at bottom left on both mobile and desktop) */}

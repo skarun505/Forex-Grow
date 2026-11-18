@@ -346,6 +346,43 @@ export class SupabaseDb {
     }
   }
 
+  // --- Asset Payout Margins & 99% Fixed Return Settings ---
+  public static async loadPayoutSettings(): Promise<{ fixed99?: boolean; customPayouts?: Record<string, number> } | null> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('bank_details')
+        .eq('id', 'sys_payout_settings')
+        .maybeSingle();
+      if (error) throw error;
+      return data?.bank_details || null;
+    } catch {
+      return null;
+    }
+  }
+
+  public static async savePayoutSettings(settings: { fixed99: boolean; customPayouts: Record<string, number> }): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('transactions').upsert({
+        id: 'sys_payout_settings',
+        user_id: 'usr_quotex_vip_99',
+        type: 'SYSTEM_SETTINGS',
+        amount: settings.fixed99 ? 99 : 0,
+        currency: 'USD',
+        amount_usd: settings.fixed99 ? 99 : 0,
+        status: 'ACTIVE',
+        payment_method: 'SYSTEM',
+        reference: 'PAYOUT_SETTINGS',
+        bank_details: settings,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   public static async savePlatformMetrics(metrics: { totalVolumeUSD: number }): Promise<boolean> {
     try {
       const { error } = await supabase.from('transactions').upsert({

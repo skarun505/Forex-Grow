@@ -1969,6 +1969,26 @@ app.post('/api/manager/payment/settings', (req: express.Request, res: express.Re
   res.json({ success: true, settings: updated });
 });
 
+app.get('/api/admin/payout/status', (_req, res) => {
+  res.json({
+    fixed99: marketEngine.isFixed99Return(),
+    assetsCount: marketEngine.getAssets().length,
+  });
+});
+
+app.post('/api/admin/assets/payout/bulk', (req, res) => {
+  const { payout, fixed99 } = req.body;
+  if (typeof fixed99 === 'boolean') {
+    marketEngine.setFixed99Return(fixed99);
+  } else {
+    const numPayout = Math.max(10, Math.min(99, Number(payout) || 99));
+    marketEngine.setAllAssetsPayout(numPayout);
+  }
+  const assets = marketEngine.getAssets();
+  broadcast({ type: 'ASSETS_UPDATE', assets });
+  res.json({ success: true, fixed99: marketEngine.isFixed99Return(), assets });
+});
+
 app.post('/api/admin/assets/:id/payout', (req, res) => {
   const { payout } = req.body;
   const success = marketEngine.setAssetPayout(req.params.id, Number(payout));
@@ -1980,15 +2000,8 @@ app.post('/api/admin/assets/:id/payout', (req, res) => {
   res.json({ success, payout });
 });
 
-app.post('/api/manager/assets/:id/payout', (req, res) => {
-  const { payout } = req.body;
-  const success = marketEngine.setAssetPayout(req.params.id, Number(payout));
-  if (!success) {
-    return res.status(400).json({ error: 'Asset not found' });
-  }
-  const assets = marketEngine.getAssets();
-  broadcast({ type: 'ASSETS_UPDATE', assets });
-  res.json({ success, payout });
+app.post('/api/manager/assets/:id/payout', (_req, res) => {
+  return res.status(403).json({ error: 'Permission denied: Only Super Admin can modify asset payout margins.' });
 });
 
 // Admin & Manager Trade Management Endpoints

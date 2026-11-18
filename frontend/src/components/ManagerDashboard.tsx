@@ -66,10 +66,10 @@ interface ManagerDashboardProps {
 }
 
 export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
-  const { theme, assets } = useTrading();
+  const { theme } = useTrading();
   const isLight = theme === 'light';
 
-  const [activeTab, setActiveTab] = useState<'CASHIER' | 'TRADERS' | 'TRADES' | 'RISK' | 'COUPONS' | 'MARKETS' | 'AUDIT'>('CASHIER');
+  const [activeTab, setActiveTab] = useState<'CASHIER' | 'TRADERS' | 'TRADES' | 'RISK' | 'COUPONS' | 'AUDIT'>('CASHIER');
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({
     enabled: true,
     targetWinRate: 20,
@@ -242,18 +242,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [userTrades, setUserTrades] = useState<{ activeTrades: Trade[]; tradeHistory: Trade[] } | null>(null);
   const [tradesLoading, setTradesLoading] = useState(false);
 
-  // Asset Payout Margins State
-  const [payoutEdits, setPayoutEdits] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    if (assets && assets.length > 0) {
-      const pMap: Record<string, number> = {};
-      assets.forEach((a) => {
-        pMap[a.id] = a.payout;
-      });
-      setPayoutEdits(pMap);
-    }
-  }, [assets]);
 
   const showManagerToast = (msg: string) => {
     setManagerNotification(msg);
@@ -322,20 +311,6 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     }
   };
 
-  const handleSavePayout = async (assetId: string) => {
-    const val = payoutEdits[assetId];
-    if (val === undefined || isNaN(val)) return;
-    try {
-      await fetch(apiUrl(`/api/manager/assets/${assetId}/payout`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payout: val }),
-      });
-      showManagerToast(`✅ Payout for ${assetId} updated to +${val}% live!`);
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const handleSavePaymentSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1168,7 +1143,6 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
           { id: 'TRADES', shortLabel: 'Trades', label: 'Live Trades Desk', icon: Activity },
           { id: 'RISK', shortLabel: 'Risk', label: 'Quotex Risk Engine', icon: ShieldCheck, badge: riskSettings.enabled ? `${riskSettings.targetWinRate}%` : 'OFF' },
           { id: 'COUPONS', shortLabel: `Promos (${safeCoupons.length})`, label: 'Special Promo Codes', icon: Tag, badge: safeCoupons.length },
-          { id: 'MARKETS', shortLabel: 'Payouts', label: 'Payout Customizer', icon: Sliders, badge: assets.length },
           { id: 'AUDIT', shortLabel: 'Audit', label: 'Audit Log', icon: FileText },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -1994,69 +1968,6 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
           </div>
         )}
 
-        {/* ================= TAB: MARKETS & ASSET PAYOUTS ================= */}
-        {activeTab === 'MARKETS' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            <div>
-              <h3 className={`text-sm font-black flex items-center space-x-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                <Sliders className="w-4 h-4 text-sky-400" />
-                <span>Live Market Payout Margins</span>
-              </h3>
-              <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                Configure payout percentages for any asset. Payouts must be between 50% and 70%. Changes immediately reflect on all live trader terminals.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {assets.map((asset) => (
-                <div
-                  key={asset.id}
-                  className={`p-4 rounded-2xl border transition ${
-                    isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#181c2b] border-[#252c40]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <div className="font-bold text-xs">{asset.name}</div>
-                      <div className="text-[10px] text-gray-400 uppercase font-mono">{asset.category}</div>
-                    </div>
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                      Live Payout
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-2 mt-3">
-                    <span className="text-xs font-bold text-gray-400">Payout:</span>
-                    <div className="relative flex-1">
-                      <input
-                        type="number"
-                        min="50"
-                        max="70"
-                        value={payoutEdits[asset.id] ?? asset.payout}
-                        onChange={(e) =>
-                          setPayoutEdits({ ...payoutEdits, [asset.id]: Number(e.target.value) })
-                        }
-                        className={`w-full border rounded-xl px-3 py-1.5 text-xs font-black text-sky-400 focus:outline-none transition ${
-                          isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#121620] border-[#2e354b]'
-                        }`}
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
-                        %
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleSavePayout(asset.id)}
-                      className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-black transition active:scale-95 shadow-sm"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ================= TAB 4: AUDIT LOG ================= */}
         {activeTab === 'AUDIT' && (
