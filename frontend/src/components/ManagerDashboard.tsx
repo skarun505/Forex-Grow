@@ -112,7 +112,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [txnSearch, setTxnSearch] = useState('');
   const [txnFilter, setTxnFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DEPOSIT' | 'WITHDRAWAL'>('PENDING');
   const [userSearch, setUserSearch] = useState('');
-  const [traderViewMode, setTraderViewMode] = useState<'CARDS' | 'TABLE'>('TABLE');
+  const [traderViewMode, setTraderViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [selectedProofImg, setSelectedProofImg] = useState<string | null>(null);
   const [selectedProofTx, setSelectedProofTx] = useState<Transaction | null>(null);
