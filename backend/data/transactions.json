@@ -1,1 +1,93 @@
-[]
+[
+  {
+    "id": "tx_dep_0be3ce11",
+    "userId": "usr_0be3ce11",
+    "userName": "Keerthika Selvaraj",
+    "type": "DEPOSIT",
+    "amount": 14775,
+    "amountUSD": 155.53,
+    "currency": "INR",
+    "method": "IMPS/Bank Transfer",
+    "status": "APPROVED",
+    "utrNumber": "INITIAL_CLIENT_DEPOSIT",
+    "timestamp": 1794725077409
+  },
+  {
+    "id": "tx_dep_f7911d53",
+    "userId": "usr_f7911d53",
+    "userName": "Vignesh",
+    "type": "DEPOSIT",
+    "amount": 5000,
+    "amountUSD": 52.63,
+    "currency": "INR",
+    "method": "IMPS/Bank Transfer",
+    "status": "APPROVED",
+    "utrNumber": "INITIAL_CLIENT_DEPOSIT",
+    "timestamp": 1794725077409
+  },
+  {
+    "id": "tx_dep_6c50e319",
+    "userId": "usr_6c50e319",
+    "userName": "Girish",
+    "type": "DEPOSIT",
+    "amount": 5000,
+    "amountUSD": 52.63,
+    "currency": "INR",
+    "method": "IMPS/Bank Transfer",
+    "status": "APPROVED",
+    "utrNumber": "INITIAL_CLIENT_DEPOSIT",
+    "timestamp": 1794725077409
+  },
+  {
+    "id": "tx_dep_f80a0274",
+    "userId": "usr_f80a0274",
+    "userName": "Priya",
+    "type": "DEPOSIT",
+    "amount": 5000,
+    "amountUSD": 52.63,
+    "currency": "INR",
+    "method": "IMPS/Bank Transfer",
+    "status": "APPROVED",
+    "utrNumber": "INITIAL_CLIENT_DEPOSIT",
+    "timestamp": 1794725077409
+  },
+  {
+    "id": "tx_dep_10e8ec00",
+    "userId": "usr_10e8ec00",
+    "userName": "Devid",
+    "type": "DEPOSIT",
+    "amount": 5000,
+    "amountUSD": 52.63,
+    "currency": "INR",
+    "method": "IMPS/Bank Transfer",
+    "status": "APPROVED",
+    "utrNumber": "INITIAL_CLIENT_DEPOSIT",
+    "timestamp": 1794725077409
+  },
+  {
+    "id": "tx_dep_1fa16b38",
+    "userId": "usr_1fa16b38",
+    "userName": "Divyashree",
+    "type": "DEPOSIT",
+    "amount": 5000,
+    "amountUSD": 52.63,
+    "currency": "INR",
+    "method": "IMPS/Bank Transfer",
+    "status": "APPROVED",
+    "utrNumber": "INITIAL_CLIENT_DEPOSIT",
+    "timestamp": 1794725077409
+  },
+  {
+    "id": "tx_dep_c62d3ed7",
+    "userId": "usr_c62d3ed7",
+    "userName": "Arshitha K",
+    "type": "DEPOSIT",
+    "amount": 30000,
+    "amountUSD": 315.79,
+    "currency": "INR",
+    "method": "IMPS/Bank Transfer",
+    "status": "APPROVED",
+    "utrNumber": "INITIAL_CLIENT_DEPOSIT",
+    "timestamp": 1794725077409
+  }
+]

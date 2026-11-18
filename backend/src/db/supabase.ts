@@ -85,7 +85,7 @@ export class SupabaseDb {
       const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return (data || [])
-        .filter((row) => !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS'].includes(row.type))
+        .filter((row) => !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS', 'AUDIT_LOG'].includes(row.type))
         .map((row) => ({
           id: row.id,
           userId: row.user_id,
@@ -110,22 +110,23 @@ export class SupabaseDb {
 
   public static async saveTransaction(txn: any): Promise<void> {
     try {
-      await supabase.from('transactions').upsert({
+      const { error } = await supabase.from('transactions').upsert({
         id: txn.id,
         user_id: txn.userId,
         type: txn.type,
         amount: txn.amount,
         currency: txn.currency,
-        amount_usd: txn.amountUSD,
+        amount_usd: txn.amountUSD || (txn.currency === 'INR' ? txn.amount / 95 : txn.amount),
         status: txn.status,
-        payment_method: txn.paymentMethod,
-        reference: txn.reference,
-        utr_number: txn.utrNumber,
+        payment_method: txn.method || txn.paymentMethod || 'IMPS',
+        reference: txn.reference || txn.utrNumber || txn.id || 'TX_REF',
+        utr_number: txn.utrNumber || txn.reference,
         proof_image: txn.proofImage,
         bank_details: txn.bankDetails,
         promo_code: txn.promoCode,
         created_at: new Date(txn.timestamp || Date.now()).toISOString(),
       });
+      if (error) console.error('Failed to save transaction to Supabase:', error.message);
     } catch (err: any) {
       console.error('Failed to save transaction to Supabase:', err.message);
     }
@@ -326,6 +327,83 @@ export class SupabaseDb {
       return true;
     } catch (err: any) {
       console.error('Failed to save risk settings to Supabase:', err.message);
+      return false;
+    }
+  }
+
+  // --- Platform Metrics (Volume & Cumulative Stats) ---
+  public static async loadPlatformMetrics(): Promise<{ totalVolumeUSD?: number } | null> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('bank_details')
+        .eq('id', 'sys_platform_metrics')
+        .maybeSingle();
+      if (error) throw error;
+      return data?.bank_details || null;
+    } catch (err: any) {
+      return null;
+    }
+  }
+
+  public static async savePlatformMetrics(metrics: { totalVolumeUSD: number }): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('transactions').upsert({
+        id: 'sys_platform_metrics',
+        user_id: 'usr_quotex_vip_99',
+        type: 'SYSTEM_SETTINGS',
+        amount: metrics.totalVolumeUSD || 0,
+        currency: 'USD',
+        amount_usd: metrics.totalVolumeUSD || 0,
+        status: 'ACTIVE',
+        payment_method: 'SYSTEM',
+        reference: 'PLATFORM_METRICS',
+        bank_details: metrics,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      return true;
+    } catch (err: any) {
+      return false;
+    }
+  }
+
+  // --- Audit Logs (Manager & Admin Activity History) ---
+  public static async loadAuditLogs(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('bank_details')
+        .eq('type', 'AUDIT_LOG')
+        .order('created_at', { ascending: false })
+        .limit(300);
+      if (error) throw error;
+      return (data || []).map((row: any) => row.bank_details).filter(Boolean);
+    } catch (err: any) {
+      console.error('Failed to load audit logs from Supabase:', err.message);
+      return [];
+    }
+  }
+
+  public static async saveAuditLog(entry: any): Promise<boolean> {
+    try {
+      const auditId = entry.id ? (entry.id.startsWith('aud_') ? entry.id : `aud_${entry.id}`) : `aud_${Date.now()}`;
+      const { error } = await supabase.from('transactions').upsert({
+        id: auditId,
+        user_id: entry.targetId || 'usr_quotex_vip_99',
+        type: 'AUDIT_LOG',
+        amount: 0,
+        currency: 'INR',
+        amount_usd: 0,
+        status: 'COMPLETED',
+        payment_method: entry.actorRole || 'MANAGER',
+        reference: entry.action || 'AUDIT_ACTION',
+        bank_details: entry,
+        created_at: new Date(entry.timestamp || Date.now()).toISOString(),
+      });
+      if (error) throw error;
+      return true;
+    } catch (err: any) {
       return false;
     }
   }

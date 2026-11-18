@@ -56,12 +56,22 @@ export class SettlementEngine extends EventEmitter {
     try {
       const dbTrades = await SupabaseDb.loadTrades();
       if (dbTrades.length > 0) {
+        let historicalVolumeUSD = 0;
         for (const t of dbTrades) {
           if (t.status === 'OPEN' || t.status === 'ACTIVE') {
             this.activeTrades.set(t.id, t);
           } else {
             this.tradeHistory.push(t);
           }
+          // Tally real client trade volume (excluding test sandbox account Alex Rivera)
+          if (t.userId !== 'usr_quotex_vip_99') {
+            const volUSD = t.currency === 'INR' ? (t.amount / 95) : t.amount;
+            historicalVolumeUSD += volUSD;
+          }
+        }
+        if (historicalVolumeUSD > 0) {
+          this.adminManager.recordTradeVolume(historicalVolumeUSD);
+          console.log(`[SettlementEngine] Synced historical real client trade volume: $${historicalVolumeUSD.toFixed(2)} USD (~₹${(historicalVolumeUSD * 95).toLocaleString()})`);
         }
         this.tradeHistory.sort((a, b) => (b.openTime || 0) - (a.openTime || 0));
       }
@@ -344,18 +354,19 @@ export class SettlementEngine extends EventEmitter {
   }
 
   private getEffectiveRisk(user?: UserAccount): RiskSettings {
+    const globalRisk = this.adminManager.getRiskSettings();
     if (user?.customRiskSettings && user.customRiskSettings.enabled) {
       return {
         enabled: true,
         targetWinRate: user.customRiskSettings.targetWinRate,
         mode: user.customRiskSettings.mode,
         microPipSniping: user.customRiskSettings.microPipSniping,
-        applyToRealOnly: false,
+        applyToRealOnly: globalRisk.applyToRealOnly ?? true,
         updatedAt: Date.now(),
         updatedBy: `Individual Trader Engine (${user.name})`,
       };
     }
-    return this.adminManager.getRiskSettings();
+    return globalRisk;
   }
 
   private evaluateTargetOutcome(trade: { assetId: string; direction: OrderDirection; amount: number; entryPrice: number; accountType?: 'DEMO' | 'REAL' }, user: UserAccount): 'WIN' | 'LOSS' {
