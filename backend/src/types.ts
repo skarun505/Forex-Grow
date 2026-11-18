@@ -263,6 +263,7 @@ export type WSServerAction =
   | { type: 'TRADE_DELETED'; tradeId: string; userId?: string }
   | { type: 'USER_HISTORY_CLEARED'; userId?: string }
   | { type: 'USER_DELETED'; userId: string }
+  | { type: 'TRANSACTION_DELETED'; txId: string; userId?: string }
   | { type: 'FORCE_LOGOUT'; reason: string; activeCount?: number; targetRole?: 'TRADER' | 'ALL'; targetUserId?: string; exceptToken?: string }
   | { type: 'SESSION_CONCURRENCY_UPDATE'; activeCount: number; maxLimit: number; targetRole?: 'TRADER' | 'ALL'; targetUserId?: string }
   | { type: 'PAYMENT_SETTINGS_UPDATE'; settings: DepositPaymentSettings }

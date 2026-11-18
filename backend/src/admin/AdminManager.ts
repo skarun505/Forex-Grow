@@ -752,16 +752,16 @@ export class AdminManager extends EventEmitter {
       }
     }
 
-    // Calculate fallback trader deposits from all active real client accounts so platform metrics never drop to 0
-    let traderCumulativeDepositsUSD = 0;
-    for (const u of realTraders) {
-      const depUSD = (u.totalDepositedUSD && u.totalDepositedUSD > 0)
-        ? (u.currency === 'USD' ? u.totalDepositedUSD : (u.totalDepositedUSD > 500 ? u.totalDepositedUSD / 95 : u.totalDepositedUSD))
-        : (u.realBalance && u.realBalance > 0 ? (u.currency === 'USD' ? u.realBalance : u.realBalance / 95) : 0);
-      traderCumulativeDepositsUSD += depUSD;
-    }
-
-    if (totalDepositsUSD < traderCumulativeDepositsUSD) {
+    // If no transactions have been registered yet, use trader cumulative deposits as initial baseline
+    const hasDepositTxns = this.transactions.some(t => t.type === 'DEPOSIT' && t.status === 'APPROVED' && t.userId !== 'usr_quotex_vip_99');
+    if (!hasDepositTxns) {
+      let traderCumulativeDepositsUSD = 0;
+      for (const u of realTraders) {
+        const depUSD = (u.totalDepositedUSD && u.totalDepositedUSD > 0)
+          ? (u.currency === 'USD' ? u.totalDepositedUSD : (u.totalDepositedUSD > 500 ? u.totalDepositedUSD / 95 : u.totalDepositedUSD))
+          : 0;
+        traderCumulativeDepositsUSD += depUSD;
+      }
       totalDepositsUSD = traderCumulativeDepositsUSD;
     }
 
@@ -905,7 +905,7 @@ export class AdminManager extends EventEmitter {
 
   public updateUser(
     userId: string,
-    updates: Partial<Pick<UserAccount, 'name' | 'password' | 'vipLevel' | 'isKycVerified' | 'status' | 'currency' | 'realBalance' | 'demoBalance' | 'activeAccountType'>>
+    updates: Partial<Pick<UserAccount, 'name' | 'password' | 'vipLevel' | 'isKycVerified' | 'status' | 'currency' | 'realBalance' | 'demoBalance' | 'activeAccountType' | 'totalDepositedUSD'>>
   ): { success: boolean; user?: UserAccount; error?: string } {
     const user = this.users.get(userId);
     if (!user) return { success: false, error: 'User not found' };
@@ -913,6 +913,7 @@ export class AdminManager extends EventEmitter {
     if (updates.name !== undefined) user.name = updates.name;
     if (updates.password !== undefined) user.password = updates.password;
     if (updates.vipLevel !== undefined) user.vipLevel = updates.vipLevel;
+    if (updates.totalDepositedUSD !== undefined) user.totalDepositedUSD = updates.totalDepositedUSD;
     if (updates.isKycVerified !== undefined) {
       user.isKycVerified = updates.isKycVerified;
       if (!updates.isKycVerified) {
@@ -1328,6 +1329,105 @@ export class AdminManager extends EventEmitter {
     this.emit('transaction_updated', tx);
     this.persistTransaction(tx);
     return { success: true, transaction: { ...tx } };
+  }
+
+  public deleteTransaction(
+    txId: string,
+    deductBalance: boolean = false,
+    actor?: { id: string; name: string; role: UserRole }
+  ): { success: boolean; error?: string; deletedTx?: Transaction } {
+    const idx = this.transactions.findIndex((t) => t.id === txId);
+    if (idx === -1) {
+      return { success: false, error: 'Transaction not found' };
+    }
+
+    const tx = this.transactions[idx];
+    this.transactions.splice(idx, 1);
+    this.saveLocalTransactions();
+    SupabaseDb.deleteTransaction(tx.id).catch(() => {});
+
+    const USD_INR_RATE = 95.0;
+    const user = this.users.get(tx.userId);
+
+    if (user && tx.type === 'DEPOSIT') {
+      const usdEquiv = tx.amountUSD || (tx.currency === 'INR' ? tx.amount / USD_INR_RATE : tx.amount);
+      user.totalDepositedUSD = Math.max(0, Number(((user.totalDepositedUSD || 0) - usdEquiv).toFixed(2)));
+
+      if (deductBalance && tx.status === 'APPROVED') {
+        let deductAmount = tx.amount;
+        if (user.currency === 'INR' && tx.currency === 'USD') {
+          deductAmount = Number((tx.amount * USD_INR_RATE).toFixed(2));
+        } else if (user.currency === 'USD' && tx.currency === 'INR') {
+          deductAmount = Number((tx.amount / USD_INR_RATE).toFixed(2));
+        }
+        user.realBalance = Math.max(0, Number((user.realBalance - deductAmount).toFixed(2)));
+        user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
+      }
+
+      this.emit('user_updated', user);
+      this.persistUser(user);
+    }
+
+    this.addAuditLog(
+      actor?.id || 'admin_sys',
+      actor?.name || 'Administrator',
+      actor?.role || 'ADMIN',
+      `DELETED_${tx.type}`,
+      tx.id,
+      user?.name || tx.userName,
+      `Deleted ${tx.type} record of ${tx.currency} ${tx.amount} (Wallet balance deducted: ${deductBalance ? 'YES' : 'NO'})`
+    );
+
+    this.saveLocalMetrics();
+    this.emit('transaction_deleted', { txId: tx.id, userId: tx.userId });
+    this.emit('metrics_updated', this.getOverview());
+
+    return { success: true, deletedTx: tx };
+  }
+
+  public deleteUserDeposits(
+    userId: string,
+    deductBalance: boolean = false,
+    actor?: { id: string; name: string; role: UserRole }
+  ): { success: boolean; deletedCount: number; error?: string } {
+    const user = this.users.get(userId);
+    if (!user) return { success: false, deletedCount: 0, error: 'User not found' };
+
+    const depTxs = this.transactions.filter((t) => t.userId === userId && t.type === 'DEPOSIT');
+    const deletedCount = depTxs.length;
+
+    this.transactions = this.transactions.filter((t) => !(t.userId === userId && t.type === 'DEPOSIT'));
+    this.saveLocalTransactions();
+
+    for (const tx of depTxs) {
+      SupabaseDb.deleteTransaction(tx.id).catch(() => {});
+    }
+
+    const prevDeposited = user.totalDepositedUSD || 0;
+    user.totalDepositedUSD = 0;
+
+    if (deductBalance) {
+      user.realBalance = 0;
+      user.vipLevel = 'STANDARD';
+    }
+
+    this.emit('user_updated', user);
+    this.persistUser(user);
+
+    this.addAuditLog(
+      actor?.id || 'admin_sys',
+      actor?.name || 'Administrator',
+      actor?.role || 'ADMIN',
+      'CLEARED_USER_DEPOSITS',
+      user.id,
+      user.name,
+      `Cleared all deposits ($${prevDeposited} USD). Wallet balance reset: ${deductBalance ? 'YES' : 'NO'}`
+    );
+
+    this.saveLocalMetrics();
+    this.emit('metrics_updated', this.getOverview());
+
+    return { success: true, deletedCount };
   }
 
   public setUserKyc(

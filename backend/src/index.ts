@@ -1318,12 +1318,16 @@ app.post('/api/admin/users/:userId/set-balances', (req, res) => {
   if (activeAccountType !== undefined) {
     user.activeAccountType = activeAccountType === 'REAL' ? 'REAL' : 'DEMO';
   }
+  if (req.body.totalDepositedUSD !== undefined && !isNaN(Number(req.body.totalDepositedUSD))) {
+    user.totalDepositedUSD = Math.max(0, Number(Number(req.body.totalDepositedUSD).toFixed(2)));
+  }
 
   adminManager.updateUser(userId, {
     realBalance: user.realBalance,
     demoBalance: user.demoBalance,
     currency: user.currency,
     activeAccountType: user.activeAccountType,
+    totalDepositedUSD: user.totalDepositedUSD,
   });
 
   adminManager.addAuditLog(
@@ -1371,12 +1375,16 @@ app.post('/api/manager/users/:userId/set-balances', (req, res) => {
   if (activeAccountType !== undefined) {
     user.activeAccountType = activeAccountType === 'REAL' ? 'REAL' : 'DEMO';
   }
+  if (req.body.totalDepositedUSD !== undefined && !isNaN(Number(req.body.totalDepositedUSD))) {
+    user.totalDepositedUSD = Math.max(0, Number(Number(req.body.totalDepositedUSD).toFixed(2)));
+  }
 
   adminManager.updateUser(userId, {
     realBalance: user.realBalance,
     demoBalance: user.demoBalance,
     currency: user.currency,
     activeAccountType: user.activeAccountType,
+    totalDepositedUSD: user.totalDepositedUSD,
   });
 
   adminManager.addAuditLog(
@@ -1501,7 +1509,68 @@ app.post('/api/admin/transactions/:id/reject', (req, res) => {
   res.json(result);
 });
 
-// Security Event Logs & Threat Monitor Endpoint
+// Admin-Only: Delete deposit / transaction record and recalculate Total Deposits
+app.delete('/api/admin/transactions/:id', (req, res) => {
+  const deductBalance = req.query.deductBalance === 'true';
+  const result = adminManager.deleteTransaction(req.params.id, deductBalance, {
+    id: 'admin_master',
+    name: 'Super Admin',
+    role: 'ADMIN',
+  });
+
+  if (!result.success) {
+    return res.status(404).json({ error: result.error });
+  }
+
+  const tx = result.deletedTx!;
+  const user = adminManager.getUser(tx.userId);
+  if (user) {
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      userId: user.id,
+      demoBalance: user.demoBalance,
+      realBalance: user.realBalance,
+      activeAccountType: user.activeAccountType,
+      currency: user.currency,
+    });
+  }
+
+  broadcast({
+    type: 'TRANSACTION_DELETED',
+    txId: tx.id,
+    userId: tx.userId,
+  });
+
+  res.json({ success: true, message: `Transaction ${tx.id} deleted successfully.`, transaction: tx });
+});
+
+// Admin-Only: Delete / clear all deposit records for a specific trader
+app.delete('/api/admin/users/:userId/deposits', (req, res) => {
+  const deductBalance = req.query.deductBalance === 'true';
+  const result = adminManager.deleteUserDeposits(req.params.userId, deductBalance, {
+    id: 'admin_master',
+    name: 'Super Admin',
+    role: 'ADMIN',
+  });
+
+  if (!result.success) {
+    return res.status(404).json({ error: result.error });
+  }
+
+  const user = adminManager.getUser(req.params.userId);
+  if (user) {
+    broadcast({
+      type: 'BALANCE_UPDATE',
+      userId: user.id,
+      demoBalance: user.demoBalance,
+      realBalance: user.realBalance,
+      activeAccountType: user.activeAccountType,
+      currency: user.currency,
+    });
+  }
+
+  res.json({ success: true, message: `All deposits cleared for user ${req.params.userId}`, deletedCount: result.deletedCount });
+});
 app.get('/api/admin/security/audit-logs', (_req: express.Request, res: express.Response) => {
   res.json(securityFirewall.getRecentSecurityLogs());
 });

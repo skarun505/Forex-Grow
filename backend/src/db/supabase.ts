@@ -132,6 +132,24 @@ export class SupabaseDb {
     }
   }
 
+  public static async deleteTransaction(txId: string): Promise<void> {
+    try {
+      const { error } = await supabase.from('transactions').delete().eq('id', txId);
+      if (error) console.error('Failed to delete transaction from Supabase:', error.message);
+    } catch (err: any) {
+      console.error('Failed to delete transaction from Supabase:', err.message);
+    }
+  }
+
+  public static async deleteUserDeposits(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase.from('transactions').delete().eq('user_id', userId).eq('type', 'DEPOSIT');
+      if (error) console.error('Failed to delete user deposits from Supabase:', error.message);
+    } catch (err: any) {
+      console.error('Failed to delete user deposits from Supabase:', err.message);
+    }
+  }
+
   // --- Trades ---
   public static async loadTrades(): Promise<any[]> {
     try {

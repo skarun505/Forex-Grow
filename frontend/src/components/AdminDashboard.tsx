@@ -776,6 +776,78 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     }
   };
 
+  // Handle Delete Deposit / Transaction (Admin Only)
+  const handleDeleteTransaction = async (tx: Transaction) => {
+    const isDeposit = tx.type === 'DEPOSIT';
+    const confirmPrompt = window.confirm(
+      `Are you sure you want to permanently delete this ${tx.type} record?\n\n` +
+      `• Trader: ${tx.userName}\n` +
+      `• Amount: ${tx.currency} ${tx.amount.toLocaleString()}\n` +
+      `• Status: ${tx.status}\n\n` +
+      `This will permanently remove the record from cashier history and recalculate platform Total Deposits.`
+    );
+    if (!confirmPrompt) return;
+
+    let deductBalance = false;
+    if (tx.status === 'APPROVED' && isDeposit) {
+      deductBalance = window.confirm(
+        `Would you also like to deduct ${tx.currency} ${tx.amount.toLocaleString()} from ${tx.userName}'s live wallet balance?\n\n` +
+        `• Click OK to deduct funds from their live wallet.\n` +
+        `• Click Cancel to keep their current wallet balance unchanged.`
+      );
+    }
+
+    try {
+      const res = await fetch(apiUrl(`/api/admin/transactions/${tx.id}?deductBalance=${deductBalance}`), {
+        method: 'DELETE',
+        headers: getAdminHeaders(),
+      });
+
+      if (res.ok) {
+        showAdminToast(`🗑️ ${isDeposit ? 'Deposit' : 'Transaction'} record deleted successfully!`);
+        fetchAdminData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete transaction');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Network error while deleting transaction');
+    }
+  };
+
+  // Handle Clear All Deposits for User (Admin Only)
+  const handleClearAllDepositsForUser = async (user: UserAccount) => {
+    const confirmPrompt = window.confirm(
+      `Are you sure you want to delete all deposit records for "${user.name}" (${user.email})?\n\n` +
+      `This will clear all deposit transactions and reset their total deposited sum to 0.`
+    );
+    if (!confirmPrompt) return;
+
+    const deductBalance = window.confirm(
+      `Would you also like to reset "${user.name}"'s live wallet balance to 0?\n\n` +
+      `• Click OK to reset live balance to 0.\n` +
+      `• Click Cancel to keep their current balance.`
+    );
+
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${user.id}/deposits?deductBalance=${deductBalance}`), {
+        method: 'DELETE',
+        headers: getAdminHeaders(),
+      });
+
+      if (res.ok) {
+        showAdminToast(`🗑️ All deposits cleared for ${user.name}!`);
+        setSelectedUserForBalance(null);
+        fetchAdminData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to clear deposits');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Network error while clearing deposits');
+    }
+  };
+
   // Handle Create Coupon
   const handleCreateCoupon = async () => {
     if (!newCouponCode) return;
@@ -2366,27 +2438,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                                   {t.status}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-right">
-                                {t.status === 'PENDING' ? (
-                                  <div className="flex items-center justify-end space-x-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleApprovePayment(t.id)}
-                                      className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-lg text-[10px] transition"
-                                    >
-                                      Approve
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRejectPayment(t.id)}
-                                      className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold rounded-lg text-[10px] transition"
-                                    >
-                                      Reject
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-[10px] text-gray-500 font-bold">Resolved</span>
-                                )}
+                              <td className="py-3 px-4 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end space-x-1.5">
+                                  {t.status === 'PENDING' ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApprovePayment(t.id)}
+                                        className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-lg text-[10px] transition"
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRejectPayment(t.id)}
+                                        className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 font-bold rounded-lg text-[10px] transition"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-500 font-bold mr-1">Resolved</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteTransaction(t)}
+                                    className="p-1 bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-lg transition"
+                                    title="Delete deposit/transaction"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2602,6 +2684,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                         </button>
                       </div>
                     )}
+
+                    {/* Admin Delete Deposit / Transaction Action */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTransaction(tx)}
+                      className="w-full py-2 mt-2 bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5"
+                      title="Permanently delete deposit record and recalculate platform Total Deposits"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete {tx.type === 'DEPOSIT' ? 'Deposit' : 'Record'}</span>
+                    </button>
                   </div>
                 );
               })}
@@ -2728,7 +2821,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                         <td className={`py-3.5 px-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
                           {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="py-3.5 px-4 text-right space-x-2">
+                        <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
                           {tx.status === 'PENDING' ? (
                             <>
                               <button
@@ -2745,8 +2838,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                               </button>
                             </>
                           ) : (
-                            <span className={`text-[11px] ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>Resolved</span>
+                            <span className={`text-[11px] ${isLight ? 'text-slate-400' : 'text-gray-500'} mr-2`}>Resolved</span>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTransaction(tx)}
+                            className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                            title="Permanently delete deposit/withdrawal record and recalculate platform totals"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -3926,6 +4028,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     Set to 0
                   </button>
                 </div>
+              </div>
+              {/* 3. Deposit Record & Platform Total Deposits Control */}
+              <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-amber-400 flex items-center space-x-1.5">
+                    <span>💳</span>
+                    <span>Trader Total Deposited Track</span>
+                  </label>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    {selectedUserForBalance.currency === 'USD'
+                      ? `$${selectedUserForBalance.totalDepositedUSD || 0} USD`
+                      : `₹${((selectedUserForBalance.totalDepositedUSD || 0) * 95).toLocaleString()} ($${selectedUserForBalance.totalDepositedUSD || 0})`}
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  This deposited amount directly feeds the platform's <b className="text-gray-300">Total Deposits</b> metric card.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleClearAllDepositsForUser(selectedUserForBalance)}
+                  className="w-full py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete & Clear Deposits for {selectedUserForBalance.name}</span>
+                </button>
               </div>
             </div>
 
