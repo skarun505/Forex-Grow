@@ -359,7 +359,7 @@ export class MarketEngine extends EventEmitter {
   public setAssetPayout(assetId: string, payout: number): boolean {
     const state = this.assets.get(assetId);
     if (!state) return false;
-    state.asset.payout = Math.max(50, Math.min(70, Math.round(payout)));
+    state.asset.payout = Math.max(10, Math.min(98, Math.round(payout)));
     this.emit('payout_updated', { assetId, payout: state.asset.payout });
     return true;
   }

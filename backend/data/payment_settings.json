@@ -1,0 +1,14 @@
+{
+  "upiId": "paytm.s2bn2jy@pty",
+  "upiName": "Forex Grow Official Settlement",
+  "bankName": "DCB bank",
+  "accountHolderName": "Forex Grow Global Settlement Pvt Ltd",
+  "accountNumber": "03014700002233",
+  "ifscCode": "DCBL0000030",
+  "accountType": "Current Account",
+  "branchName": "Corporate Banking Branch",
+  "instructions": "1. Transfer funds via IMPS, NEFT, RTGS or UPI to the official company account above.\n2. Note down the 12-digit UTR / Reference number.\n3. Upload clear screenshot showing complete 12-digit UTR/Reference number for instant verification.",
+  "minDepositINR": 500,
+  "updatedAt": 1794971206952,
+  "updatedBy": "Admin Desk"
+}

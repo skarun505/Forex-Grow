@@ -577,6 +577,11 @@ export class SettlementEngine extends EventEmitter {
     const initialCount = this.tradeHistory.length;
     this.tradeHistory = this.tradeHistory.filter(t => t.userId && t.userId !== userId);
     const removedCount = initialCount - this.tradeHistory.length;
+    for (const [id, t] of this.activeTrades.entries()) {
+      if (t.userId === userId) {
+        this.activeTrades.delete(id);
+      }
+    }
     this.emit('user_history_cleared', { userId });
     SupabaseDb.deleteUserTrades(userId);
     return removedCount;

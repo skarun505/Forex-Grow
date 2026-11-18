@@ -115,23 +115,6 @@
     "kycStatus": "APPROVED"
   },
   {
-    "id": "usr_53bc8520",
-    "name": "Arunkumar Sathishkumar",
-    "email": "skarunkumar460@gmail.com",
-    "demoBalance": 700000,
-    "realBalance": 0,
-    "activeAccountType": "DEMO",
-    "currency": "INR",
-    "vipLevel": "STANDARD",
-    "isKycVerified": false,
-    "status": "ACTIVE",
-    "totalTrades": 0,
-    "totalDepositedUSD": 0,
-    "password": "forexgrow123",
-    "role": "TRADER",
-    "kycStatus": "APPROVED"
-  },
-  {
     "id": "usr_1fa16b38",
     "name": "Divyashree",
     "email": "divyashree5522@gmail.com",

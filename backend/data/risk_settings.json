@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "targetWinRate": 20,
+  "mode": "QUOTEX_OTC",
+  "microPipSniping": true,
+  "applyToRealOnly": true,
+  "updatedAt": 1794971673096,
+  "updatedBy": "Admin Desk"
+}

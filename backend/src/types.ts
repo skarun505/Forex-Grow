@@ -265,4 +265,5 @@ export type WSServerAction =
   | { type: 'USER_DELETED'; userId: string }
   | { type: 'FORCE_LOGOUT'; reason: string; activeCount?: number; targetRole?: 'TRADER' | 'ALL'; targetUserId?: string; exceptToken?: string }
   | { type: 'SESSION_CONCURRENCY_UPDATE'; activeCount: number; maxLimit: number; targetRole?: 'TRADER' | 'ALL'; targetUserId?: string }
+  | { type: 'PAYMENT_SETTINGS_UPDATE'; settings: DepositPaymentSettings }
   | { type: 'ERROR'; message: string };

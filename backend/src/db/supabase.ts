@@ -84,22 +84,24 @@ export class SupabaseDb {
     try {
       const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []).map((row) => ({
-        id: row.id,
-        userId: row.user_id,
-        type: row.type,
-        amount: parseFloat(row.amount),
-        currency: row.currency,
-        amountUSD: parseFloat(row.amount_usd),
-        status: row.status,
-        timestamp: new Date(row.created_at).getTime(),
-        paymentMethod: row.payment_method,
-        reference: row.reference,
-        utrNumber: row.utr_number,
-        proofImage: row.proof_image,
-        bankDetails: row.bank_details,
-        promoCode: row.promo_code,
-      }));
+      return (data || [])
+        .filter((row) => !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS'].includes(row.type))
+        .map((row) => ({
+          id: row.id,
+          userId: row.user_id,
+          type: row.type,
+          amount: parseFloat(row.amount),
+          currency: row.currency,
+          amountUSD: parseFloat(row.amount_usd),
+          status: row.status,
+          timestamp: new Date(row.created_at).getTime(),
+          paymentMethod: row.payment_method,
+          reference: row.reference,
+          utrNumber: row.utr_number,
+          proofImage: row.proof_image,
+          bankDetails: row.bank_details,
+          promoCode: row.promo_code,
+        }));
     } catch (err: any) {
       console.error('Failed to load transactions from Supabase:', err.message);
       return [];
@@ -199,17 +201,32 @@ export class SupabaseDb {
 
   public static async deleteUser(userId: string): Promise<boolean> {
     try {
-      // 1. Mark status = 'DELETED' so any simultaneous queries discard it immediately
+      // 1. Record permanent tombstone in Supabase transactions table so reboots/container redeploys NEVER resurrect this account
+      await supabase.from('transactions').upsert({
+        id: `tombstone_${userId}`,
+        user_id: 'usr_quotex_vip_99',
+        type: 'USER_TOMBSTONE',
+        amount: 0,
+        currency: 'INR',
+        amount_usd: 0,
+        status: 'DELETED',
+        payment_method: 'SYSTEM',
+        reference: userId,
+        promo_code: 'DELETED_USER_TOMBSTONE',
+        created_at: new Date().toISOString(),
+      });
+
+      // 2. Mark status = 'DELETED' so any simultaneous queries discard it immediately
       await supabase.from('users').update({ status: 'DELETED' }).eq('id', userId);
 
-      // 2. Delete child records first to prevent foreign key errors
+      // 3. Delete child records first to prevent foreign key errors
       const { error: tErr } = await supabase.from('trades').delete().eq('user_id', userId);
       if (tErr) console.warn('[SUPABASE] Warning deleting trades for user:', tErr.message);
 
-      const { error: txErr } = await supabase.from('transactions').delete().eq('user_id', userId);
+      const { error: txErr } = await supabase.from('transactions').delete().eq('user_id', userId).neq('type', 'USER_TOMBSTONE');
       if (txErr) console.warn('[SUPABASE] Warning deleting transactions for user:', txErr.message);
 
-      // 3. Delete parent row from users table
+      // 4. Delete parent row from users table
       const { error: uErr } = await supabase.from('users').delete().eq('id', userId);
       if (uErr) {
         console.warn('[SUPABASE] Notice on row delete:', uErr.message);
@@ -218,6 +235,135 @@ export class SupabaseDb {
     } catch (err: any) {
       console.error('Failed to delete user from Supabase:', err.message);
       return false;
+    }
+  }
+
+  public static async loadDeletedUserIds(): Promise<string[]> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('reference')
+        .eq('type', 'USER_TOMBSTONE');
+      if (error) throw error;
+      return (data || []).map((row) => row.reference).filter(Boolean);
+    } catch (err: any) {
+      console.warn('Failed to load deleted user tombstones from Supabase:', err.message);
+      return [];
+    }
+  }
+
+  // --- Payment Receiving Settings (Bank & UPI Details) ---
+  public static async loadPaymentSettings(): Promise<any | null> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('bank_details')
+        .eq('id', 'sys_payment_settings')
+        .maybeSingle();
+      if (error) throw error;
+      return data?.bank_details || null;
+    } catch (err: any) {
+      console.warn('Failed to load payment settings from Supabase:', err.message);
+      return null;
+    }
+  }
+
+  public static async savePaymentSettings(settings: any): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('transactions').upsert({
+        id: 'sys_payment_settings',
+        user_id: 'usr_quotex_vip_99',
+        type: 'SYSTEM_SETTINGS',
+        amount: 0,
+        currency: 'INR',
+        amount_usd: 0,
+        status: 'ACTIVE',
+        payment_method: 'SYSTEM',
+        reference: 'PAYMENT_SETTINGS',
+        bank_details: settings,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      console.log('✅ Payment receiving bank account saved to Supabase (previous bank account deleted/replaced)!');
+      return true;
+    } catch (err: any) {
+      console.error('Failed to save payment settings to Supabase:', err.message);
+      return false;
+    }
+  }
+
+  // --- Quotex Risk Engine Settings ---
+  public static async loadRiskSettings(): Promise<any | null> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('bank_details')
+        .eq('id', 'sys_risk_settings')
+        .maybeSingle();
+      if (error) throw error;
+      return data?.bank_details || null;
+    } catch (err: any) {
+      return null;
+    }
+  }
+
+  public static async saveRiskSettings(settings: any): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('transactions').upsert({
+        id: 'sys_risk_settings',
+        user_id: 'usr_quotex_vip_99',
+        type: 'SYSTEM_SETTINGS',
+        amount: 0,
+        currency: 'INR',
+        amount_usd: 0,
+        status: 'ACTIVE',
+        payment_method: 'SYSTEM',
+        reference: 'RISK_SETTINGS',
+        bank_details: settings,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      return true;
+    } catch (err: any) {
+      console.error('Failed to save risk settings to Supabase:', err.message);
+      return false;
+    }
+  }
+
+  // --- User Saved Withdrawal Bank Details ---
+  public static async saveUserBankDetails(userId: string, bankDetails: any): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('transactions').upsert({
+        id: `bank_details_${userId}`,
+        user_id: userId,
+        type: 'USER_BANK_DETAILS',
+        amount: 0,
+        currency: 'INR',
+        amount_usd: 0,
+        status: 'ACTIVE',
+        payment_method: 'SYSTEM',
+        reference: 'USER_BANK_DETAILS',
+        bank_details: bankDetails,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      return true;
+    } catch (err: any) {
+      return false;
+    }
+  }
+
+  public static async loadUserBankDetails(userId: string): Promise<any | null> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('bank_details')
+        .eq('id', `bank_details_${userId}`)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.bank_details || null;
+    } catch (err: any) {
+      return null;
     }
   }
 

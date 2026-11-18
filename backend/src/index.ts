@@ -1548,6 +1548,7 @@ app.post('/api/admin/payment/settings', (req: express.Request, res: express.Resp
     name: actorName || 'Administrator',
     role: 'ADMIN',
   });
+  broadcast({ type: 'PAYMENT_SETTINGS_UPDATE', settings: updated });
   res.json({ success: true, settings: updated });
 });
 
@@ -1956,6 +1957,7 @@ app.post('/api/manager/payment/settings', (req: express.Request, res: express.Re
     name: actorName || 'Operations Manager',
     role: 'MANAGER',
   });
+  broadcast({ type: 'PAYMENT_SETTINGS_UPDATE', settings: updated });
   res.json({ success: true, settings: updated });
 });
 
@@ -1981,7 +1983,7 @@ app.post('/api/manager/assets/:id/payout', (req, res) => {
   res.json({ success, payout });
 });
 
-// Admin Trade Management Endpoints
+// Admin & Manager Trade Management Endpoints
 app.get('/api/admin/users/:userId/trades', (req: express.Request, res: express.Response) => {
   const userId = String(req.params.userId);
   const trades = settlementEngine.getTradesForUser(userId);
@@ -1997,6 +1999,37 @@ app.delete('/api/admin/trades/:tradeId', (req: express.Request, res: express.Res
 app.delete('/api/admin/users/:userId/trades', (req: express.Request, res: express.Response) => {
   const userId = String(req.params.userId);
   const count = settlementEngine.clearUserHistory(userId);
+  const user = adminManager.getUser(userId);
+  if (user) {
+    user.totalTrades = 0;
+    adminManager.saveLocalUsers();
+    adminManager.persistUser(user);
+  }
+  res.json({ success: true, count });
+});
+
+// Manager Trade Management Endpoints
+app.get('/api/manager/users/:userId/trades', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
+  const trades = settlementEngine.getTradesForUser(userId);
+  res.json(trades);
+});
+
+app.delete('/api/manager/trades/:tradeId', (req: express.Request, res: express.Response) => {
+  const tradeId = String(req.params.tradeId);
+  const success = settlementEngine.deleteTrade(tradeId);
+  res.json({ success });
+});
+
+app.delete('/api/manager/users/:userId/trades', (req: express.Request, res: express.Response) => {
+  const userId = String(req.params.userId);
+  const count = settlementEngine.clearUserHistory(userId);
+  const user = adminManager.getUser(userId);
+  if (user) {
+    user.totalTrades = 0;
+    adminManager.saveLocalUsers();
+    adminManager.persistUser(user);
+  }
   res.json({ success: true, count });
 });
 

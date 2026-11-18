@@ -70,15 +70,15 @@ export const CashierModal: React.FC<CashierModalProps> = ({ isOpen, onClose, onO
 
   // Dynamic Bank and UPI Settings fetched from Server
   const [paymentSettings, setPaymentSettings] = useState<DepositPaymentSettings>({
-    upiId: 'forexgrow@icici',
-    upiName: 'Forex Grow Official Desk',
-    bankName: 'HDFC Bank',
-    accountHolderName: 'Forex Grow Institutional Operations',
-    accountNumber: '50200084729104',
-    ifscCode: 'HDFC0000240',
+    upiId: 'paytm.s2bn2jy@pty',
+    upiName: 'Forex Grow Official Settlement',
+    bankName: 'DCB bank',
+    accountHolderName: 'Forex Grow Global Settlement Pvt Ltd',
+    accountNumber: '03014700002233',
+    ifscCode: 'DCBL0000030',
     accountType: 'Current Account',
-    branchName: 'Nariman Point, Mumbai',
-    instructions: 'Transfer funds via IMPS, NEFT, RTGS or UPI. Upload clear screenshot showing complete 12-digit UTR/Reference number for verification.',
+    branchName: 'Corporate Banking Branch',
+    instructions: '1. Transfer funds via IMPS, NEFT, RTGS or UPI to the official company account above.\n2. Note down the 12-digit UTR / Reference number.\n3. Upload clear screenshot showing complete 12-digit UTR/Reference number for verification.',
     minDepositINR: 500,
   });
 

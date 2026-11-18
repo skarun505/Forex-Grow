@@ -75,7 +75,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     targetWinRate: 20,
     mode: 'QUOTEX_OTC',
     microPipSniping: true,
-    applyToRealOnly: false,
+    applyToRealOnly: true,
   });
   const [isRiskDirty, setIsRiskDirty] = useState(false);
   const isRiskDirtyRef = useRef(false);
@@ -112,6 +112,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [txnSearch, setTxnSearch] = useState('');
   const [txnFilter, setTxnFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DEPOSIT' | 'WITHDRAWAL'>('PENDING');
   const [userSearch, setUserSearch] = useState('');
+  const [traderViewMode, setTraderViewMode] = useState<'CARDS' | 'TABLE'>('TABLE');
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [selectedProofImg, setSelectedProofImg] = useState<string | null>(null);
   const [selectedProofTx, setSelectedProofTx] = useState<Transaction | null>(null);
@@ -235,6 +236,11 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
   const [resetPasswordValue, setResetPasswordValue] = useState<string>('');
   const [isResettingPassword, setIsResettingPassword] = useState<boolean>(false);
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState<string | null>(null);
+
+  // Selected User for Viewing & Deleting Individual Trades
+  const [selectedUserForTrades, setSelectedUserForTrades] = useState<UserAccount | null>(null);
+  const [userTrades, setUserTrades] = useState<{ activeTrades: Trade[]; tradeHistory: Trade[] } | null>(null);
+  const [tradesLoading, setTradesLoading] = useState(false);
 
   // Asset Payout Margins State
   const [payoutEdits, setPayoutEdits] = useState<Record<string, number>>({});
@@ -509,6 +515,89 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
       fetchManagerData();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Handle View Trades for a User
+  const handleViewUserTrades = async (user: UserAccount) => {
+    setSelectedUserForTrades(user);
+    setTradesLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/api/manager/users/${user.id}/trades`), {
+        headers: getManagerHeaders(),
+      });
+      const data = await res.json();
+      setUserTrades(data);
+    } catch (e) {
+      console.error(e);
+      setUserTrades(null);
+    } finally {
+      setTradesLoading(false);
+    }
+  };
+
+  // Handle Delete Single Trade
+  const handleDeleteTrade = async (tradeId: string) => {
+    if (!confirm('Delete this trade record? This cannot be undone.')) return;
+    try {
+      const res = await fetch(apiUrl(`/api/manager/trades/${tradeId}`), {
+        method: 'DELETE',
+        headers: getManagerHeaders(),
+      });
+      if (res.ok) {
+        showManagerToast('Trade record deleted successfully');
+        if (selectedUserForTrades) {
+          await handleViewUserTrades(selectedUserForTrades);
+        }
+        fetchManagerData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Handle Clear All Trade History for a User
+  const handleClearUserHistory = async () => {
+    if (!selectedUserForTrades) return;
+    if (!confirm(`Clear ALL trade history for ${selectedUserForTrades.name}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(apiUrl(`/api/manager/users/${selectedUserForTrades.id}/trades`), {
+        method: 'DELETE',
+        headers: getManagerHeaders(),
+      });
+      if (res.ok) {
+        showManagerToast(`Cleared all trade history for ${selectedUserForTrades.name}`);
+        await handleViewUserTrades(selectedUserForTrades);
+        fetchManagerData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Direct 1-Click Delete All Trade History for a Trader
+  const handleClearTraderHistoryDirect = async (user: UserAccount) => {
+    if (!confirm(`Are you sure you want to delete ALL trade history for ${user.name} (${user.email})?\n\nThis will permanently delete all open and settled trades for this trader.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(apiUrl(`/api/manager/users/${user.id}/trades`), {
+        method: 'DELETE',
+        headers: getManagerHeaders(),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        showManagerToast(`🗑️ Deleted all trade history for ${user.name}`);
+        if (selectedUserForTrades && selectedUserForTrades.id === user.id) {
+          await handleViewUserTrades(user);
+        }
+        fetchManagerData();
+      } else {
+        alert(data?.error || 'Failed to delete trade history');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while deleting trader history');
     }
   };
 
@@ -1442,11 +1531,39 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                 <div className="text-xs text-gray-400 hidden sm:block">
                   Total: <span className="font-bold text-white">{filteredUsers.length}</span>
                 </div>
+
+                {/* View Toggle */}
+                <div className={`hidden sm:flex items-center p-0.5 rounded-xl border ${
+                  isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#121622] border-[#22283a]'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setTraderViewMode('TABLE')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${
+                      traderViewMode === 'TABLE'
+                        ? 'bg-sky-500 text-slate-950 font-black shadow-sm'
+                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTraderViewMode('CARDS')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${
+                      traderViewMode === 'CARDS'
+                        ? 'bg-sky-500 text-slate-950 font-black shadow-sm'
+                        : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Cards
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Traders Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Traders Grid (Cards View) */}
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${traderViewMode === 'TABLE' ? 'sm:hidden' : ''}`}>
               {filteredUsers.map((u) => {
                 const isFrozen = u.status === 'FROZEN';
 
@@ -1621,6 +1738,35 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                         </button>
                       </div>
 
+                      {/* Trade History: Direct Delete & Inspect Trades */}
+                      <div className="pt-1 space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-bold px-0.5">
+                          <span className={isLight ? 'text-slate-600' : 'text-gray-300'}>Trader Trade History</span>
+                          <span className="text-[10px] text-gray-400 font-mono">{u.totalTrades || 0} trades</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleViewUserTrades(u)}
+                            className="py-1.5 px-2 rounded-xl text-xs font-bold border border-sky-500/30 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
+                            title="Inspect individual trades and contracts"
+                          >
+                            <Activity className="w-3.5 h-3.5" />
+                            <span>Trades ({u.totalTrades || 0})</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleClearTraderHistoryDirect(u)}
+                            className="py-1.5 px-2 rounded-xl text-xs font-black border border-rose-500/40 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 transition flex items-center justify-center space-x-1.5 shadow-sm"
+                            title={`Delete all trade history for ${u.name}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Delete History</span>
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Password Reset Action (Only Admin can delete users; Managers can reset passwords) */}
                       <div className="pt-1">
                         <button
@@ -1642,6 +1788,143 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                 );
               })}
             </div>
+
+            {/* Desktop Traders Table (Shown in TABLE mode on sm+ screens) */}
+            {traderViewMode === 'TABLE' && (
+              <div className={`hidden sm:block border rounded-3xl overflow-x-auto shadow-xl transition-colors ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#161a26] border-[#262c3e]'
+              }`}>
+                <table className="w-full text-left text-xs min-w-[900px]">
+                  <thead className={`border-b uppercase font-semibold ${
+                    isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-[#121620] border-[#262c3e] text-gray-400'
+                  }`}>
+                    <tr>
+                      <th className="py-3.5 px-4">Trader Details</th>
+                      <th className="py-3.5 px-3">VIP Tier</th>
+                      <th className="py-3.5 px-3">KYC Status</th>
+                      <th className="py-3.5 px-3">Demo Balance</th>
+                      <th className="py-3.5 px-3">Real Live Balance</th>
+                      <th className="py-3.5 px-3">Total Trades</th>
+                      <th className="py-3.5 px-3">Status</th>
+                      <th className="py-3.5 px-4 text-right">Manager Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${isLight ? 'divide-slate-100' : 'divide-[#262c3e]/60'}`}>
+                    {filteredUsers.map((u) => {
+                      const realFmt = formatUserBal(u.realBalance, u.currency);
+                      const demoFmt = formatUserBal(u.demoBalance, u.currency);
+                      return (
+                        <tr key={u.id} className={`transition ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1f2537]/50'}`}>
+                          <td className="py-3.5 px-4">
+                            <div className={`font-bold flex items-center space-x-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              <span>{u.name}</span>
+                              {u.id === 'usr_quotex_vip_99' && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                                  TEST SANDBOX
+                                </span>
+                              )}
+                            </div>
+                            <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{u.email}</div>
+                            {u.phone && <div className="text-[10px] text-emerald-400 font-mono">{u.phone}</div>}
+                            <div className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>{u.id}</div>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                              {u.vipLevel}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            {u.isKycVerified ? (
+                              <span className="text-emerald-500 font-bold flex items-center space-x-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Verified</span>
+                              </span>
+                            ) : (
+                              <span className="text-amber-500 font-bold flex items-center space-x-1">
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                <span>Pending</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3 font-bold text-amber-400 mono-num">
+                            <div>{demoFmt.primary}</div>
+                            <div className="text-[9px] text-gray-500 font-mono">({demoFmt.secondary})</div>
+                          </td>
+                          <td className="py-3.5 px-3 font-black text-emerald-400 mono-num">
+                            <div>{realFmt.primary}</div>
+                            <div className="text-[9px] text-gray-500 font-mono">({realFmt.secondary})</div>
+                          </td>
+                          <td className={`py-3.5 px-3 font-bold mono-num ${isLight ? 'text-slate-700' : 'text-gray-300'}`}>
+                            {u.totalTrades || 0}
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              u.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
+                            }`}>
+                              {u.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            {u.kycStatus === 'PENDING' && (
+                              <button
+                                onClick={() => setSelectedTraderForKyc(u)}
+                                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-black transition"
+                              >
+                                Review Aadhaar
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openDirectBalanceModal(u)}
+                              className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-bold transition"
+                              title="Direct Balance Edit"
+                            >
+                              Edit Funds
+                            </button>
+                            <button
+                              onClick={() => openIndividualRiskModal(u)}
+                              className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                                u.customRiskSettings?.enabled
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                              }`}
+                            >
+                              {u.customRiskSettings?.enabled ? `Risk: ${u.customRiskSettings.targetWinRate}%` : 'Risk'}
+                            </button>
+                            <button
+                              onClick={() => handleViewUserTrades(u)}
+                              className="px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-lg text-xs font-bold transition"
+                              title="Inspect and delete individual trades"
+                            >
+                              Trades ({u.totalTrades || 0})
+                            </button>
+                            <button
+                              onClick={() => handleClearTraderHistoryDirect(u)}
+                              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-black transition inline-flex items-center space-x-1"
+                              title={`Permanently delete all trade history for ${u.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete History</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedUserForPasswordReset(u);
+                                setResetPasswordValue('');
+                                setResetPasswordSuccess(null);
+                              }}
+                              className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs font-bold transition inline-flex items-center space-x-1"
+                              title="Reset Trader Password"
+                            >
+                              <Key className="w-3 h-3" />
+                              <span>Pass</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -1679,12 +1962,13 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                       <th className="py-3 px-4">Entry</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4 text-right">Profit / Payout</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-mono">
                     {safeLiveTrades.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-gray-500">
+                        <td colSpan={8} className="py-8 text-center text-gray-500">
                           No active trades on the floor right now.
                         </td>
                       </tr>
@@ -1744,6 +2028,38 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                                   <span className="text-[10px] text-rose-500/70 block font-mono">(-{amtFmt.secondary})</span>
                                 </div>
                               )}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end space-x-1.5">
+                                <button
+                                  onClick={() => {
+                                    const u = safeUsers.find((x) => x.id === t.userId);
+                                    if (u) handleViewUserTrades(u);
+                                  }}
+                                  className="px-2 py-1 text-[11px] font-bold rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition"
+                                  title="Inspect trader trade history"
+                                >
+                                  History
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const u = safeUsers.find((x) => x.id === t.userId);
+                                    if (u) handleClearTraderHistoryDirect(u);
+                                  }}
+                                  className="px-2 py-1 text-[11px] font-bold rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 transition inline-flex items-center space-x-1"
+                                  title={`Delete all trade history for ${t.userName || 'this trader'}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Clear History</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTrade(t.id)}
+                                  className="p-1 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                                  title="Delete individual trade"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -3691,6 +4007,149 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
         </div>
       )}
 
+
+      {/* ================= MODAL: MANAGER USER TRADE HISTORY & DELETE TRADES ================= */}
+      {selectedUserForTrades && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-3xl border rounded-3xl shadow-2xl flex flex-col max-h-[85vh] transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1a1f2e] border-[#2e354b] text-white'
+          }`}>
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${
+              isLight ? 'border-slate-200' : 'border-[#2e354b]'
+            }`}>
+              <div>
+                <h3 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Trade History — {selectedUserForTrades.name}
+                </h3>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                  {selectedUserForTrades.id} · {selectedUserForTrades.email}
+                </p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleClearUserHistory}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-black transition border border-rose-500/40 shadow-sm"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Delete All Trade History</span>
+                </button>
+                <button
+                  onClick={() => { setSelectedUserForTrades(null); setUserTrades(null); }}
+                  className={`p-1.5 rounded-xl transition ${
+                    isLight ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {tradesLoading ? (
+                <div className="text-center py-12 text-gray-400 text-sm">Loading trade records…</div>
+              ) : !userTrades ? (
+                <div className="text-center py-12 text-rose-400 text-sm">Failed to load trades.</div>
+              ) : (
+                <>
+                  {/* Active Trades */}
+                  <div>
+                    <h4 className={`text-xs font-black uppercase mb-3 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Active Open Trades ({(userTrades?.activeTrades || []).length})
+                    </h4>
+                    {(userTrades?.activeTrades || []).length === 0 ? (
+                      <p className={`text-xs ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>No active trades.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(userTrades?.activeTrades || []).map((t) => (
+                          <div key={t.id} className={`flex items-center justify-between p-3 border rounded-2xl ${
+                            isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
+                          }`}>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{t.assetId}</span>
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                                  t.direction === 'UP' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
+                                }`}>{t.direction}</span>
+                                <span className="text-[10px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">OPEN</span>
+                                <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{t.accountType}</span>
+                              </div>
+                              <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                                Amount: {formatTxnAmount(t.amount, selectedUserForTrades.currency || 'INR').primary} · Entry: {t.entryPrice} · Expires: {new Date(t.expiryTime).toLocaleTimeString()}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteTrade(t.id)}
+                              className="px-2.5 py-1 rounded-xl text-rose-400 hover:bg-rose-500/20 bg-rose-500/10 border border-rose-500/30 text-xs font-bold flex items-center space-x-1 transition shrink-0"
+                              title="Delete this open trade"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Settled Trade History */}
+                  <div>
+                    <h4 className={`text-xs font-black uppercase mb-3 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Settled Trade History ({(userTrades?.tradeHistory || []).length})
+                    </h4>
+                    {(userTrades?.tradeHistory || []).length === 0 ? (
+                      <p className={`text-xs ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>No trade history records.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(userTrades?.tradeHistory || []).map((t) => (
+                          <div key={t.id} className={`flex items-center justify-between p-3 border rounded-2xl ${
+                            isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#121620] border-[#262c3e]'
+                          }`}>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{t.assetId}</span>
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                                  t.direction === 'UP' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
+                                }`}>{t.direction}</span>
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                                  t.status === 'WON'
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : t.status === 'LOST'
+                                    ? 'bg-rose-500/20 text-rose-400'
+                                    : 'bg-gray-500/20 text-gray-400'
+                                }`}>{t.status}</span>
+                                <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>{t.accountType}</span>
+                              </div>
+                              <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                                Amount: {formatTxnAmount(t.amount, selectedUserForTrades.currency || 'INR').primary} · Entry: {t.entryPrice} · Exit: {t.exitPrice ?? '-'}
+                                {t.profit !== undefined && (
+                                  <span className={t.profit >= 0 ? ' text-emerald-500 font-bold' : ' text-rose-500 font-bold'}>
+                                    {' '}· P&L: {t.profit >= 0 ? '+' : ''}{formatTxnAmount(Math.abs(t.profit), selectedUserForTrades.currency || 'INR').primary}
+                                  </span>
+                                )}
+                                {' '}· {new Date(t.openTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteTrade(t.id)}
+                              className="px-2.5 py-1 rounded-xl text-rose-400 hover:bg-rose-500/20 bg-rose-500/10 border border-rose-500/30 text-xs font-bold flex items-center space-x-1 transition shrink-0"
+                              title="Delete this trade record"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Manager Toast Notification */}
       {managerNotification && (

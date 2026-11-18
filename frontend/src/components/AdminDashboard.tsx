@@ -70,7 +70,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     targetWinRate: 20,
     mode: 'QUOTEX_OTC',
     microPipSniping: true,
-    applyToRealOnly: false,
+    applyToRealOnly: true,
   });
   const [isRiskDirty, setIsRiskDirty] = useState(false);
   const isRiskDirtyRef = useRef(false);
@@ -432,11 +432,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         setRiskSettings(riskRes.settings);
       }
 
-      const payoutsMap: Record<string, number> = {};
-      (Array.isArray(assets) ? assets : []).forEach((a) => {
-        payoutsMap[a.id] = a.payout;
+      setPayoutEdits((prev) => {
+        if (Object.keys(prev).length > 0) return prev;
+        const payoutsMap: Record<string, number> = {};
+        (Array.isArray(assets) ? assets : []).forEach((a) => {
+          payoutsMap[a.id] = a.payout;
+        });
+        return payoutsMap;
       });
-      setPayoutEdits(payoutsMap);
     } catch (e) {
       console.error('Failed to fetch admin data', e);
     } finally {
@@ -707,6 +710,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Direct 1-Click Clear All Trade History for a Trader
+  const handleClearTraderHistoryDirect = async (user: UserAccount) => {
+    if (!confirm(`Are you sure you want to delete ALL trade history for ${user.name} (${user.email})?\n\nThis will permanently delete all open and settled trades for this trader.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${user.id}/trades`), {
+        method: 'DELETE',
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        if (selectedUserForTrades && selectedUserForTrades.id === user.id) {
+          await handleViewUserTrades(user);
+        }
+        fetchAdminData();
+      } else {
+        alert('Failed to delete trade history');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while deleting trader history');
     }
   };
 
@@ -1536,9 +1563,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       </button>
                       <button
                         onClick={() => handleViewUserTrades(u)}
-                        className="px-2.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition text-center"
+                        className="px-2.5 py-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-xl text-xs font-bold transition text-center"
                       >
                         Trades ({u.totalTrades})
+                      </button>
+                      <button
+                        onClick={() => handleClearTraderHistoryDirect(u)}
+                        className="px-2.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1"
+                        title="Delete trader's entire trade history"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Clear Trades</span>
                       </button>
                       <button
                         onClick={() => {
@@ -1679,9 +1714,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                           </button>
                           <button
                             onClick={() => handleViewUserTrades(u)}
-                            className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs font-bold transition"
+                            className="px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-lg text-xs font-bold transition"
                           >
-                            Trades
+                            Trades ({u.totalTrades})
+                          </button>
+                          <button
+                            onClick={() => handleClearTraderHistoryDirect(u)}
+                            className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                            title="Delete all trades for this trader"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Clear Trades</span>
                           </button>
                           <button
                             onClick={() => {
