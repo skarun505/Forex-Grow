@@ -379,62 +379,52 @@ export class AdminManager extends EventEmitter {
             continue;
           }
 
-          // Preserve seeded password, phone, role, bank details, risk settings
+          // Preserve seeded password, phone, role, bank details, risk settings if not stored in Supabase
           const existing = this.users.get(u.id);
           const sbBank = await SupabaseDb.loadUserBankDetails(u.id);
+
+          // CRITICAL: Live financial and balance data from Supabase PostgreSQL MUST ALWAYS BE THE MASTER SOURCE OF TRUTH!
+          // NEVER let static repository files, git commits, or local caches overwrite live trader balances!
+          const realBal = (typeof u.realBalance === 'number' && !isNaN(u.realBalance)) ? u.realBalance : (existing?.realBalance ?? 0.00);
+          const demoBal = (typeof u.demoBalance === 'number' && !isNaN(u.demoBalance)) ? u.demoBalance : (existing?.demoBalance ?? 700000.00);
+          const totTrades = (typeof u.totalTrades === 'number' && !isNaN(u.totalTrades)) ? u.totalTrades : (existing?.totalTrades ?? 0);
+          const totDepUSD = (typeof u.totalDepositedUSD === 'number' && !isNaN(u.totalDepositedUSD)) ? u.totalDepositedUSD : (existing?.totalDepositedUSD ?? 0.00);
+          const userCurrency = u.currency || existing?.currency || 'INR';
+
           const merged: UserAccount = {
             ...(existing || {}),
             ...u,
+            // Guaranteed master live state from Supabase
+            realBalance: realBal,
+            demoBalance: demoBal,
+            totalTrades: totTrades,
+            totalDepositedUSD: totDepUSD,
+            currency: userCurrency,
+            activeAccountType: u.activeAccountType || existing?.activeAccountType || 'REAL',
             password: existing?.password || u.password || 'forexgrow123',
             phone: existing?.phone || u.phone,
             role: existing?.role || u.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : 'TRADER'),
-            aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber,
+            aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber || (u.id === 'usr_quotex_vip_99' ? '7845 1290 3341' : undefined),
             kycStatus: existing?.kycStatus || u.kycStatus || 'APPROVED',
             savedBankDetails: sbBank || existing?.savedBankDetails || u.savedBankDetails,
             customRiskSettings: existing?.customRiskSettings || u.customRiskSettings,
-            // Keep existing realBalance if locally updated
-            realBalance: existing?.realBalance !== undefined ? existing.realBalance : u.realBalance,
-            demoBalance: existing?.demoBalance !== undefined ? existing.demoBalance : (u.demoBalance ?? 700000.00),
-            vipLevel: existing?.vipLevel || u.vipLevel,
+            vipLevel: AdminManager.calculateVipLevel(realBal, userCurrency),
           };
 
-          if (merged.role === 'TRADER' && (merged.demoBalance === undefined || merged.demoBalance === null)) {
-            merged.demoBalance = 700000.00;
+          if (merged.id === 'usr_admin_001' || merged.id === 'usr_manager_ops_01') {
+            merged.realBalance = 0;
+            merged.demoBalance = 0;
           }
 
-          // Normalize primary currency to INR as requested; NEVER overwrite balance with 10000!
-          if (merged.id === 'usr_quotex_vip_99') {
-            merged.currency = 'INR';
-            merged.activeAccountType = 'REAL';
-            merged.role = 'TRADER';
-            merged.isKycVerified = true;
-            merged.kycStatus = 'APPROVED';
-            if (!merged.aadhaarNumber) merged.aadhaarNumber = '7845 1290 3341';
-            if (!merged.vipLevel) {
-              merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
-            }
-            await SupabaseDb.saveUser(merged);
-          } else if (merged.id === 'usr_admin_001') {
-            merged.realBalance = 0;
-            merged.demoBalance = 0;
-            merged.role = 'ADMIN';
-            await SupabaseDb.saveUser(merged);
-          } else if (merged.id === 'usr_manager_ops_01') {
-            merged.currency = 'INR';
-            merged.realBalance = 0;
-            merged.demoBalance = 0;
-            merged.role = 'MANAGER';
-            await SupabaseDb.saveUser(merged);
-          } else {
-            if (!merged.vipLevel) {
-              merged.vipLevel = AdminManager.calculateVipLevel(merged.realBalance, merged.currency);
-            }
-          }
+          // Update in-memory state with verified Supabase data
           this.users.set(merged.id, merged);
         }
+
+        // Save fresh verified Supabase state to local disk cache (DO NOT overwrite Supabase on startup!)
         this.saveLocalUsers();
         this.saveDeletedUsers();
       } else {
+        // Only if Supabase is completely empty (first time fresh deploy), seed initial accounts to Supabase
         for (const u of this.users.values()) {
           await SupabaseDb.saveUser(u);
         }
