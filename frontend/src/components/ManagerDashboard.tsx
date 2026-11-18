@@ -556,50 +556,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = () => {
     }
   };
 
-  // Handle Clear All Trade History for a User
-  const handleClearUserHistory = async () => {
-    if (!selectedUserForTrades) return;
-    if (!confirm(`Clear ALL trade history for ${selectedUserForTrades.name}? This cannot be undone.`)) return;
-    try {
-      const res = await fetch(apiUrl(`/api/manager/users/${selectedUserForTrades.id}/trades`), {
-        method: 'DELETE',
-        headers: getManagerHeaders(),
-      });
-      if (res.ok) {
-        showManagerToast(`Cleared all trade history for ${selectedUserForTrades.name}`);
-        await handleViewUserTrades(selectedUserForTrades);
-        fetchManagerData();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
-  // Direct 1-Click Delete All Trade History for a Trader
-  const handleClearTraderHistoryDirect = async (user: UserAccount) => {
-    if (!confirm(`Are you sure you want to delete ALL trade history for ${user.name} (${user.email})?\n\nThis will permanently delete all open and settled trades for this trader.`)) {
-      return;
-    }
-    try {
-      const res = await fetch(apiUrl(`/api/manager/users/${user.id}/trades`), {
-        method: 'DELETE',
-        headers: getManagerHeaders(),
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok) {
-        showManagerToast(`🗑️ Deleted all trade history for ${user.name}`);
-        if (selectedUserForTrades && selectedUserForTrades.id === user.id) {
-          await handleViewUserTrades(user);
-        }
-        fetchManagerData();
-      } else {
-        alert(data?.error || 'Failed to delete trade history');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Network error while deleting trader history');
-    }
-  };
 
   // Individual Risk Handlers
   const openIndividualRiskModal = (u: UserAccount) => {
@@ -1738,33 +1695,17 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                         </button>
                       </div>
 
-                      {/* Trade History: Direct Delete & Inspect Trades */}
-                      <div className="pt-1 space-y-1">
-                        <div className="flex items-center justify-between text-[11px] font-bold px-0.5">
-                          <span className={isLight ? 'text-slate-600' : 'text-gray-300'}>Trader Trade History</span>
-                          <span className="text-[10px] text-gray-400 font-mono">{u.totalTrades || 0} trades</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleViewUserTrades(u)}
-                            className="py-1.5 px-2 rounded-xl text-xs font-bold border border-sky-500/30 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
-                            title="Inspect individual trades and contracts"
-                          >
-                            <Activity className="w-3.5 h-3.5" />
-                            <span>Trades ({u.totalTrades || 0})</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleClearTraderHistoryDirect(u)}
-                            className="py-1.5 px-2 rounded-xl text-xs font-black border border-rose-500/40 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 transition flex items-center justify-center space-x-1.5 shadow-sm"
-                            title={`Delete all trade history for ${u.name}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                            <span>Delete History</span>
-                          </button>
-                        </div>
+                      {/* Trade History: View & Delete Particular Trades */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleViewUserTrades(u)}
+                          className="w-full py-1.5 px-3 rounded-xl text-xs font-bold border border-sky-500/30 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 transition flex items-center justify-center space-x-1.5 shadow-sm"
+                          title="View and delete particular trades for this trader"
+                        >
+                          <Activity className="w-3.5 h-3.5" />
+                          <span>View & Delete Trades ({u.totalTrades || 0})</span>
+                        </button>
                       </div>
 
                       {/* Password Reset Action (Only Admin can delete users; Managers can reset passwords) */}
@@ -1893,17 +1834,9 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                             <button
                               onClick={() => handleViewUserTrades(u)}
                               className="px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-lg text-xs font-bold transition"
-                              title="Inspect and delete individual trades"
+                              title="Inspect and delete particular trades"
                             >
                               Trades ({u.totalTrades || 0})
-                            </button>
-                            <button
-                              onClick={() => handleClearTraderHistoryDirect(u)}
-                              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-black transition inline-flex items-center space-x-1"
-                              title={`Permanently delete all trade history for ${u.name}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Delete History</span>
                             </button>
                             <button
                               onClick={() => {
@@ -2037,25 +1970,14 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                                     if (u) handleViewUserTrades(u);
                                   }}
                                   className="px-2 py-1 text-[11px] font-bold rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition"
-                                  title="Inspect trader trade history"
+                                  title="Inspect trader trades"
                                 >
                                   History
                                 </button>
                                 <button
-                                  onClick={() => {
-                                    const u = safeUsers.find((x) => x.id === t.userId);
-                                    if (u) handleClearTraderHistoryDirect(u);
-                                  }}
-                                  className="px-2 py-1 text-[11px] font-bold rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 transition inline-flex items-center space-x-1"
-                                  title={`Delete all trade history for ${t.userName || 'this trader'}`}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>Clear History</span>
-                                </button>
-                                <button
                                   onClick={() => handleDeleteTrade(t.id)}
                                   className="p-1 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
-                                  title="Delete individual trade"
+                                  title="Delete this particular trade"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -4027,13 +3949,6 @@ Issued by Forex Grow Desk Operations. Direct login supported with Login ID, Emai
                 </p>
               </div>
               <div className="flex items-center space-x-3">
-                <button
-                  onClick={handleClearUserHistory}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-black transition border border-rose-500/40 shadow-sm"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Delete All Trade History</span>
-                </button>
                 <button
                   onClick={() => { setSelectedUserForTrades(null); setUserTrades(null); }}
                   className={`p-1.5 rounded-xl transition ${

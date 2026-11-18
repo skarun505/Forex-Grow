@@ -2024,16 +2024,8 @@ app.delete('/api/manager/trades/:tradeId', (req: express.Request, res: express.R
   res.json({ success });
 });
 
-app.delete('/api/manager/users/:userId/trades', (req: express.Request, res: express.Response) => {
-  const userId = String(req.params.userId);
-  const count = settlementEngine.clearUserHistory(userId);
-  const user = adminManager.getUser(userId);
-  if (user) {
-    user.totalTrades = 0;
-    adminManager.saveLocalUsers();
-    adminManager.persistUser(user);
-  }
-  res.json({ success: true, count });
+app.delete('/api/manager/users/:userId/trades', (_req: express.Request, res: express.Response) => {
+  return res.status(403).json({ error: 'Permission denied: Only Super Admin can delete complete trader trade history. Managers can only delete individual trades.' });
 });
 
 // Market Engine Event Listeners
