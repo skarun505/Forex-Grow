@@ -14,6 +14,9 @@ import { SupabaseDb } from './db/supabase.js';
 
 const app = express();
 
+// Trust reverse proxy headers (Render, Cloudflare, AWS) so rate limiting and client IP detection work accurately
+app.set('trust proxy', 1);
+
 // ================= LAYER 1: WAF & STRICT HTTP SECURITY HEADERS =================
 app.use(securityFirewall.getHelmetMiddleware());
 

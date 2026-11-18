@@ -44,6 +44,8 @@ class SecurityFirewall {
       max: 15, // max 15 login/OTP requests per window
       standardHeaders: true,
       legacyHeaders: false,
+      validate: { xForwardedForHeader: false },
+      keyGenerator: (req) => this.getClientIp(req),
       message: {
         error: 'Too many authentication attempts from this IP address. Account temporarily protected. Please try again after 10 minutes.',
         code: 'AUTH_RATE_LIMITED',
@@ -70,6 +72,8 @@ class SecurityFirewall {
       max: 10,
       standardHeaders: true,
       legacyHeaders: false,
+      validate: { xForwardedForHeader: false },
+      keyGenerator: (req) => this.getClientIp(req),
       message: {
         error: 'Payment queue limit reached. Please wait a few moments before submitting another request.',
         code: 'PAYMENT_RATE_LIMITED',
@@ -87,6 +91,8 @@ class SecurityFirewall {
       max: 300,
       standardHeaders: true,
       legacyHeaders: false,
+      validate: { xForwardedForHeader: false },
+      keyGenerator: (req) => this.getClientIp(req),
       message: {
         error: 'High traffic detected from your network. Please slow down your requests.',
         code: 'GLOBAL_RATE_LIMITED',
