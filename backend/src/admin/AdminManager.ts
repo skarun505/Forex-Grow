@@ -314,15 +314,98 @@ export class AdminManager extends EventEmitter {
     SupabaseDb.saveTransaction(tx);
   }
 
+  public ensureSystemAccounts() {
+    let admin = this.users.get('usr_admin_001');
+    if (!admin) {
+      admin = {
+        id: 'usr_admin_001',
+        name: 'Super Admin',
+        email: 'admin@forexgrow.com',
+        phone: '+15550001111',
+        password: 'admin123',
+        role: 'ADMIN',
+        demoBalance: 0.00,
+        realBalance: 0.00,
+        activeAccountType: 'REAL',
+        currency: 'USD',
+        vipLevel: 'VIP',
+        isKycVerified: true,
+        kycStatus: 'APPROVED',
+        status: 'ACTIVE',
+        totalTrades: 0,
+        totalDepositedUSD: 0.00,
+        createdAt: 1763201736606,
+      };
+      this.users.set(admin.id, admin);
+    } else {
+      admin.role = 'ADMIN';
+      admin.password = 'admin123';
+      admin.email = 'admin@forexgrow.com';
+    }
+
+    let ops = this.users.get('usr_manager_ops_01');
+    if (!ops) {
+      ops = {
+        id: 'usr_manager_ops_01',
+        name: 'Raksha',
+        email: 'manager@forexgrow.com',
+        phone: '+15550002222',
+        password: 'manager123',
+        role: 'MANAGER',
+        demoBalance: 0.00,
+        realBalance: 0.00,
+        activeAccountType: 'REAL',
+        currency: 'INR',
+        vipLevel: 'PRO',
+        isKycVerified: true,
+        kycStatus: 'APPROVED',
+        status: 'ACTIVE',
+        totalTrades: 0,
+        totalDepositedUSD: 0,
+        createdAt: 1789553736606,
+      };
+      this.users.set(ops.id, ops);
+    } else {
+      ops.role = 'MANAGER';
+      ops.password = 'manager123';
+      ops.email = 'manager@forexgrow.com';
+    }
+
+    let alex = this.users.get('usr_quotex_vip_99');
+    if (!alex) {
+      alex = {
+        id: 'usr_quotex_vip_99',
+        name: 'Alex Rivera',
+        email: 'alex.rivera@quotex.pro',
+        phone: '+15559876543',
+        aadhaarNumber: '7845 1290 3341',
+        password: 'forexgrow123',
+        role: 'TRADER',
+        demoBalance: 700000.00,
+        realBalance: 10000.00,
+        activeAccountType: 'REAL',
+        currency: 'INR',
+        vipLevel: 'STANDARD',
+        isKycVerified: true,
+        kycStatus: 'APPROVED',
+        status: 'ACTIVE',
+        totalTrades: 34,
+        totalDepositedUSD: 105.26,
+        createdAt: Date.now() - 30 * 86400000,
+      };
+      this.users.set(alex.id, alex);
+    } else {
+      alex.role = 'TRADER';
+      alex.password = alex.password || 'forexgrow123';
+    }
+  }
+
   constructor() {
     super();
     // 1. First load local disk persisted data to guarantee zero data loss across updates/reboots
     this.loadLocalData();
-    // 2. Only seed defaults if local data is absent
-    if (this.users.size === 0) {
-      this.seedInitialData();
-      this.saveLocalUsers();
-    }
+    // 2. Ensure system infrastructure accounts (Super Admin & Manager) are ALWAYS present and valid
+    this.ensureSystemAccounts();
     // 3. Sync with Supabase (merging without resetting trader balances)
     this.initSupabaseSync();
   }
@@ -401,9 +484,9 @@ export class AdminManager extends EventEmitter {
             totalDepositedUSD: totDepUSD,
             currency: userCurrency,
             activeAccountType: u.activeAccountType || existing?.activeAccountType || 'REAL',
-            password: existing?.password || u.password || 'forexgrow123',
+            password: existing?.password || (u.id === 'usr_admin_001' ? 'admin123' : u.id === 'usr_manager_ops_01' ? 'manager123' : (u.password || 'forexgrow123')),
             phone: existing?.phone || u.phone,
-            role: existing?.role || u.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : 'TRADER'),
+            role: existing?.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : (u.role || 'TRADER')),
             aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber || (u.id === 'usr_quotex_vip_99' ? '7845 1290 3341' : undefined),
             kycStatus: existing?.kycStatus || u.kycStatus || 'APPROVED',
             savedBankDetails: sbBank || existing?.savedBankDetails || u.savedBankDetails,
@@ -411,7 +494,15 @@ export class AdminManager extends EventEmitter {
             vipLevel: AdminManager.calculateVipLevel(realBal, userCurrency),
           };
 
-          if (merged.id === 'usr_admin_001' || merged.id === 'usr_manager_ops_01') {
+          if (merged.id === 'usr_admin_001') {
+            merged.role = 'ADMIN';
+            merged.password = 'admin123';
+            merged.realBalance = 0;
+            merged.demoBalance = 0;
+          }
+          if (merged.id === 'usr_manager_ops_01') {
+            merged.role = 'MANAGER';
+            merged.password = 'manager123';
             merged.realBalance = 0;
             merged.demoBalance = 0;
           }
@@ -419,6 +510,9 @@ export class AdminManager extends EventEmitter {
           // Update in-memory state with verified Supabase data
           this.users.set(merged.id, merged);
         }
+
+        // Always guarantee core administrative accounts exist in memory and local storage
+        this.ensureSystemAccounts();
 
         // Save fresh verified Supabase state to local disk cache (DO NOT overwrite Supabase on startup!)
         this.saveLocalUsers();

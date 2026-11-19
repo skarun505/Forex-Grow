@@ -1,5 +1,24 @@
 [
   {
+    "id": "usr_admin_001",
+    "name": "Super Admin",
+    "email": "admin@forexgrow.com",
+    "phone": "+15550001111",
+    "password": "admin123",
+    "role": "ADMIN",
+    "demoBalance": 0,
+    "realBalance": 0,
+    "activeAccountType": "REAL",
+    "currency": "USD",
+    "vipLevel": "VIP",
+    "isKycVerified": true,
+    "kycStatus": "APPROVED",
+    "status": "ACTIVE",
+    "totalTrades": 0,
+    "totalDepositedUSD": 0,
+    "createdAt": 1763201736606
+  },
+  {
     "id": "usr_f7911d53",
     "name": "Vignesh",
     "email": "0001growmore@gmail.com",
