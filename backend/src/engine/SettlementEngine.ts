@@ -41,14 +41,13 @@ export class SettlementEngine extends EventEmitter {
 
     // Listen to admin balance adjustments and sync to trading engine
     this.adminManager.on('user_updated', (updatedUser: UserAccount) => {
-      if (updatedUser.id === this.currentUserId) {
-        this.emit('balance_updated', {
-          demoBalance: updatedUser.demoBalance,
-          realBalance: updatedUser.realBalance,
-          activeAccountType: updatedUser.activeAccountType,
-          currency: updatedUser.currency,
-        });
-      }
+      this.emit('balance_updated', {
+        userId: updatedUser.id,
+        demoBalance: updatedUser.demoBalance,
+        realBalance: updatedUser.realBalance,
+        activeAccountType: updatedUser.activeAccountType,
+        currency: updatedUser.currency,
+      });
     });
   }
 
@@ -126,19 +125,14 @@ export class SettlementEngine extends EventEmitter {
     const user = this.adminManager.getUser(userId);
     if (user) {
       this.currentUserId = userId;
-      this.emit('balance_updated', {
-        demoBalance: user.demoBalance,
-        realBalance: user.realBalance,
-        activeAccountType: user.activeAccountType,
-        currency: user.currency,
-      });
       return { ...user };
     }
     return null;
   }
 
-  public getAccount(): UserAccount {
-    const user = this.currentUserId ? this.adminManager.getUser(this.currentUserId) : null;
+  public getAccount(userId?: string): UserAccount {
+    const targetId = userId || this.currentUserId;
+    const user = targetId ? this.adminManager.getUser(targetId) : null;
     if (user) return { ...user };
     return {
       id: '',
@@ -160,39 +154,44 @@ export class SettlementEngine extends EventEmitter {
     return [...this.leaderboard];
   }
 
-  public switchAccountType(type: 'DEMO' | 'REAL'): UserAccount {
-    const user = this.adminManager.getUser(this.currentUserId);
+  public switchAccountType(type: 'DEMO' | 'REAL', userId?: string): UserAccount {
+    const targetId = userId || this.currentUserId;
+    const user = this.adminManager.getUser(targetId);
     if (user) {
       user.activeAccountType = type;
+      this.adminManager.persistUser(user);
       return { ...user };
     }
-    return this.getAccount();
+    return this.getAccount(targetId);
   }
 
-  public switchCurrency(currency: CurrencyCode): UserAccount {
-    const user = this.adminManager.getUser(this.currentUserId);
+  public switchCurrency(currency: CurrencyCode, userId?: string): UserAccount {
+    const targetId = userId || this.currentUserId;
+    const user = this.adminManager.getUser(targetId);
     if (user) {
       user.currency = currency;
       this.adminManager.persistUser(user);
       return { ...user };
     }
-    return this.getAccount();
+    return this.getAccount(targetId);
   }
 
-  public resetDemoBalance(): UserAccount {
-    const user = this.adminManager.getUser(this.currentUserId);
+  public resetDemoBalance(userId?: string): UserAccount {
+    const targetId = userId || this.currentUserId;
+    const user = this.adminManager.getUser(targetId);
     if (user) {
       user.demoBalance = 700000.00;
       this.adminManager.persistUser(user);
       return { ...user };
     }
-    return this.getAccount();
+    return this.getAccount(targetId);
   }
 
-  public depositFunds(amount: number, promoCode?: string): { success: boolean; newBalance: number; message: string } {
-    if (amount <= 0) return { success: false, newBalance: this.getAccount().realBalance, message: 'Invalid deposit amount' };
+  public depositFunds(amount: number, promoCode?: string, userId?: string): { success: boolean; newBalance: number; message: string } {
+    if (amount <= 0) return { success: false, newBalance: this.getAccount(userId).realBalance, message: 'Invalid deposit amount' };
 
-    const user = this.adminManager.getUser(this.currentUserId);
+    const targetId = userId || this.currentUserId;
+    const user = this.adminManager.getUser(targetId);
     if (!user) return { success: false, newBalance: 0, message: 'User not found' };
 
     let totalCredited = amount;
@@ -229,8 +228,9 @@ export class SettlementEngine extends EventEmitter {
     };
   }
 
-  public withdrawFunds(amount: number, address: string): { success: boolean; newBalance: number; message: string } {
-    const user = this.adminManager.getUser(this.currentUserId);
+  public withdrawFunds(amount: number, address: string, userId?: string): { success: boolean; newBalance: number; message: string } {
+    const targetId = userId || this.currentUserId;
+    const user = this.adminManager.getUser(targetId);
     if (!user) return { success: false, newBalance: 0, message: 'User not found' };
 
     if (amount <= 0) return { success: false, newBalance: user.realBalance, message: 'Invalid withdrawal amount' };
@@ -259,25 +259,33 @@ export class SettlementEngine extends EventEmitter {
     };
   }
 
-  public getActiveTrades(accountType?: 'DEMO' | 'REAL'): Trade[] {
+  public getActiveTrades(accountType?: 'DEMO' | 'REAL', userId?: string): Trade[] {
     const all = Array.from(this.activeTrades.values());
-    if (!accountType) return all;
-    return all.filter((t) => t.accountType === accountType);
+    return all.filter((t) => {
+      if (userId && t.userId && t.userId !== userId) return false;
+      if (accountType && t.accountType !== accountType) return false;
+      return true;
+    });
   }
 
-  public getTradeHistory(accountType?: 'DEMO' | 'REAL'): Trade[] {
-    if (!accountType) return [...this.tradeHistory];
-    return this.tradeHistory.filter((t) => t.accountType === accountType);
+  public getTradeHistory(accountType?: 'DEMO' | 'REAL', userId?: string): Trade[] {
+    return this.tradeHistory.filter((t) => {
+      if (userId && t.userId && t.userId !== userId) return false;
+      if (accountType && t.accountType !== accountType) return false;
+      return true;
+    });
   }
 
   public placeTrade(params: {
+    userId?: string;
     assetId: string;
     direction: OrderDirection;
     amount: number;
     duration: number;
   }): { trade: Trade; newBalance: number } | { error: string } {
-    const user = this.adminManager.getUser(this.currentUserId);
-    if (!user) return { error: 'User not found' };
+    const targetUserId = params.userId || this.currentUserId;
+    const user = this.adminManager.getUser(targetUserId);
+    if (!user) return { error: 'Trader account not found. Please log in.' };
 
     if (user.status === 'FROZEN') {
       return { error: 'Account is temporarily suspended. Please contact Admin.' };
@@ -557,7 +565,7 @@ export class SettlementEngine extends EventEmitter {
         ? user.demoBalance
         : user.realBalance;
 
-    this.emit('trade_settled', { trade, newBalance: currentBalance });
+    this.emit('trade_settled', { trade, newBalance: currentBalance, userId: user.id });
   }
 
   public getTradesForUser(userId: string): { activeTrades: Trade[]; tradeHistory: Trade[] } {
@@ -570,7 +578,7 @@ export class SettlementEngine extends EventEmitter {
     const histIndex = this.tradeHistory.findIndex(t => t.id === tradeId);
     if (histIndex !== -1) {
       const deleted = this.tradeHistory.splice(histIndex, 1)[0];
-      this.emit('trade_deleted', { tradeId, userId: deleted.userId || this.currentUserId });
+      this.emit('trade_deleted', { tradeId, userId: deleted.userId });
       SupabaseDb.deleteTrade(tradeId);
       return true;
     }
@@ -578,7 +586,7 @@ export class SettlementEngine extends EventEmitter {
     if (this.activeTrades.has(tradeId)) {
       const deleted = this.activeTrades.get(tradeId);
       this.activeTrades.delete(tradeId);
-      this.emit('trade_deleted', { tradeId, userId: deleted?.userId || this.currentUserId });
+      this.emit('trade_deleted', { tradeId, userId: deleted?.userId });
       SupabaseDb.deleteTrade(tradeId);
       return true;
     }

@@ -65,6 +65,24 @@ function sendToClient(ws: WebSocket, action: WSServerAction) {
   }
 }
 
+function sendToUser(userId: string, action: WSServerAction) {
+  const serialized = JSON.stringify(action);
+  for (const session of clients.values()) {
+    if (session.userId === userId && session.ws.readyState === WebSocket.OPEN) {
+      session.ws.send(serialized);
+    }
+  }
+}
+
+function sendToStaff(action: WSServerAction) {
+  const serialized = JSON.stringify(action);
+  for (const session of clients.values()) {
+    if (session.userId && (session.userId === 'usr_admin_001' || session.userId === 'usr_manager_ops_01') && session.ws.readyState === WebSocket.OPEN) {
+      session.ws.send(serialized);
+    }
+  }
+}
+
 // ================= PUBLIC USER ENDPOINTS =================
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: Date.now() });
@@ -679,15 +697,6 @@ app.post('/api/auth/login', securityFirewall.getAuthRateLimiter(), (req, res) =>
     targetUserId: found.id,
   });
 
-  settlementEngine.setCurrentUserId(found.id);
-  broadcast({
-    type: 'BALANCE_UPDATE',
-    demoBalance: found.demoBalance,
-    realBalance: found.realBalance,
-    activeAccountType: found.activeAccountType,
-    currency: found.currency,
-  });
-
   const safeUser = { ...found };
   delete safeUser.password;
 
@@ -860,8 +869,9 @@ app.post('/api/payment/withdraw-request', securityFirewall.getCashierRateLimiter
     status: 'PENDING',
   });
 
-  broadcast({
+  sendToUser(user.id, {
     type: 'BALANCE_UPDATE',
+    userId: user.id,
     demoBalance: user.demoBalance,
     realBalance: user.realBalance,
     activeAccountType: user.activeAccountType,
@@ -934,8 +944,9 @@ app.post('/api/payment/novupay/webhook', (req, res) => {
   });
 
   // Real-time terminal broadcast
-  broadcast({
+  sendToUser(user.id, {
     type: 'BALANCE_UPDATE',
+    userId: user.id,
     demoBalance: user.demoBalance,
     realBalance: user.realBalance,
     activeAccountType: user.activeAccountType,
@@ -984,8 +995,9 @@ app.post('/api/payment/novupay/payout', (req, res) => {
     status: 'PENDING',
   });
 
-  broadcast({
+  sendToUser(user.id, {
     type: 'BALANCE_UPDATE',
+    userId: user.id,
     demoBalance: user.demoBalance,
     realBalance: user.realBalance,
     activeAccountType: user.activeAccountType,
@@ -1257,8 +1269,9 @@ app.post('/api/admin/users/:userId/adjust-balance', (req, res) => {
 
   // Notify client over WebSocket of updated balance & currency
   if (result.user) {
-    broadcast({
+    sendToUser(result.user.id, {
       type: 'BALANCE_UPDATE',
+      userId: result.user.id,
       demoBalance: result.user.demoBalance,
       realBalance: result.user.realBalance,
       activeAccountType: result.user.activeAccountType,
@@ -1286,7 +1299,7 @@ app.post('/api/admin/users/:userId/update', (req, res) => {
   }
 
   const u = result.user!;
-  broadcast({
+  sendToUser(u.id, {
     type: 'BALANCE_UPDATE',
     userId: u.id,
     demoBalance: u.demoBalance,
@@ -1346,7 +1359,7 @@ app.post('/api/admin/users/:userId/set-balances', (req, res) => {
     `Directly set funds: Real ${user.currency} ${prevReal} -> ${user.realBalance}, Demo ${user.currency} ${prevDemo} -> ${user.demoBalance}`
   );
 
-  broadcast({
+  sendToUser(user.id, {
     type: 'BALANCE_UPDATE',
     userId: user.id,
     demoBalance: user.demoBalance,
@@ -1403,7 +1416,7 @@ app.post('/api/manager/users/:userId/set-balances', (req, res) => {
     `Manager directly set funds: Real ${user.currency} ${prevReal} -> ${user.realBalance}, Demo ${user.currency} ${prevDemo} -> ${user.demoBalance}`
   );
 
-  broadcast({
+  sendToUser(user.id, {
     type: 'BALANCE_UPDATE',
     userId: user.id,
     demoBalance: user.demoBalance,
@@ -1433,8 +1446,7 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
   const tx = result.transaction!;
   const user = adminManager.getUser(tx.userId);
   if (user) {
-    settlementEngine.setCurrentUserId(user.id);
-    broadcast({
+    sendToUser(user.id, {
       type: 'BALANCE_UPDATE',
       userId: user.id,
       demoBalance: user.demoBalance,
@@ -1448,7 +1460,7 @@ app.post('/api/admin/transactions/:id/approve', (req, res) => {
       ? `Deposit of ${tx.currency} ${tx.amount.toLocaleString()} has been approved and credited to your live account!`
       : `Withdrawal of ${tx.currency} ${tx.amount.toLocaleString()} has been approved and processed!`;
 
-    broadcast({
+    sendToUser(user.id, {
       type: 'TRANSACTION_SUCCESS',
       userId: user.id,
       message,
@@ -1928,8 +1940,7 @@ app.post('/api/manager/transactions/:id/approve', (req: express.Request, res: ex
 
   const user = adminManager.getUser(result.transaction!.userId);
   if (user) {
-    settlementEngine.setCurrentUserId(user.id);
-    broadcast({
+    sendToUser(user.id, {
       type: 'BALANCE_UPDATE',
       userId: user.id,
       demoBalance: user.demoBalance,
@@ -1937,7 +1948,7 @@ app.post('/api/manager/transactions/:id/approve', (req: express.Request, res: ex
       activeAccountType: user.activeAccountType,
       currency: user.currency,
     });
-    broadcast({
+    sendToUser(user.id, {
       type: 'TRANSACTION_SUCCESS',
       userId: user.id,
       message: `${result.transaction!.type === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'} of ${user.currency} ${(result.transaction!.amount * (user.currency === 'INR' ? 95 : 1)).toFixed(2)} has been approved and processed!`,
@@ -2169,26 +2180,39 @@ marketEngine.on('payouts_epoch_updated', (assets) => {
 });
 
 // Settlement Event Listener
-settlementEngine.on('trade_settled', ({ trade, newBalance }) => {
-  broadcast({ type: 'TRADE_SETTLED', trade, newBalance });
+settlementEngine.on('trade_settled', ({ trade, newBalance, userId }) => {
+  const targetId = userId || trade.userId;
+  if (targetId) {
+    sendToUser(targetId, { type: 'TRADE_SETTLED', trade, newBalance });
+  }
+  sendToStaff({ type: 'TRADE_SETTLED', trade, newBalance });
 });
 
 settlementEngine.on('trade_deleted', ({ tradeId, userId }) => {
-  broadcast({ type: 'TRADE_DELETED', tradeId, userId });
+  if (userId) {
+    sendToUser(userId, { type: 'TRADE_DELETED', tradeId, userId });
+  }
+  sendToStaff({ type: 'TRADE_DELETED', tradeId, userId });
 });
 
 settlementEngine.on('user_history_cleared', ({ userId }) => {
-  broadcast({ type: 'USER_HISTORY_CLEARED', userId });
+  if (userId) {
+    sendToUser(userId, { type: 'USER_HISTORY_CLEARED', userId });
+  }
+  sendToStaff({ type: 'USER_HISTORY_CLEARED', userId });
 });
 
 settlementEngine.on('balance_updated', (data) => {
-  broadcast({
-    type: 'BALANCE_UPDATE',
-    demoBalance: data.demoBalance,
-    realBalance: data.realBalance,
-    activeAccountType: data.activeAccountType,
-    currency: data.currency,
-  });
+  if (data.userId) {
+    sendToUser(data.userId, {
+      type: 'BALANCE_UPDATE',
+      userId: data.userId,
+      demoBalance: data.demoBalance,
+      realBalance: data.realBalance,
+      activeAccountType: data.activeAccountType,
+      currency: data.currency,
+    });
+  }
 });
 
 settlementEngine.on('leaderboard_updated', (leaderboard) => {
@@ -2216,22 +2240,45 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
   };
   clients.set(ws, session);
 
-  const account = (session.userId && adminManager.getUser(session.userId))
-    ? adminManager.getUser(session.userId)!
-    : settlementEngine.getAccount();
+  const authUserId = session.userId && adminManager.getUser(session.userId) ? session.userId : undefined;
+  const userAccount = authUserId ? adminManager.getUser(authUserId)! : undefined;
   const assets = marketEngine.getAssets();
-  const activeTrades = settlementEngine.getActiveTrades();
-  const tradeHistory = settlementEngine.getTradeHistory();
+  const activeTrades = authUserId ? settlementEngine.getActiveTrades(undefined, authUserId) : [];
+  const tradeHistory = authUserId ? settlementEngine.getTradeHistory(undefined, authUserId) : [];
   const leaderboard = settlementEngine.getLeaderboard();
 
-  sendToClient(ws, {
-    type: 'INIT_STATE',
-    account,
-    assets,
-    activeTrades,
-    tradeHistory,
-    leaderboard,
-  });
+  if (userAccount) {
+    sendToClient(ws, {
+      type: 'INIT_STATE',
+      account: userAccount,
+      assets,
+      activeTrades,
+      tradeHistory,
+      leaderboard,
+    });
+  } else {
+    sendToClient(ws, {
+      type: 'INIT_STATE',
+      account: {
+        id: '',
+        name: 'Guest Trader',
+        email: '',
+        demoBalance: 700000,
+        realBalance: 0,
+        activeAccountType: 'DEMO',
+        currency: 'INR',
+        vipLevel: 'STANDARD',
+        isKycVerified: false,
+        status: 'ACTIVE',
+        totalTrades: 0,
+        totalDepositedUSD: 0,
+      },
+      assets,
+      activeTrades: [],
+      tradeHistory: [],
+      leaderboard,
+    });
+  }
 
   const history = marketEngine.getCandles(defaultAsset, session.timeframe);
   sendToClient(ws, {
@@ -2253,7 +2300,21 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
       switch (action.type) {
         case 'CLIENT_AUTH': {
           if (action.token) session.sessionToken = action.token;
-          if (action.userId) session.userId = action.userId;
+          if (action.userId) {
+            session.userId = action.userId;
+            const user = adminManager.getUser(action.userId);
+            if (user) {
+              const { activeTrades, tradeHistory } = settlementEngine.getTradesForUser(action.userId);
+              sendToClient(ws, {
+                type: 'INIT_STATE',
+                account: user,
+                assets: marketEngine.getAssets(),
+                activeTrades,
+                tradeHistory,
+                leaderboard: settlementEngine.getLeaderboard(),
+              });
+            }
+          }
           break;
         }
         case 'SUBSCRIBE_ASSET': {
@@ -2306,7 +2367,14 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
             break;
           }
 
+          const targetUserId = session.userId || (action as any).userId;
+          if (!targetUserId) {
+            sendToClient(ws, { type: 'ERROR', message: 'Authentication required. Please sign in to trade.' });
+            break;
+          }
+
           const result = settlementEngine.placeTrade({
+            userId: targetUserId,
             assetId: action.assetId,
             direction: action.direction,
             amount: validated.amount,
@@ -2316,7 +2384,12 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
           if ('error' in result) {
             sendToClient(ws, { type: 'ERROR', message: result.error });
           } else {
-            sendToClient(ws, {
+            sendToUser(targetUserId, {
+              type: 'TRADE_OPENED',
+              trade: result.trade,
+              newBalance: result.newBalance,
+            });
+            sendToStaff({
               type: 'TRADE_OPENED',
               trade: result.trade,
               newBalance: result.newBalance,
@@ -2326,44 +2399,57 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'SWITCH_ACCOUNT': {
-          const updated = settlementEngine.switchAccountType(action.accountType);
-          sendToClient(ws, {
-            type: 'BALANCE_UPDATE',
-            demoBalance: updated.demoBalance,
-            realBalance: updated.realBalance,
-            activeAccountType: updated.activeAccountType,
-            currency: updated.currency,
-          });
+          const targetUserId = session.userId || (action as any).userId;
+          if (targetUserId) {
+            const updated = settlementEngine.switchAccountType(action.accountType, targetUserId);
+            sendToUser(targetUserId, {
+              type: 'BALANCE_UPDATE',
+              userId: targetUserId,
+              demoBalance: updated.demoBalance,
+              realBalance: updated.realBalance,
+              activeAccountType: updated.activeAccountType,
+              currency: updated.currency,
+            });
+          }
           break;
         }
 
         case 'SWITCH_CURRENCY': {
-          const updated = settlementEngine.switchCurrency(action.currency);
-          sendToClient(ws, {
-            type: 'BALANCE_UPDATE',
-            demoBalance: updated.demoBalance,
-            realBalance: updated.realBalance,
-            activeAccountType: updated.activeAccountType,
-            currency: updated.currency,
-          });
+          const targetUserId = session.userId || (action as any).userId;
+          if (targetUserId) {
+            const updated = settlementEngine.switchCurrency(action.currency, targetUserId);
+            sendToUser(targetUserId, {
+              type: 'BALANCE_UPDATE',
+              userId: targetUserId,
+              demoBalance: updated.demoBalance,
+              realBalance: updated.realBalance,
+              activeAccountType: updated.activeAccountType,
+              currency: updated.currency,
+            });
+          }
           break;
         }
 
         case 'RESET_DEMO_BALANCE': {
-          const updated = settlementEngine.resetDemoBalance();
-          sendToClient(ws, {
-            type: 'BALANCE_UPDATE',
-            demoBalance: updated.demoBalance,
-            realBalance: updated.realBalance,
-            activeAccountType: updated.activeAccountType,
-            currency: updated.currency,
-          });
+          const targetUserId = session.userId || (action as any).userId;
+          if (targetUserId) {
+            const updated = settlementEngine.resetDemoBalance(targetUserId);
+            sendToUser(targetUserId, {
+              type: 'BALANCE_UPDATE',
+              userId: targetUserId,
+              demoBalance: updated.demoBalance,
+              realBalance: updated.realBalance,
+              activeAccountType: updated.activeAccountType,
+              currency: updated.currency,
+            });
+          }
           break;
         }
 
         case 'DEPOSIT_FUNDS': {
-          const res = settlementEngine.depositFunds(action.amount, action.promoCode);
-          const acc = settlementEngine.getAccount();
+          const targetUserId = session.userId || (action as any).userId;
+          const res = settlementEngine.depositFunds(action.amount, action.promoCode, targetUserId);
+          const acc = settlementEngine.getAccount(targetUserId);
           sendToClient(ws, {
             type: 'TRANSACTION_SUCCESS',
             message: res.message,
@@ -2374,8 +2460,9 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'WITHDRAW_FUNDS': {
-          const res = settlementEngine.withdrawFunds(action.amount, action.address);
-          const acc = settlementEngine.getAccount();
+          const targetUserId = session.userId || (action as any).userId;
+          const res = settlementEngine.withdrawFunds(action.amount, action.address, targetUserId);
+          const acc = settlementEngine.getAccount(targetUserId);
           if (res.success) {
             sendToClient(ws, {
               type: 'TRANSACTION_SUCCESS',
@@ -2391,7 +2478,8 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
 
         case 'SYNC_USER': {
           if (action.userId) {
-            const user = settlementEngine.setCurrentUserId(action.userId);
+            session.userId = action.userId;
+            const user = adminManager.getUser(action.userId);
             if (user) {
               const { activeTrades, tradeHistory } = settlementEngine.getTradesForUser(action.userId);
               sendToClient(ws, {

@@ -145,9 +145,10 @@ export const App: React.FC = () => {
   // Independent session storage per portal slug so all roles work in the same tab without collision
   const [traderUser, setTraderUser] = useState<any>(() => {
     try {
-      const saved = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
-      const parsed = saved ? JSON.parse(saved) : null;
-      return parsed && parsed.role === 'TRADER' ? parsed : (parsed?.role ? null : parsed);
+      const saved = localStorage.getItem('quotex_trader_user');
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      return parsed && parsed.role === 'TRADER' ? parsed : null;
     } catch {
       return null;
     }
@@ -175,9 +176,9 @@ export const App: React.FC = () => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
       try {
-        const savedTrader = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+        const savedTrader = localStorage.getItem('quotex_trader_user');
         const parsedTrader = savedTrader ? JSON.parse(savedTrader) : null;
-        setTraderUser(parsedTrader && parsedTrader.role === 'TRADER' ? parsedTrader : (parsedTrader?.role ? null : parsedTrader));
+        setTraderUser(parsedTrader && parsedTrader.role === 'TRADER' ? parsedTrader : null);
       } catch {
         setTraderUser(null);
       }

@@ -368,9 +368,26 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
               // Only sync state if account is valid
               if (action.account && action.account.id) {
+                let savedTraderId = '';
+                try {
+                  const s = localStorage.getItem('quotex_trader_user');
+                  if (s) {
+                    const parsed = JSON.parse(s);
+                    savedTraderId = parsed?.id || '';
+                  }
+                } catch {}
+
+                // If currently authenticated as a trader, discard mismatched or staff accounts on trading floor
+                if (savedTraderId && action.account.id !== savedTraderId) {
+                  break;
+                }
+                if (action.account.role && action.account.role !== 'TRADER') {
+                  break;
+                }
+
                 setAccount(mergedAccount);
                 try {
-                  const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+                  const savedUserRaw = localStorage.getItem('quotex_trader_user');
                   if (savedUserRaw) {
                     const saved = JSON.parse(savedUserRaw);
                     if (saved && saved.id === action.account.id) {
@@ -459,6 +476,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'TRADE_OPENED':
+              if (action.trade?.userId && accountRef.current.id && action.trade.userId !== accountRef.current.id) {
+                break;
+              }
               if (!isMutedRef.current) sounds.playTradePlaced();
               setActiveTrades((prev) => [action.trade, ...(Array.isArray(prev) ? prev : [])]);
               setAccount((prev) => ({
@@ -470,6 +490,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
               break;
 
             case 'TRADE_SETTLED':
+              if (action.trade?.userId && accountRef.current.id && action.trade.userId !== accountRef.current.id) {
+                break;
+              }
               setActiveTrades((prev) => (Array.isArray(prev) ? prev.filter((t) => t.id !== action.trade.id) : []));
               setTradeHistory((prev) => [action.trade, ...(Array.isArray(prev) ? prev : [])]);
               setAccount((prev) => ({
