@@ -461,45 +461,6 @@ export class AdminManager extends EventEmitter {
         console.log(`[AdminManager] Synced platform trade volume from Supabase: $${this.totalVolumeUSD}`);
       }
 
-      // 6. Ensure real client accounts with real deposits have their approved deposit transaction in DB
-      let hasNewDepositTx = false;
-      for (const u of this.users.values()) {
-        if (u.role !== 'TRADER' || u.id === 'usr_quotex_vip_99') continue;
-        const depositAmt = (u.totalDepositedUSD && u.totalDepositedUSD > 0)
-          ? u.totalDepositedUSD
-          : (u.realBalance && u.realBalance > 0 ? u.realBalance : 0);
-
-        if (depositAmt > 0) {
-          const hasTx = this.transactions.some(
-            (t) => t.userId === u.id && t.type === 'DEPOSIT' && t.status === 'APPROVED'
-          );
-          if (!hasTx) {
-            const isUsd = u.currency === 'USD';
-            const amtInCurrency = isUsd ? (depositAmt > 500 ? depositAmt / 95 : depositAmt) : depositAmt;
-            const amtInUSD = isUsd ? amtInCurrency : amtInCurrency / 95;
-            const newTx: Transaction = {
-              id: `tx_dep_${u.id.replace('usr_', '')}`,
-              userId: u.id,
-              userName: u.name,
-              type: 'DEPOSIT',
-              amount: Number(amtInCurrency.toFixed(2)),
-              amountUSD: Number(amtInUSD.toFixed(2)),
-              currency: u.currency || 'INR',
-              method: 'IMPS/Bank Transfer',
-              status: 'APPROVED',
-              utrNumber: 'INITIAL_CLIENT_DEPOSIT',
-              timestamp: u.createdAt || (Date.now() - 86400000 * 3),
-            };
-            this.transactions.unshift(newTx);
-            SupabaseDb.saveTransaction(newTx).catch(() => {});
-            hasNewDepositTx = true;
-          }
-        }
-      }
-      if (hasNewDepositTx) {
-        this.saveLocalTransactions();
-      }
-
       const dbCoupons = await SupabaseDb.loadCoupons();
       if (dbCoupons.length > 0) {
         const seededMap = new Map(this.coupons.map((c) => [c.code, c]));
@@ -742,19 +703,6 @@ export class AdminManager extends EventEmitter {
       }
     }
 
-    // If no transactions have been registered yet, use trader cumulative deposits as initial baseline
-    const hasDepositTxns = this.transactions.some(t => t.type === 'DEPOSIT' && t.status === 'APPROVED' && t.userId !== 'usr_quotex_vip_99');
-    if (!hasDepositTxns) {
-      let traderCumulativeDepositsUSD = 0;
-      for (const u of realTraders) {
-        const depUSD = (u.totalDepositedUSD && u.totalDepositedUSD > 0)
-          ? (u.currency === 'USD' ? u.totalDepositedUSD : (u.totalDepositedUSD > 500 ? u.totalDepositedUSD / 95 : u.totalDepositedUSD))
-          : 0;
-        traderCumulativeDepositsUSD += depUSD;
-      }
-      totalDepositsUSD = traderCumulativeDepositsUSD;
-    }
-
     const houseNetProfitUSD = Number((totalDepositsUSD - totalWithdrawalsUSD).toFixed(2));
 
     return {
@@ -766,6 +714,12 @@ export class AdminManager extends EventEmitter {
       houseNetProfitUSD,
       pendingTransactionsCount,
     };
+  }
+
+  public setTotalVolume(amountUSD: number) {
+    this.totalVolumeUSD = Number(amountUSD.toFixed(2));
+    this.saveLocalMetrics();
+    SupabaseDb.savePlatformMetrics({ totalVolumeUSD: this.totalVolumeUSD }).catch(() => {});
   }
 
   public recordTradeVolume(amountUSD: number) {
@@ -1392,6 +1346,7 @@ export class AdminManager extends EventEmitter {
     for (const tx of depTxs) {
       SupabaseDb.deleteTransaction(tx.id).catch(() => {});
     }
+    SupabaseDb.deleteUserDeposits(userId).catch(() => {});
 
     const prevDeposited = user.totalDepositedUSD || 0;
     user.totalDepositedUSD = 0;
@@ -1523,19 +1478,6 @@ export class AdminManager extends EventEmitter {
     );
     const totalActiveUsers = realTraders.filter((u) => u.status === 'ACTIVE').length;
     const verifiedUsersCount = realTraders.filter((u) => u.isKycVerified).length;
-
-    // Fallback sync with client deposited funds so Approved Deposits never drops to 0
-    let traderCumulativeDepositsUSD = 0;
-    for (const u of realTraders) {
-      const depUSD = (u.totalDepositedUSD && u.totalDepositedUSD > 0)
-        ? (u.currency === 'USD' ? u.totalDepositedUSD : (u.totalDepositedUSD > 500 ? u.totalDepositedUSD / 95 : u.totalDepositedUSD))
-        : (u.realBalance && u.realBalance > 0 ? (u.currency === 'USD' ? u.realBalance : u.realBalance / 95) : 0);
-      traderCumulativeDepositsUSD += depUSD;
-    }
-
-    if (totalApprovedDepositsUSD < traderCumulativeDepositsUSD) {
-      totalApprovedDepositsUSD = traderCumulativeDepositsUSD;
-    }
 
     return {
       pendingDeposits,

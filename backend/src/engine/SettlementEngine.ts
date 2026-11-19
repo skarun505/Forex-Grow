@@ -69,8 +69,8 @@ export class SettlementEngine extends EventEmitter {
             historicalVolumeUSD += volUSD;
           }
         }
-        if (historicalVolumeUSD > 0) {
-          this.adminManager.recordTradeVolume(historicalVolumeUSD);
+        if (historicalVolumeUSD > 0 && this.adminManager.getOverview().totalVolumeUSD < historicalVolumeUSD) {
+          this.adminManager.setTotalVolume(historicalVolumeUSD);
           console.log(`[SettlementEngine] Synced historical real client trade volume: $${historicalVolumeUSD.toFixed(2)} USD (~₹${(historicalVolumeUSD * 95).toLocaleString()})`);
         }
         this.tradeHistory.sort((a, b) => (b.openTime || 0) - (a.openTime || 0));
@@ -173,7 +173,7 @@ export class SettlementEngine extends EventEmitter {
     const user = this.adminManager.getUser(this.currentUserId);
     if (user) {
       user.currency = currency;
-      SupabaseDb.saveUser(user);
+      this.adminManager.persistUser(user);
       return { ...user };
     }
     return this.getAccount();
@@ -183,7 +183,7 @@ export class SettlementEngine extends EventEmitter {
     const user = this.adminManager.getUser(this.currentUserId);
     if (user) {
       user.demoBalance = 700000.00;
-      SupabaseDb.saveUser(user);
+      this.adminManager.persistUser(user);
       return { ...user };
     }
     return this.getAccount();
@@ -208,6 +208,7 @@ export class SettlementEngine extends EventEmitter {
 
     user.realBalance = Number((user.realBalance + totalCredited).toFixed(2));
     user.totalDepositedUSD = Number((user.totalDepositedUSD + amount).toFixed(2));
+    this.adminManager.persistUser(user);
 
     // Record in Admin transactions
     this.adminManager.addTransaction({
@@ -237,6 +238,7 @@ export class SettlementEngine extends EventEmitter {
     if (!address || address.length < 6) return { success: false, newBalance: user.realBalance, message: 'Invalid payout wallet address' };
 
     user.realBalance = Number((user.realBalance - amount).toFixed(2));
+    this.adminManager.persistUser(user);
 
     // Record as PENDING transaction for Admin to approve / release
     this.adminManager.addTransaction({
