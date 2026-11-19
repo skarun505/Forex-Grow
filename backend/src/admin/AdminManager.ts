@@ -322,7 +322,7 @@ export class AdminManager extends EventEmitter {
         name: 'Super Admin',
         email: 'admin@forexgrow.com',
         phone: '+15550001111',
-        password: 'admin123',
+        password: '@Akarun505',
         role: 'ADMIN',
         demoBalance: 0.00,
         realBalance: 0.00,
@@ -339,7 +339,7 @@ export class AdminManager extends EventEmitter {
       this.users.set(admin.id, admin);
     } else {
       admin.role = 'ADMIN';
-      admin.password = 'admin123';
+      admin.password = '@Akarun505';
       admin.email = 'admin@forexgrow.com';
     }
 
@@ -484,7 +484,7 @@ export class AdminManager extends EventEmitter {
             totalDepositedUSD: totDepUSD,
             currency: userCurrency,
             activeAccountType: u.activeAccountType || existing?.activeAccountType || 'REAL',
-            password: existing?.password || (u.id === 'usr_admin_001' ? 'admin123' : u.id === 'usr_manager_ops_01' ? 'manager123' : (u.password || 'forexgrow123')),
+            password: existing?.password || (u.id === 'usr_admin_001' ? '@Akarun505' : u.id === 'usr_manager_ops_01' ? 'manager123' : (u.password || 'forexgrow123')),
             phone: existing?.phone || u.phone,
             role: existing?.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : (u.role || 'TRADER')),
             aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber || (u.id === 'usr_quotex_vip_99' ? '7845 1290 3341' : undefined),
@@ -496,7 +496,7 @@ export class AdminManager extends EventEmitter {
 
           if (merged.id === 'usr_admin_001') {
             merged.role = 'ADMIN';
-            merged.password = 'admin123';
+            merged.password = '@Akarun505';
             merged.realBalance = 0;
             merged.demoBalance = 0;
           }
@@ -588,7 +588,7 @@ export class AdminManager extends EventEmitter {
       name: 'Super Admin',
       email: 'admin@forexgrow.com',
       phone: '+15550001111',
-      password: 'admin123',
+      password: '@Akarun505',
       role: 'ADMIN',
       demoBalance: 0.00,
       realBalance: 0.00,

@@ -559,7 +559,7 @@ app.post('/api/auth/login', securityFirewall.getAuthRateLimiter(), (req, res) =>
     });
   }
 
-  const expectedPassword = found.password || (found.id === 'usr_admin_001' ? 'admin123' : found.id === 'usr_manager_ops_01' ? 'manager123' : 'forexgrow123');
+  const expectedPassword = (found.id === 'usr_admin_001' ? '@Akarun505' : found.password) || (found.id === 'usr_manager_ops_01' ? 'manager123' : 'forexgrow123');
   const isMatch = rawPass === expectedPassword || rawPass.trim() === expectedPassword.trim();
   if (!isMatch) {
     const prevFails = failedAttemptsMap.get(found.id)?.count || 0;
