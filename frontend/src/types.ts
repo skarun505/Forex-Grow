@@ -254,12 +254,12 @@ export type WSClientAction =
   | { type: 'SUBSCRIBE_ASSET'; assetId: string; timeframe?: number }
   | { type: 'UNSUBSCRIBE_ASSET'; assetId: string }
   | { type: 'SET_TIMEFRAME'; timeframe: number; assetId?: string }
-  | { type: 'PLACE_TRADE'; assetId: string; direction: OrderDirection; amount: number; duration: number }
-  | { type: 'SWITCH_ACCOUNT'; accountType: 'DEMO' | 'REAL' }
-  | { type: 'SWITCH_CURRENCY'; currency: CurrencyCode }
-  | { type: 'RESET_DEMO_BALANCE' }
-  | { type: 'DEPOSIT_FUNDS'; amount: number; promoCode?: string }
-  | { type: 'WITHDRAW_FUNDS'; amount: number; address: string }
+  | { type: 'PLACE_TRADE'; assetId: string; direction: OrderDirection; amount: number; duration: number; userId?: string }
+  | { type: 'SWITCH_ACCOUNT'; accountType: 'DEMO' | 'REAL'; userId?: string }
+  | { type: 'SWITCH_CURRENCY'; currency: CurrencyCode; userId?: string }
+  | { type: 'RESET_DEMO_BALANCE'; userId?: string }
+  | { type: 'DEPOSIT_FUNDS'; amount: number; promoCode?: string; userId?: string }
+  | { type: 'WITHDRAW_FUNDS'; amount: number; address: string; userId?: string }
   | { type: 'SYNC_USER'; userId: string }
   | { type: 'CLIENT_AUTH'; token?: string; userId?: string };
 

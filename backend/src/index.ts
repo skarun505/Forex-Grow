@@ -664,8 +664,8 @@ app.post('/api/auth/login', securityFirewall.getAuthRateLimiter(), (req, res) =>
       }
     }
 
-    // 2. Broadcast immediate FORCE_LOGOUT strictly to other sessions of THIS specific trader account
-    broadcast({
+    // 2. Send immediate FORCE_LOGOUT strictly to other sessions of THIS specific trader account
+    sendToUser(found.id, {
       type: 'FORCE_LOGOUT',
       targetRole: 'TRADER',
       targetUserId: found.id,
@@ -953,8 +953,9 @@ app.post('/api/payment/novupay/webhook', (req, res) => {
     currency: user.currency,
   });
 
-  broadcast({
+  sendToUser(user.id, {
     type: 'TRANSACTION_SUCCESS',
+    userId: user.id,
     message: `NovuPay Deposit of ${user.currency} ${amount.toFixed(2)}${bonusText} settled successfully! Ref: ${refCode}`,
     demoBalance: user.demoBalance,
     realBalance: user.realBalance,
@@ -971,8 +972,8 @@ app.post('/api/payment/novupay/webhook', (req, res) => {
 
 app.post('/api/payment/novupay/payout', (req, res) => {
   const { userId, amount, payoutRail, destinationAddress } = req.body;
-  const currentAcc = settlementEngine.getAccount();
-  const targetUserId = userId || currentAcc.id;
+  const targetUserId = userId;
+  if (!targetUserId) return res.status(400).json({ error: 'User ID is required' });
   const user = adminManager.getUser(targetUserId);
 
   if (!user) return res.status(404).json({ error: 'Trader account not found' });
@@ -1502,7 +1503,7 @@ app.post('/api/admin/transactions/:id/reject', (req, res) => {
 
   const user = adminManager.getUser(result.transaction!.userId);
   if (user) {
-    broadcast({
+    sendToUser(user.id, {
       type: 'BALANCE_UPDATE',
       userId: user.id,
       demoBalance: user.demoBalance,
@@ -1543,7 +1544,7 @@ app.delete('/api/admin/transactions/:id', (req, res) => {
   const tx = result.deletedTx!;
   const user = adminManager.getUser(tx.userId);
   if (user) {
-    broadcast({
+    sendToUser(user.id, {
       type: 'BALANCE_UPDATE',
       userId: user.id,
       demoBalance: user.demoBalance,
@@ -1577,7 +1578,7 @@ app.delete('/api/admin/users/:userId/deposits', (req, res) => {
 
   const user = adminManager.getUser(req.params.userId);
   if (user) {
-    broadcast({
+    sendToUser(user.id, {
       type: 'BALANCE_UPDATE',
       userId: user.id,
       demoBalance: user.demoBalance,
@@ -1745,7 +1746,7 @@ app.post('/api/manager/users/:id/kyc/review', (req: express.Request, res: expres
   if (!result.success) return res.status(400).json({ error: result.error });
 
   if (result.user) {
-    broadcast({
+    sendToUser(result.user.id, {
       type: 'BALANCE_UPDATE',
       userId: result.user.id,
       demoBalance: result.user.demoBalance,
@@ -1771,7 +1772,7 @@ app.post('/api/admin/users/:id/kyc/review', (req: express.Request, res: express.
   if (!result.success) return res.status(400).json({ error: result.error });
 
   if (result.user) {
-    broadcast({
+    sendToUser(result.user.id, {
       type: 'BALANCE_UPDATE',
       userId: result.user.id,
       demoBalance: result.user.demoBalance,
@@ -1888,7 +1889,7 @@ app.post('/api/manager/users/:id/kyc', (req: express.Request, res: express.Respo
   if (!result.success) return res.status(400).json({ error: result.error });
 
   if (result.user) {
-    broadcast({
+    sendToUser(result.user.id, {
       type: 'BALANCE_UPDATE',
       userId: result.user.id,
       demoBalance: result.user.demoBalance,
@@ -1991,8 +1992,9 @@ app.post('/api/manager/transactions/:id/reject', (req: express.Request, res: exp
 
   const user = adminManager.getUser(result.transaction!.userId);
   if (user) {
-    broadcast({
+    sendToUser(user.id, {
       type: 'BALANCE_UPDATE',
+      userId: user.id,
       demoBalance: user.demoBalance,
       realBalance: user.realBalance,
       activeAccountType: user.activeAccountType,
@@ -2367,11 +2369,12 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
             break;
           }
 
-          const targetUserId = session.userId || (action as any).userId;
+          const targetUserId = (action as any).userId || session.userId;
           if (!targetUserId) {
             sendToClient(ws, { type: 'ERROR', message: 'Authentication required. Please sign in to trade.' });
             break;
           }
+          session.userId = targetUserId;
 
           const result = settlementEngine.placeTrade({
             userId: targetUserId,
@@ -2399,8 +2402,9 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'SWITCH_ACCOUNT': {
-          const targetUserId = session.userId || (action as any).userId;
+          const targetUserId = (action as any).userId || session.userId;
           if (targetUserId) {
+            session.userId = targetUserId;
             const updated = settlementEngine.switchAccountType(action.accountType, targetUserId);
             sendToUser(targetUserId, {
               type: 'BALANCE_UPDATE',
@@ -2415,8 +2419,9 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'SWITCH_CURRENCY': {
-          const targetUserId = session.userId || (action as any).userId;
+          const targetUserId = (action as any).userId || session.userId;
           if (targetUserId) {
+            session.userId = targetUserId;
             const updated = settlementEngine.switchCurrency(action.currency, targetUserId);
             sendToUser(targetUserId, {
               type: 'BALANCE_UPDATE',
@@ -2431,8 +2436,9 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'RESET_DEMO_BALANCE': {
-          const targetUserId = session.userId || (action as any).userId;
+          const targetUserId = (action as any).userId || session.userId;
           if (targetUserId) {
+            session.userId = targetUserId;
             const updated = settlementEngine.resetDemoBalance(targetUserId);
             sendToUser(targetUserId, {
               type: 'BALANCE_UPDATE',
@@ -2447,7 +2453,8 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'DEPOSIT_FUNDS': {
-          const targetUserId = session.userId || (action as any).userId;
+          const targetUserId = (action as any).userId || session.userId;
+          if (targetUserId) session.userId = targetUserId;
           const res = settlementEngine.depositFunds(action.amount, action.promoCode, targetUserId);
           const acc = settlementEngine.getAccount(targetUserId);
           sendToClient(ws, {
@@ -2460,7 +2467,8 @@ wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         }
 
         case 'WITHDRAW_FUNDS': {
-          const targetUserId = session.userId || (action as any).userId;
+          const targetUserId = (action as any).userId || session.userId;
+          if (targetUserId) session.userId = targetUserId;
           const res = settlementEngine.withdrawFunds(action.amount, action.address, targetUserId);
           const acc = settlementEngine.getAccount(targetUserId);
           if (res.success) {

@@ -94,10 +94,10 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isConnected, setIsConnected] = useState(false);
   const [account, setAccount] = useState<UserAccount>(() => {
     try {
-      const saved = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+      const saved = localStorage.getItem('quotex_trader_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.id) {
+        if (parsed && parsed.id && parsed.role === 'TRADER') {
           return {
             ...parsed,
             demoBalance: parsed.demoBalance ?? 700000.0,
@@ -257,10 +257,10 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
           '';
       } else {
         try {
-          const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+          const savedUserRaw = localStorage.getItem('quotex_trader_user');
           if (savedUserRaw) {
             const parsed = JSON.parse(savedUserRaw);
-            if (parsed?.id) userId = parsed.id;
+            if (parsed?.id && parsed.role === 'TRADER') userId = parsed.id;
           }
         } catch (e) {}
         tabToken =
@@ -300,15 +300,14 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
 
         try {
-          const savedUserRaw = localStorage.getItem('quotex_trader_user') || localStorage.getItem('quotex_current_user');
+          const savedUserRaw = localStorage.getItem('quotex_trader_user');
           if (savedUserRaw) {
             const savedUser = JSON.parse(savedUserRaw);
-            if (savedUser && savedUser.id) {
+            if (savedUser && savedUser.id && savedUser.role === 'TRADER') {
               if (savedUser.demoBalance === 10000 || !savedUser.demoBalance) {
                 savedUser.demoBalance = 700000.0;
                 setAccount((prev) => ({ ...prev, demoBalance: 700000.0 }));
                 localStorage.setItem('quotex_trader_user', JSON.stringify(savedUser));
-                localStorage.setItem('quotex_current_user', JSON.stringify(savedUser));
               }
               socket.send(JSON.stringify({ type: 'SYNC_USER', userId: savedUser.id }));
             }
@@ -753,12 +752,14 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     const currentAssetId = selectedAssetIdRef.current || selectedAssetId;
+    const effectiveUserId = accountRef.current.id || account.id;
     const msg: WSClientAction = {
       type: 'PLACE_TRADE',
       assetId: currentAssetId,
       direction,
       amount: Number(amount.toFixed(4)),
       duration,
+      userId: effectiveUserId,
     };
     wsRef.current.send(JSON.stringify(msg));
   };
@@ -766,7 +767,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const switchAccount = (accountType: 'DEMO' | 'REAL') => {
     setAccount((prev) => ({ ...prev, activeAccountType: accountType }));
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const msg: WSClientAction = { type: 'SWITCH_ACCOUNT', accountType };
+      const msg: WSClientAction = {
+        type: 'SWITCH_ACCOUNT',
+        accountType,
+        userId: accountRef.current.id || account.id,
+      };
       wsRef.current.send(JSON.stringify(msg));
     }
     showNotification(`Switched to ${accountType === 'DEMO' ? 'Demo Practice' : 'Live Real'} Account`);
@@ -778,7 +783,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {}
     setAccount((prev) => ({ ...prev, currency }));
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const msg: WSClientAction = { type: 'SWITCH_CURRENCY', currency };
+      const msg: WSClientAction = {
+        type: 'SWITCH_CURRENCY',
+        currency,
+        userId: accountRef.current.id || account.id,
+      };
       wsRef.current.send(JSON.stringify(msg));
     }
   };
@@ -792,30 +801,38 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const p = JSON.parse(stored);
           localStorage.setItem('quotex_trader_user', JSON.stringify({ ...p, demoBalance: 700000.0 }));
         }
-        const storedCur = localStorage.getItem('quotex_current_user');
-        if (storedCur) {
-          const p = JSON.parse(storedCur);
-          localStorage.setItem('quotex_current_user', JSON.stringify({ ...p, demoBalance: 700000.0 }));
-        }
       } catch (e) {}
       return updated;
     });
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const msg: WSClientAction = { type: 'RESET_DEMO_BALANCE' };
+      const msg: WSClientAction = {
+        type: 'RESET_DEMO_BALANCE',
+        userId: accountRef.current.id || account.id,
+      };
       wsRef.current.send(JSON.stringify(msg));
     }
   };
 
   const depositFunds = (amount: number, promoCode?: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const msg: WSClientAction = { type: 'DEPOSIT_FUNDS', amount, promoCode };
+      const msg: WSClientAction = {
+        type: 'DEPOSIT_FUNDS',
+        amount,
+        promoCode,
+        userId: accountRef.current.id || account.id,
+      };
       wsRef.current.send(JSON.stringify(msg));
     }
   };
 
   const withdrawFunds = (amount: number, address: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const msg: WSClientAction = { type: 'WITHDRAW_FUNDS', amount, address };
+      const msg: WSClientAction = {
+        type: 'WITHDRAW_FUNDS',
+        amount,
+        address,
+        userId: accountRef.current.id || account.id,
+      };
       wsRef.current.send(JSON.stringify(msg));
     }
   };
