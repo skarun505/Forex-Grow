@@ -131,8 +131,7 @@ export class SettlementEngine extends EventEmitter {
   }
 
   public getAccount(userId?: string): UserAccount {
-    const targetId = userId || this.currentUserId;
-    const user = targetId ? this.adminManager.getUser(targetId) : null;
+    const user = userId ? this.adminManager.getUser(userId) : null;
     if (user) return { ...user };
     return {
       id: '',
@@ -423,7 +422,8 @@ export class SettlementEngine extends EventEmitter {
     const now = Date.now();
 
     for (const [id, trade] of this.activeTrades.entries()) {
-      const user = this.adminManager.getUser(trade.userId || this.currentUserId);
+      const user = trade.userId ? this.adminManager.getUser(trade.userId) : null;
+      if (!user) continue;
       const asset = this.marketEngine.getAsset(trade.assetId);
       const riskSettings = this.getEffectiveRisk(user);
 
@@ -479,8 +479,11 @@ export class SettlementEngine extends EventEmitter {
   }
 
   private settleTrade(trade: Trade) {
-    const user = this.adminManager.getUser(trade.userId || this.currentUserId);
-    if (!user) return;
+    const user = trade.userId ? this.adminManager.getUser(trade.userId) : null;
+    if (!user) {
+      console.warn(`[SettlementEngine] Refusing to settle trade ${trade.id} without valid trade.userId`);
+      return;
+    }
 
     const asset = this.marketEngine.getAsset(trade.assetId);
     let exitPrice = asset ? asset.currentPrice : trade.entryPrice;

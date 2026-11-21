@@ -564,8 +564,17 @@ export class SupabaseDb {
     }
   }
 
-  // --- Persistent User Authentication Credentials (Password & Phone) ---
-  public static async saveUserAuth(userId: string, authData: { password?: string; phone?: string; role?: string }): Promise<boolean> {
+  // --- Persistent User Authentication Credentials (Password & Phone & Extended Profile) ---
+  public static async saveUserAuth(userId: string, authData: {
+    password?: string;
+    phone?: string;
+    role?: string;
+    customRiskSettings?: any;
+    kycStatus?: string;
+    kycData?: any;
+    aadhaarNumber?: string;
+    savedBankDetails?: any;
+  }): Promise<boolean> {
     try {
       if (!userId) return false;
       const { error } = await supabase.from('transactions').upsert({
@@ -582,6 +591,11 @@ export class SupabaseDb {
           password: authData.password,
           phone: authData.phone,
           role: authData.role,
+          customRiskSettings: authData.customRiskSettings,
+          kycStatus: authData.kycStatus,
+          kycData: authData.kycData,
+          aadhaarNumber: authData.aadhaarNumber,
+          savedBankDetails: authData.savedBankDetails,
           updatedAt: Date.now(),
         },
         created_at: new Date().toISOString(),
@@ -597,8 +611,18 @@ export class SupabaseDb {
     }
   }
 
-  public static async loadAllUserAuth(): Promise<Map<string, { password?: string; phone?: string; role?: string; updatedAt?: number }>> {
-    const authMap = new Map<string, { password?: string; phone?: string; role?: string; updatedAt?: number }>();
+  public static async loadAllUserAuth(): Promise<Map<string, {
+    password?: string;
+    phone?: string;
+    role?: string;
+    customRiskSettings?: any;
+    kycStatus?: string;
+    kycData?: any;
+    aadhaarNumber?: string;
+    savedBankDetails?: any;
+    updatedAt?: number;
+  }>> {
+    const authMap = new Map<string, any>();
     try {
       const { data, error } = await supabase
         .from('transactions')

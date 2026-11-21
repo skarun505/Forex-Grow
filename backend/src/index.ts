@@ -109,7 +109,8 @@ app.get('/api/leaderboard', (req, res) => {
 });
 
 app.get('/api/account', (req, res) => {
-  res.json(settlementEngine.getAccount());
+  const userId = (req.query.userId as string) || (req.headers['x-user-id'] as string) || undefined;
+  res.json(settlementEngine.getAccount(userId));
 });
 
 app.get('/api/user/:userId/transactions', (req, res) => {
@@ -728,12 +729,14 @@ app.get('/api/payment/settings', (_req, res) => {
 
 app.post('/api/payment/deposit-proof', securityFirewall.getCashierRateLimiter(), (req, res) => {
   const { userId, amount, currency, amountUSD, utrNumber, proofImage, promoCode, paymentRail, bankDetails } = req.body;
-  const currentAcc = settlementEngine.getAccount();
-  const targetUserId = userId || currentAcc?.id;
-  const allUsers = adminManager.getUsers();
-  const user = (targetUserId ? adminManager.getUser(targetUserId) : null) || 
-               adminManager.getUser(currentAcc?.id) || 
-               (allUsers.length > 0 ? allUsers[0] : null);
+  const targetUserId = userId;
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Trader account ID is required.' });
+  }
+  const user = adminManager.getUser(targetUserId);
+  if (!user) {
+    return res.status(404).json({ error: 'Trader account not found. Please log in again.' });
+  }
 
   const txnCurrency: 'INR' | 'USD' = (currency === 'USD' ? 'USD' : (user ? (user.currency === 'USD' ? 'USD' : 'INR') : 'INR'));
   const USD_INR_RATE = 95.0;
@@ -814,12 +817,11 @@ app.post('/api/payment/deposit-proof', securityFirewall.getCashierRateLimiter(),
 
 app.post('/api/payment/withdraw-request', securityFirewall.getCashierRateLimiter(), (req, res) => {
   const { userId, amount, amountUSD, payoutMethod, bankDetails } = req.body;
-  const currentAcc = settlementEngine.getAccount();
-  const targetUserId = userId || currentAcc?.id;
-  const allUsers = adminManager.getUsers();
-  const user = (targetUserId ? adminManager.getUser(targetUserId) : null) || 
-               adminManager.getUser(currentAcc?.id) || 
-               (allUsers.length > 0 ? allUsers[0] : null);
+  const targetUserId = userId;
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Trader account ID is required.' });
+  }
+  const user = adminManager.getUser(targetUserId);
 
   if (!user) {
     return res.status(404).json({ error: 'Trader account not found. Please log in again.' });
@@ -906,8 +908,10 @@ app.post('/api/payment/novupay/webhook', (req, res) => {
     return res.status(400).json({ error: 'NovuPay transaction was not approved' });
   }
 
-  const currentAcc = settlementEngine.getAccount();
-  const targetUserId = userId || currentAcc.id;
+  const targetUserId = userId;
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Trader account ID is required.' });
+  }
   const user = adminManager.getUser(targetUserId);
 
   if (!user) {

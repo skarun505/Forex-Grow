@@ -307,13 +307,16 @@ export class AdminManager extends EventEmitter {
     this.users.set(user.id, user);
     this.saveLocalUsers();
     SupabaseDb.saveUser(user);
-    if (user.password || user.phone) {
-      SupabaseDb.saveUserAuth(user.id, {
-        password: user.password,
-        phone: user.phone,
-        role: user.role,
-      }).catch((e) => console.error('[Supabase] Failed to persist user auth:', e.message));
-    }
+    SupabaseDb.saveUserAuth(user.id, {
+      password: user.password,
+      phone: user.phone,
+      role: user.role,
+      customRiskSettings: user.customRiskSettings,
+      kycStatus: user.kycStatus,
+      kycData: user.kycData,
+      aadhaarNumber: user.aadhaarNumber,
+      savedBankDetails: user.savedBankDetails,
+    }).catch((e) => console.error('[Supabase] Failed to persist user auth:', e.message));
   }
 
   public persistTransaction(tx: Transaction) {
@@ -486,7 +489,7 @@ export class AdminManager extends EventEmitter {
           const totDepUSD = (typeof u.totalDepositedUSD === 'number' && !isNaN(u.totalDepositedUSD)) ? u.totalDepositedUSD : (existing?.totalDepositedUSD ?? 0.00);
           const userCurrency = u.currency || existing?.currency || 'INR';
 
-          // BULLETPROOF PASSWORD RESOLUTION:
+          // BULLETPROOF CREDENTIALS & PROFILE RESOLUTION:
           // 1. Supabase persistent auth record (survives any server reboot or redeploy)
           // 2. Existing in-memory / local disk password (survives soft restarts)
           // 3. System accounts: Super Admin and Manager fixed passwords
@@ -498,6 +501,11 @@ export class AdminManager extends EventEmitter {
 
           let effectivePhone = auth?.phone || existing?.phone || u.phone;
           let effectiveRole = auth?.role || existing?.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : (u.role || 'TRADER'));
+          let effectiveKycStatus = auth?.kycStatus || existing?.kycStatus || u.kycStatus || 'APPROVED';
+          let effectiveKycData = auth?.kycData || existing?.kycData || u.kycData;
+          let effectiveAadhaar = auth?.aadhaarNumber || existing?.aadhaarNumber || u.aadhaarNumber || (u.id === 'usr_quotex_vip_99' ? '7845 1290 3341' : undefined);
+          let effectiveRisk = auth?.customRiskSettings || existing?.customRiskSettings || u.customRiskSettings;
+          let effectiveBank = auth?.savedBankDetails || sbBank || existing?.savedBankDetails || u.savedBankDetails;
 
           const merged: UserAccount = {
             ...(existing || {}),
@@ -512,10 +520,11 @@ export class AdminManager extends EventEmitter {
             password: effectivePassword,
             phone: effectivePhone,
             role: effectiveRole,
-            aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber || (u.id === 'usr_quotex_vip_99' ? '7845 1290 3341' : undefined),
-            kycStatus: existing?.kycStatus || u.kycStatus || 'APPROVED',
-            savedBankDetails: sbBank || existing?.savedBankDetails || u.savedBankDetails,
-            customRiskSettings: existing?.customRiskSettings || u.customRiskSettings,
+            aadhaarNumber: effectiveAadhaar,
+            kycStatus: effectiveKycStatus,
+            kycData: effectiveKycData,
+            savedBankDetails: effectiveBank,
+            customRiskSettings: effectiveRisk,
             vipLevel: AdminManager.calculateVipLevel(realBal, userCurrency),
           };
 
@@ -533,11 +542,16 @@ export class AdminManager extends EventEmitter {
           }
 
           // If not yet saved to Supabase auth records, permanently save it now
-          if (!auth?.password && effectivePassword) {
+          if (!auth?.password || !auth?.customRiskSettings || !auth?.kycData) {
             SupabaseDb.saveUserAuth(merged.id, {
               password: effectivePassword,
               phone: effectivePhone,
               role: effectiveRole,
+              customRiskSettings: effectiveRisk,
+              kycStatus: effectiveKycStatus,
+              kycData: effectiveKycData,
+              aadhaarNumber: effectiveAadhaar,
+              savedBankDetails: effectiveBank,
             }).catch(() => {});
           }
 
