@@ -85,7 +85,7 @@ export class SupabaseDb {
       const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return (data || [])
-        .filter((row) => !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS', 'AUDIT_LOG'].includes(row.type))
+        .filter((row) => !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS', 'AUDIT_LOG', 'USER_AUTH'].includes(row.type))
         .map((row) => ({
           id: row.id,
           userId: row.user_id,
@@ -562,6 +562,62 @@ export class SupabaseDb {
     } catch (err: any) {
       console.error('Failed to delete coupon from Supabase:', err.message);
     }
+  }
+
+  // --- Persistent User Authentication Credentials (Password & Phone) ---
+  public static async saveUserAuth(userId: string, authData: { password?: string; phone?: string; role?: string }): Promise<boolean> {
+    try {
+      if (!userId) return false;
+      const { error } = await supabase.from('transactions').upsert({
+        id: `auth_${userId}`,
+        user_id: userId,
+        type: 'USER_AUTH',
+        amount: 0,
+        currency: 'INR',
+        amount_usd: 0,
+        status: 'ACTIVE',
+        payment_method: 'SYSTEM',
+        reference: 'USER_AUTH_CREDENTIALS',
+        bank_details: {
+          password: authData.password,
+          phone: authData.phone,
+          role: authData.role,
+          updatedAt: Date.now(),
+        },
+        created_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error(`[SUPABASE] Failed to save user auth for ${userId}:`, error.message);
+        return false;
+      }
+      return true;
+    } catch (err: any) {
+      console.error(`[SUPABASE] Error saving user auth for ${userId}:`, err.message);
+      return false;
+    }
+  }
+
+  public static async loadAllUserAuth(): Promise<Map<string, { password?: string; phone?: string; role?: string; updatedAt?: number }>> {
+    const authMap = new Map<string, { password?: string; phone?: string; role?: string; updatedAt?: number }>();
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('user_id, bank_details')
+        .eq('type', 'USER_AUTH');
+      if (error) {
+        console.warn('[SUPABASE] Warning loading user auth credentials:', error.message);
+        return authMap;
+      }
+      for (const row of data || []) {
+        if (row.user_id && row.bank_details) {
+          authMap.set(row.user_id, row.bank_details);
+        }
+      }
+      console.log(`[SUPABASE] Successfully loaded persistent credentials for ${authMap.size} user accounts.`);
+    } catch (err: any) {
+      console.warn('[SUPABASE] Failed to load all user auth records:', err.message);
+    }
+    return authMap;
   }
 }
 

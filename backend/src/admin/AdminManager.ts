@@ -307,6 +307,13 @@ export class AdminManager extends EventEmitter {
     this.users.set(user.id, user);
     this.saveLocalUsers();
     SupabaseDb.saveUser(user);
+    if (user.password || user.phone) {
+      SupabaseDb.saveUserAuth(user.id, {
+        password: user.password,
+        phone: user.phone,
+        role: user.role,
+      }).catch((e) => console.error('[Supabase] Failed to persist user auth:', e.message));
+    }
   }
 
   public persistTransaction(tx: Transaction) {
@@ -435,7 +442,11 @@ export class AdminManager extends EventEmitter {
         this.saveLocalRiskSettings();
       }
 
-      const dbUsers = await SupabaseDb.loadUsers();
+      const [dbUsers, authRecords] = await Promise.all([
+        SupabaseDb.loadUsers(),
+        SupabaseDb.loadAllUserAuth(),
+      ]);
+
       if (dbUsers.length > 0) {
         const activeDbUserIds = new Set(dbUsers.map(u => u.id));
 
@@ -465,6 +476,7 @@ export class AdminManager extends EventEmitter {
           // Preserve seeded password, phone, role, bank details, risk settings if not stored in Supabase
           const existing = this.users.get(u.id);
           const sbBank = await SupabaseDb.loadUserBankDetails(u.id);
+          const auth = authRecords.get(u.id);
 
           // CRITICAL: Live financial and balance data from Supabase PostgreSQL MUST ALWAYS BE THE MASTER SOURCE OF TRUTH!
           // NEVER let static repository files, git commits, or local caches overwrite live trader balances!
@@ -473,6 +485,19 @@ export class AdminManager extends EventEmitter {
           const totTrades = (typeof u.totalTrades === 'number' && !isNaN(u.totalTrades)) ? u.totalTrades : (existing?.totalTrades ?? 0);
           const totDepUSD = (typeof u.totalDepositedUSD === 'number' && !isNaN(u.totalDepositedUSD)) ? u.totalDepositedUSD : (existing?.totalDepositedUSD ?? 0.00);
           const userCurrency = u.currency || existing?.currency || 'INR';
+
+          // BULLETPROOF PASSWORD RESOLUTION:
+          // 1. Supabase persistent auth record (survives any server reboot or redeploy)
+          // 2. Existing in-memory / local disk password (survives soft restarts)
+          // 3. System accounts: Super Admin and Manager fixed passwords
+          // 4. Default fallback ONLY if user truly never had a password: 'Trader@2026' or 'forexgrow123'
+          let effectivePassword = auth?.password || existing?.password;
+          if (u.id === 'usr_admin_001') effectivePassword = '@Akarun505';
+          else if (u.id === 'usr_manager_ops_01') effectivePassword = 'manager123';
+          else if (!effectivePassword) effectivePassword = u.password || 'Trader@2026';
+
+          let effectivePhone = auth?.phone || existing?.phone || u.phone;
+          let effectiveRole = auth?.role || existing?.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : (u.role || 'TRADER'));
 
           const merged: UserAccount = {
             ...(existing || {}),
@@ -484,9 +509,9 @@ export class AdminManager extends EventEmitter {
             totalDepositedUSD: totDepUSD,
             currency: userCurrency,
             activeAccountType: u.activeAccountType || existing?.activeAccountType || 'REAL',
-            password: existing?.password || (u.id === 'usr_admin_001' ? '@Akarun505' : u.id === 'usr_manager_ops_01' ? 'manager123' : (u.password || 'forexgrow123')),
-            phone: existing?.phone || u.phone,
-            role: existing?.role || (u.id === 'usr_admin_001' ? 'ADMIN' : u.id === 'usr_manager_ops_01' ? 'MANAGER' : (u.role || 'TRADER')),
+            password: effectivePassword,
+            phone: effectivePhone,
+            role: effectiveRole,
             aadhaarNumber: existing?.aadhaarNumber || u.aadhaarNumber || (u.id === 'usr_quotex_vip_99' ? '7845 1290 3341' : undefined),
             kycStatus: existing?.kycStatus || u.kycStatus || 'APPROVED',
             savedBankDetails: sbBank || existing?.savedBankDetails || u.savedBankDetails,
@@ -505,6 +530,15 @@ export class AdminManager extends EventEmitter {
             merged.password = 'manager123';
             merged.realBalance = 0;
             merged.demoBalance = 0;
+          }
+
+          // If not yet saved to Supabase auth records, permanently save it now
+          if (!auth?.password && effectivePassword) {
+            SupabaseDb.saveUserAuth(merged.id, {
+              password: effectivePassword,
+              phone: effectivePhone,
+              role: effectiveRole,
+            }).catch(() => {});
           }
 
           // Update in-memory state with verified Supabase data
@@ -1056,6 +1090,11 @@ export class AdminManager extends EventEmitter {
     user.password = newPassword.trim();
     this.emit('user_updated', user);
     this.persistUser(user);
+    SupabaseDb.saveUserAuth(user.id, {
+      password: user.password,
+      phone: user.phone,
+      role: user.role,
+    }).catch((e) => console.error('[Supabase] Failed to persist reset password to Supabase:', e.message));
 
     this.addAuditLog(
       'sys_auth',

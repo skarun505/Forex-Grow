@@ -1,14 +1,14 @@
 {
-  "upiId": "agrifresh27@mahb",
-  "upiName": "AGRI FRESH ENTERPRISE",
-  "bankName": "DCB bank",
-  "accountHolderName": "AARYAN SANJAY AGRAWAL",
-  "accountNumber": "03014700002233",
-  "ifscCode": "DCBL0000030",
+  "upiId": "paytm.s2bn2jy@pty",
+  "upiName": "PHALWAN JI",
+  "bankName": "DCB BANK",
+  "accountHolderName": "SURAJ VISHNU PARGHANE",
+  "accountNumber": "01414700000860",
+  "ifscCode": "DCBL0000014",
   "accountType": "Saveings Account",
-  "branchName": "Vashi Branch",
+  "branchName": "Ruby hall",
   "instructions": "1. Transfer funds via IMPS, NEFT, RTGS or UPI to the official company account above.\n2. Note down the 12-digit UTR / Reference number.\n3. Upload clear screenshot showing complete 12-digit UTR/Reference number for instant verification.",
   "minDepositINR": 500,
-  "updatedAt": 1794986794584,
+  "updatedAt": 1795180243309,
   "updatedBy": "Raksha (MANAGER)"
 }
