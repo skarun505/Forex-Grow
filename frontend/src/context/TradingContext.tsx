@@ -165,6 +165,31 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) || assets[0] || null;
 
+  // Fallback: Fetch initial candles via HTTP so chart is never blank even if WS message is delayed
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFallbackCandles = async () => {
+      try {
+        const tfSec = TIMEFRAME_SECONDS[timeframeRef.current] || 5;
+        const res = await fetch(`/api/candles/${encodeURIComponent(selectedAssetId)}?timeframe=${tfSec}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && Array.isArray(data) && data.length > 0) {
+            setCandles((prev) => (prev.length === 0 ? data : prev));
+          }
+        }
+      } catch (e) {
+        // Silently ignore fallback failure
+      }
+    };
+
+    const timer = setTimeout(fetchFallbackCandles, 250);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [selectedAssetId, timeframe]);
+
   const showNotification = (msg: string) => {
     setNotification(msg);
     setTimeout(() => {

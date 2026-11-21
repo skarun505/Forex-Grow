@@ -1261,24 +1261,32 @@ export class AdminManager extends EventEmitter {
   }
 
   public getTransactions(): Transaction[] {
-    return this.transactions.filter(
-      (t) =>
-        !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS'].includes(t.type) &&
-        !t.id.startsWith('sys_') &&
-        !t.id.startsWith('tombstone_') &&
-        !t.id.startsWith('bank_details_')
-    );
+    return this.transactions
+      .filter(
+        (t) =>
+          !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS', 'USER_AUTH', 'AUDIT_LOG'].includes(t.type) &&
+          !t.id.startsWith('sys_') &&
+          !t.id.startsWith('tombstone_') &&
+          !t.id.startsWith('bank_details_') &&
+          !t.id.startsWith('auth_') &&
+          !t.id.startsWith('aud_')
+      )
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   }
 
   public getTransactionsForUser(userId: string): Transaction[] {
-    return this.transactions.filter(
-      (tx) =>
-        !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS'].includes(tx.type) &&
-        !tx.id.startsWith('sys_') &&
-        !tx.id.startsWith('tombstone_') &&
-        !tx.id.startsWith('bank_details_') &&
-        (tx.userId === userId || (!tx.userId && userId === 'usr_quotex_vip_99'))
-    );
+    return this.transactions
+      .filter(
+        (tx) =>
+          !['SYSTEM_SETTINGS', 'USER_TOMBSTONE', 'USER_BANK_DETAILS', 'USER_AUTH', 'AUDIT_LOG'].includes(tx.type) &&
+          !tx.id.startsWith('sys_') &&
+          !tx.id.startsWith('tombstone_') &&
+          !tx.id.startsWith('bank_details_') &&
+          !tx.id.startsWith('auth_') &&
+          !tx.id.startsWith('aud_') &&
+          (tx.userId === userId || (!tx.userId && userId === 'usr_quotex_vip_99'))
+      )
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   }
 
   public addTransaction(tx: Omit<Transaction, 'id' | 'timestamp'>): Transaction {

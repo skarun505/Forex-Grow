@@ -57,6 +57,8 @@ import {
   Download,
   Filter,
   Wallet,
+  Receipt,
+  XCircle,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -223,6 +225,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [selectedUserForTrades, setSelectedUserForTrades] = useState<UserAccount | null>(null);
   const [userTrades, setUserTrades] = useState<{ activeTrades: Trade[]; tradeHistory: Trade[] } | null>(null);
   const [tradesLoading, setTradesLoading] = useState(false);
+
+  // Trader Deposit & Withdrawal History Modal State (Approved, Pending, Failed)
+  const [selectedUserForTransactions, setSelectedUserForTransactions] = useState<UserAccount | null>(null);
+  const [userTransactions, setUserTransactions] = useState<Transaction[] | null>(null);
+  const [userTransactionsLoading, setUserTransactionsLoading] = useState(false);
+  const [userTxFilterStatus, setUserTxFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [userTxFilterType, setUserTxFilterType] = useState<'ALL' | 'DEPOSIT' | 'WITHDRAWAL'>('ALL');
+  const [userTxSearch, setUserTxSearch] = useState<string>('');
 
   // Complete User Data Modal & Password Peek State (Admin-Only access)
   const [selectedUserForDetails, setSelectedUserForDetails] = useState<UserAccount | null>(null);
@@ -405,6 +415,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   // Search Filters
   const [userSearch, setUserSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<'ALL' | 'DEPOSIT' | 'WITHDRAWAL'>('ALL');
+  const [paymentUserFilter, setPaymentUserFilter] = useState<string>('ALL');
+  const [paymentSearch, setPaymentSearch] = useState<string>('');
 
   const fetchAdminData = async () => {
     setIsLoading(true);
@@ -688,6 +701,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     }
   };
 
+  // Handle View Complete Transaction / Cashflow History for a User
+  const handleViewUserTransactions = async (user: UserAccount) => {
+    setSelectedUserForTransactions(user);
+    setUserTransactionsLoading(true);
+    setUserTxFilterStatus('ALL');
+    setUserTxFilterType('ALL');
+    setUserTxSearch('');
+    try {
+      const res = await fetch(apiUrl(`/api/admin/users/${user.id}/transactions`), {
+        headers: getAdminHeaders(),
+      });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.transactions)) {
+        setUserTransactions(data.transactions);
+      } else {
+        setUserTransactions(safeTransactions.filter((t) => t.userId === user.id));
+      }
+    } catch {
+      setUserTransactions(safeTransactions.filter((t) => t.userId === user.id));
+    } finally {
+      setUserTransactionsLoading(false);
+    }
+  };
+
   // Handle Delete Single Trade
   const handleDeleteTrade = async (tradeId: string) => {
     if (!confirm('Delete this trade record? This cannot be undone.')) return;
@@ -754,7 +791,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         method: 'POST',
         headers: getAdminHeaders(),
       });
-      if (res.ok) fetchAdminData();
+      if (res.ok) {
+        fetchAdminData();
+        if (selectedUserForTransactions) handleViewUserTransactions(selectedUserForTransactions);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -770,7 +810,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         headers: getAdminHeaders(),
         body: JSON.stringify({ reason }),
       });
-      if (res.ok) fetchAdminData();
+      if (res.ok) {
+        fetchAdminData();
+        if (selectedUserForTransactions) handleViewUserTransactions(selectedUserForTransactions);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -806,6 +849,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       if (res.ok) {
         showAdminToast(`🗑️ ${isDeposit ? 'Deposit' : 'Transaction'} record deleted successfully!`);
         fetchAdminData();
+        if (selectedUserForTransactions) handleViewUserTransactions(selectedUserForTransactions);
       } else {
         const data = await res.json();
         alert(data.error || 'Failed to delete transaction');
@@ -839,6 +883,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         showAdminToast(`🗑️ All deposits cleared for ${user.name}!`);
         setSelectedUserForBalance(null);
         fetchAdminData();
+        if (selectedUserForTransactions) handleViewUserTransactions(selectedUserForTransactions);
       } else {
         const data = await res.json();
         alert(data.error || 'Failed to clear deposits');
@@ -1070,9 +1115,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       (u.id || '').toLowerCase().includes(userSearch.toLowerCase()))
   );
 
-  const filteredTransactions = safeTransactions.filter(
-    (t) => Boolean(t && typeof t === 'object') && (paymentFilter === 'ALL' || t.status === paymentFilter)
-  );
+  const filteredTransactions = safeTransactions.filter((t) => {
+    if (!t || typeof t !== 'object') return false;
+    if (paymentFilter !== 'ALL' && t.status !== paymentFilter) return false;
+    if (paymentTypeFilter !== 'ALL' && t.type !== paymentTypeFilter) return false;
+    if (paymentUserFilter !== 'ALL' && t.userId !== paymentUserFilter) return false;
+    if (paymentSearch.trim()) {
+      const q = paymentSearch.trim().toLowerCase();
+      const matchName = (t.userName || '').toLowerCase().includes(q);
+      const matchUser = (t.userId || '').toLowerCase().includes(q);
+      const matchUtr = (t.utrNumber || (t as any).reference || '').toLowerCase().includes(q);
+      const matchId = (t.id || '').toLowerCase().includes(q);
+      const matchMethod = (t.method || (t as any).paymentMethod || '').toLowerCase().includes(q);
+      if (!matchName && !matchUser && !matchUtr && !matchId && !matchMethod) return false;
+    }
+    return true;
+  });
 
   return (
     <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden select-none font-sans transition-colors duration-200 ${
@@ -1711,6 +1769,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                         Trades ({u.totalTrades})
                       </button>
                       <button
+                        onClick={() => handleViewUserTransactions(u)}
+                        className="px-2.5 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1"
+                        title="View complete deposit & withdrawal ledger (Approved, Pending & Failed)"
+                      >
+                        <Receipt className="w-3.5 h-3.5" />
+                        <span>Cashflow</span>
+                      </button>
+                      <button
                         onClick={() => handleClearTraderHistoryDirect(u)}
                         className="px-2.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1"
                         title="Delete trader's entire trade history"
@@ -1898,6 +1964,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             className="px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-lg text-xs font-bold transition"
                           >
                             Trades ({u.totalTrades})
+                          </button>
+                          <button
+                            onClick={() => handleViewUserTransactions(u)}
+                            className="px-2.5 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                            title="View complete deposit & withdrawal ledger (Approved, Pending & Failed)"
+                          >
+                            <Receipt className="w-3 h-3" />
+                            <span>Cashflow</span>
                           </button>
                           <button
                             onClick={() => handleClearTraderHistoryDirect(u)}
@@ -2549,26 +2623,127 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex space-x-2">
-                {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setPaymentFilter(filter)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
-                      paymentFilter === filter
-                        ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/40 font-black'
-                        : (isLight
-                            ? 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 shadow-sm'
-                            : 'bg-[#161a26] border-[#262c3e] text-gray-400 hover:text-white')
+            {/* Payment Filters & Search Bar */}
+            <div className={`p-4 rounded-2xl border transition space-y-3 ${
+              isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#181d2a] border-[#262c3e]'
+            }`}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                {/* Status Filter */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={`text-[11px] font-bold uppercase tracking-wider mr-1 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Status:</span>
+                  {(['ALL', 'APPROVED', 'PENDING', 'REJECTED'] as const).map((filter) => {
+                    const count = safeTransactions.filter((t) => filter === 'ALL' || t.status === filter).length;
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setPaymentFilter(filter)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center space-x-1.5 ${
+                          paymentFilter === filter
+                            ? (filter === 'APPROVED'
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-black'
+                                : filter === 'REJECTED'
+                                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 font-black'
+                                : filter === 'PENDING'
+                                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-black'
+                                : 'bg-sky-500/20 text-sky-400 border-sky-500/40 font-black')
+                            : (isLight
+                                ? 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                                : 'bg-[#121622] border-[#262c3e] text-gray-400 hover:text-white')
+                        }`}
+                      >
+                        <span>{filter === 'ALL' ? 'ALL STATUS' : filter === 'APPROVED' ? 'SUCCESS' : filter === 'REJECTED' ? 'FAILED' : 'PENDING'}</span>
+                        <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-mono font-bold ${
+                          paymentFilter === filter ? 'bg-black/30' : (isLight ? 'bg-slate-200 text-slate-700' : 'bg-white/10 text-gray-300')
+                        }`}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Type Filter */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={`text-[11px] font-bold uppercase tracking-wider mr-1 ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Type:</span>
+                  {(['ALL', 'DEPOSIT', 'WITHDRAWAL'] as const).map((typeF) => (
+                    <button
+                      key={typeF}
+                      onClick={() => setPaymentTypeFilter(typeF)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                        paymentTypeFilter === typeF
+                          ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40 font-black'
+                          : (isLight
+                              ? 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                              : 'bg-[#121622] border-[#262c3e] text-gray-400 hover:text-white')
+                      }`}
+                    >
+                      {typeF === 'ALL' ? 'ALL TYPES' : typeF === 'DEPOSIT' ? 'DEPOSITS' : 'WITHDRAWALS'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Second row: Trader selector and Search input */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                <div className="flex items-center space-x-2">
+                  <label className={`text-xs font-bold shrink-0 ${isLight ? 'text-slate-600' : 'text-gray-400'}`}>Trader:</label>
+                  <select
+                    value={paymentUserFilter}
+                    onChange={(e) => setPaymentUserFilter(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-sky-500'
+                        : 'bg-[#121622] border-[#2b3347] text-white focus:border-sky-500'
                     }`}
                   >
-                    {filter}
-                  </button>
-                ))}
+                    <option value="ALL">All Traders ({users.length})</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search by UTR, Ref ID, trader name, email, or method..."
+                    value={paymentSearch}
+                    onChange={(e) => setPaymentSearch(e.target.value)}
+                    className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs font-medium border transition ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-sky-500'
+                        : 'bg-[#121622] border-[#2b3347] text-white placeholder-gray-500 focus:border-sky-500'
+                    }`}
+                  />
+                  {paymentSearch && (
+                    <button
+                      onClick={() => setPaymentSearch('')}
+                      className="absolute right-3 top-2.5 text-xs text-gray-400 hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className={`text-xs font-semibold ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
-                Showing {filteredTransactions.length} Transactions
+
+              <div className="flex items-center justify-between text-xs pt-1">
+                <div className={isLight ? 'text-slate-500' : 'text-gray-400'}>
+                  Showing <span className="font-bold text-sky-400">{filteredTransactions.length}</span> of {safeTransactions.length} cashflow transactions
+                </div>
+                {(paymentFilter !== 'ALL' || paymentTypeFilter !== 'ALL' || paymentUserFilter !== 'ALL' || paymentSearch) && (
+                  <button
+                    onClick={() => {
+                      setPaymentFilter('ALL');
+                      setPaymentTypeFilter('ALL');
+                      setPaymentUserFilter('ALL');
+                      setPaymentSearch('');
+                    }}
+                    className="text-xs text-rose-400 hover:underline font-bold"
+                  >
+                    Reset All Filters
+                  </button>
+                )}
               </div>
             </div>
 
@@ -4959,6 +5134,429 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         </div>
       )}
 
+      {/* ================= MODAL: TRADER DEPOSIT & WITHDRAWAL CASHFLOW HISTORY (ALL STATUSES) ================= */}
+      {selectedUserForTransactions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in">
+          <div className={`w-full max-w-4xl border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col transition-colors ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#181d2a] border-[#262c3e] text-white'
+          }`}>
+            {/* Modal Header */}
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b ${
+              isLight ? 'border-slate-200' : 'border-[#262c3e]'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className={`font-black text-base sm:text-lg ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      {selectedUserForTransactions.name}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                      Cashflow Ledger
+                    </span>
+                    <span className="text-[11px] font-mono text-gray-400">
+                      ID: {selectedUserForTransactions.id}
+                    </span>
+                  </div>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                    {selectedUserForTransactions.email} · Real Balance: <span className="font-bold text-emerald-400 font-mono">{formatCurrency(selectedUserForTransactions.realBalance, 'INR')}</span> · Demo: <span className="font-bold text-sky-400 font-mono">{formatCurrency(selectedUserForTransactions.demoBalance, 'INR')}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleViewUserTransactions(selectedUserForTransactions)}
+                  disabled={userTransactionsLoading}
+                  className={`p-2 rounded-xl border transition ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200' : 'bg-[#222838] hover:bg-[#2c3347] text-gray-300 border-[#2e354b]'
+                  }`}
+                  title="Refresh transactions"
+                >
+                  <RefreshCw className={`w-4 h-4 ${userTransactionsLoading ? 'animate-spin text-sky-400' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForTransactions(null)}
+                  className={`p-2 rounded-xl transition ${
+                    isLight ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-100' : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Summary Stat Cards */}
+            {(() => {
+              const allTx = userTransactions || [];
+              const approvedDeposits = allTx.filter((t) => t.type === 'DEPOSIT' && t.status === 'APPROVED');
+              const approvedWithdrawals = allTx.filter((t) => t.type === 'WITHDRAWAL' && t.status === 'APPROVED');
+              const pendingTx = allTx.filter((t) => t.status === 'PENDING');
+              const rejectedTx = allTx.filter((t) => t.status === 'REJECTED');
+
+              const totalDepAmt = approvedDeposits.reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount * INR_RATE : t.amount), 0);
+              const totalWdAmt = approvedWithdrawals.reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount * INR_RATE : t.amount), 0);
+              const totalPendingAmt = pendingTx.reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount * INR_RATE : t.amount), 0);
+              const totalRejectedAmt = rejectedTx.reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount * INR_RATE : t.amount), 0);
+
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className={`p-3 rounded-2xl border ${isLight ? 'bg-emerald-50 border-emerald-200' : 'bg-emerald-500/10 border-emerald-500/25'}`}>
+                    <div className="flex items-center justify-between text-emerald-400 text-xs font-black uppercase">
+                      <span>Approved Deposits</span>
+                      <ArrowDownLeft className="w-4 h-4" />
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-emerald-400 font-mono mt-1">
+                      ₹{totalDepAmt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isLight ? 'text-emerald-700' : 'text-emerald-300/70'}`}>
+                      {approvedDeposits.length} successful deposits
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border ${isLight ? 'bg-sky-50 border-sky-200' : 'bg-sky-500/10 border-sky-500/25'}`}>
+                    <div className="flex items-center justify-between text-sky-400 text-xs font-black uppercase">
+                      <span>Approved Payouts</span>
+                      <ArrowUpRight className="w-4 h-4" />
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-sky-400 font-mono mt-1">
+                      ₹{totalWdAmt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isLight ? 'text-sky-700' : 'text-sky-300/70'}`}>
+                      {approvedWithdrawals.length} settled payouts
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border ${isLight ? 'bg-amber-50 border-amber-200' : 'bg-amber-500/10 border-amber-500/25'}`}>
+                    <div className="flex items-center justify-between text-amber-400 text-xs font-black uppercase">
+                      <span>Pending Queue</span>
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-amber-400 font-mono mt-1">
+                      ₹{totalPendingAmt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isLight ? 'text-amber-700' : 'text-amber-300/70'}`}>
+                      {pendingTx.length} awaiting action
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border ${isLight ? 'bg-rose-50 border-rose-200' : 'bg-rose-500/10 border-rose-500/25'}`}>
+                    <div className="flex items-center justify-between text-rose-400 text-xs font-black uppercase">
+                      <span>Failed / Rejected</span>
+                      <XCircle className="w-4 h-4" />
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-rose-400 font-mono mt-1">
+                      ₹{totalRejectedAmt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isLight ? 'text-rose-700' : 'text-rose-300/70'}`}>
+                      {rejectedTx.length} failed attempts
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Filter Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(['ALL', 'APPROVED', 'PENDING', 'REJECTED'] as const).map((st) => {
+                  const allTx = userTransactions || [];
+                  const count = st === 'ALL' ? allTx.length : allTx.filter((t) => t.status === st).length;
+                  const label = st === 'ALL' ? 'ALL' : st === 'APPROVED' ? 'SUCCESS' : st === 'REJECTED' ? 'FAILED' : 'PENDING';
+                  return (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setUserTxFilterStatus(st)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center space-x-1.5 ${
+                        userTxFilterStatus === st
+                          ? (st === 'APPROVED'
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-black'
+                              : st === 'REJECTED'
+                              ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 font-black'
+                              : st === 'PENDING'
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-black'
+                              : 'bg-sky-500/20 text-sky-400 border-sky-500/40 font-black')
+                          : (isLight
+                              ? 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                              : 'bg-[#121622] border-[#262c3e] text-gray-400 hover:text-white')
+                      }`}
+                    >
+                      <span>{label}</span>
+                      <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-mono font-bold ${
+                        userTxFilterStatus === st ? 'bg-black/30' : (isLight ? 'bg-slate-200 text-slate-700' : 'bg-white/10 text-gray-300')
+                      }`}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  {(['ALL', 'DEPOSIT', 'WITHDRAWAL'] as const).map((tp) => (
+                    <button
+                      key={tp}
+                      type="button"
+                      onClick={() => setUserTxFilterType(tp)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border ${
+                        userTxFilterType === tp
+                          ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40 font-black'
+                          : (isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-[#121622] border-[#262c3e] text-gray-400')
+                      }`}
+                    >
+                      {tp === 'ALL' ? 'ALL' : tp === 'DEPOSIT' ? 'DEPOSITS' : 'PAYOUTS'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative w-36 sm:w-48">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+                  <input
+                    type="text"
+                    placeholder="Search UTR / ID..."
+                    value={userTxSearch}
+                    onChange={(e) => setUserTxSearch(e.target.value)}
+                    className={`w-full pl-8 pr-3 py-1.5 rounded-xl text-xs font-medium border transition ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                        : 'bg-[#121622] border-[#2b3347] text-white placeholder-gray-500'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Transaction List */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[55vh]">
+              {userTransactionsLoading ? (
+                <div className="py-16 text-center text-gray-400 space-y-2">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-sky-400" />
+                  <p className="text-xs font-semibold">Loading trader cashflow ledger...</p>
+                </div>
+              ) : (() => {
+                const list = (userTransactions || []).filter((tx) => {
+                  if (userTxFilterStatus !== 'ALL' && tx.status !== userTxFilterStatus) return false;
+                  if (userTxFilterType !== 'ALL' && tx.type !== userTxFilterType) return false;
+                  if (userTxSearch.trim()) {
+                    const q = userTxSearch.trim().toLowerCase();
+                    const matchUtr = (tx.utrNumber || (tx as any).reference || '').toLowerCase().includes(q);
+                    const matchMethod = (tx.method || (tx as any).paymentMethod || '').toLowerCase().includes(q);
+                    const matchId = (tx.id || '').toLowerCase().includes(q);
+                    const matchAmount = String(tx.amount || '').includes(q);
+                    if (!matchUtr && !matchMethod && !matchId && !matchAmount) return false;
+                  }
+                  return true;
+                });
+
+                if (list.length === 0) {
+                  return (
+                    <div className="py-16 text-center text-gray-400 space-y-2">
+                      <Receipt className="w-8 h-8 mx-auto opacity-30 text-indigo-400" />
+                      <p className="text-xs font-semibold">No transactions found matching the selected filters.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserTxFilterStatus('ALL');
+                          setUserTxFilterType('ALL');
+                          setUserTxSearch('');
+                        }}
+                        className="text-xs text-sky-400 hover:underline font-bold"
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                  );
+                }
+
+                return list.map((tx) => {
+                  const amtFmt = formatTxnAmount(tx.amount, tx.currency);
+                  const isDeposit = tx.type === 'DEPOSIT';
+                  const isApproved = tx.status === 'APPROVED';
+                  const isPending = tx.status === 'PENDING';
+                  const isRejected = tx.status === 'REJECTED';
+
+                  return (
+                    <div
+                      key={tx.id}
+                      className={`p-3.5 rounded-2xl border transition space-y-2.5 ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          : 'bg-[#151926] border-[#242b3d] hover:border-[#323b52]'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        {/* Left: Type, Status, Amount */}
+                        <div className="flex items-center space-x-2.5">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                            isDeposit ? 'bg-emerald-500/15 text-emerald-400' : 'bg-sky-500/15 text-sky-400'
+                          }`}>
+                            {isDeposit ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className={`text-xs font-black uppercase ${isDeposit ? 'text-emerald-400' : 'text-sky-400'}`}>
+                                {tx.type}
+                              </span>
+
+                              {/* Status Badge */}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1 ${
+                                isApproved
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  : isPending
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 animate-pulse'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              }`}>
+                                {isApproved && <CheckCircle className="w-3 h-3" />}
+                                {isPending && <Clock className="w-3 h-3" />}
+                                {isRejected && <XCircle className="w-3 h-3" />}
+                                <span>{isApproved ? 'SUCCESS / APPROVED' : isPending ? 'PENDING' : 'FAILED / REJECTED'}</span>
+                              </span>
+
+                              <span className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-gray-500'}`}>
+                                {new Date(tx.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className="flex items-baseline space-x-2 mt-0.5">
+                              <span className={`text-base font-black font-mono ${isDeposit ? 'text-emerald-400' : 'text-sky-400'}`}>
+                                {amtFmt.primary}
+                              </span>
+                              {amtFmt.secondary && (
+                                <span className={`text-xs font-mono ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                                  ({amtFmt.secondary})
+                                </span>
+                              )}
+                              <span className={`text-[11px] font-semibold ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                                · via {tx.method || (tx as any).paymentMethod || 'UPI / Bank'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Actions */}
+                        <div className="flex items-center space-x-1.5 self-end sm:self-auto">
+                          {tx.proofImage && (
+                            <button
+                              type="button"
+                              onClick={() => openProofModal(tx)}
+                              className="px-2.5 py-1.5 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                              title="View Payment Screenshot Proof"
+                            >
+                              <ImageIcon className="w-3.5 h-3.5" />
+                              <span>Proof</span>
+                            </button>
+                          )}
+
+                          {isPending && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleApprovePayment(tx.id)}
+                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center space-x-1"
+                                title="Approve Transaction"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejectPayment(tx.id)}
+                                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 font-bold rounded-xl text-xs transition flex items-center space-x-1"
+                                title="Reject Transaction"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Reject</span>
+                              </button>
+                            </>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTransaction(tx)}
+                            className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition"
+                            title="Delete this transaction record"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Transaction Details Sub-card */}
+                      <div className={`p-2.5 rounded-xl border text-xs grid grid-cols-1 sm:grid-cols-2 gap-2 ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-[#11141e] border-[#1f2536]'
+                      }`}>
+                        {/* Reference / UTR */}
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                            {isDeposit ? 'UTR / Ref Number:' : 'Transaction Ref:'}
+                          </span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="font-mono font-bold text-amber-400 select-all">
+                              {tx.utrNumber || (tx as any).reference || 'N/A'}
+                            </span>
+                            {(tx.utrNumber || (tx as any).reference) && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(tx.utrNumber || (tx as any).reference || '', tx.id)}
+                                className="p-1 rounded text-gray-400 hover:text-white transition"
+                                title="Copy UTR / Reference"
+                              >
+                                {copiedId === tx.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Rejection Reason (if rejected) or Payout Destination */}
+                        {isRejected ? (
+                          <div className="text-rose-400 text-xs">
+                            <span className="font-bold">Failure / Reject Reason: </span>
+                            <span>{(tx as any).reason || (tx as any).rejectionReason || 'Declined by administrator / compliance review'}</span>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-gray-400 truncate">
+                            {tx.bankDetails ? (
+                              <span>
+                                Bank: <strong className="text-white">{tx.bankDetails.bankName || 'UPI'}</strong> · A/C: <strong className="text-emerald-400 font-mono">{tx.bankDetails.accountNumber || tx.bankDetails.upiId || 'N/A'}</strong>
+                              </span>
+                            ) : (
+                              <span>Rail: <strong className="text-white">{tx.paymentRail || 'DIRECT_TRANSFER'}</strong></span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className={`pt-3 border-t flex items-center justify-between ${
+              isLight ? 'border-slate-200' : 'border-[#262c3e]'
+            }`}>
+              <div className={`text-xs ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                Showing cashflow records for <strong className="text-white">{selectedUserForTransactions.name}</strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForTransactions(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${
+                  isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300' : 'bg-[#222838] hover:bg-[#2c3347] text-white border-[#2e354b]'
+                }`}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL: PAYMENT SCREENSHOT PROOF & UTR VERIFICATION ================= */}
       {(previewProofTx || previewProofUrl) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
@@ -5635,6 +6233,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                 >
                   <Activity className="w-3.5 h-3.5" />
                   <span>Trades ({selectedUserForDetails.totalTrades || 0})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = selectedUserForDetails;
+                    setSelectedUserForDetails(null);
+                    handleViewUserTransactions(u);
+                  }}
+                  className="px-3 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Cashflow History</span>
                 </button>
               </div>
 

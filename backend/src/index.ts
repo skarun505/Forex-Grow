@@ -1442,6 +1442,26 @@ app.get('/api/admin/transactions', (req, res) => {
   res.json(adminManager.getTransactions());
 });
 
+app.get('/api/admin/users/:userId/transactions', (req, res) => {
+  const { userId } = req.params;
+  const user = adminManager.getUser(userId);
+  if (!user) {
+    return res.status(404).json({ error: 'Trader not found' });
+  }
+  const txns = adminManager.getTransactionsForUser(userId);
+  res.json({ success: true, user, transactions: txns });
+});
+
+app.get('/api/manager/users/:userId/transactions', (req, res) => {
+  const { userId } = req.params;
+  const user = adminManager.getUser(userId);
+  if (!user) {
+    return res.status(404).json({ error: 'Trader not found' });
+  }
+  const txns = adminManager.getTransactionsForUser(userId);
+  res.json({ success: true, user, transactions: txns });
+});
+
 app.post('/api/admin/transactions/:id/approve', (req, res) => {
   const result = adminManager.approveTransaction(req.params.id);
   if (!result.success) {
