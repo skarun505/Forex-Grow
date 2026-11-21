@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { Asset, Candle, OrderDirection, Trade, UserAccount, WSClientAction, WSServerAction, Sentiment, LeaderboardTrader, CurrencyCode, TimeframeInterval, TIMEFRAME_SECONDS, Theme } from '../types';
 import { sounds } from '../utils/audio';
 import { formatCurrency } from '../utils/currency';
-import { getWsUrl } from '../utils/api';
+import { getWsUrl, apiUrl } from '../utils/api';
 
 export interface ChartIndicators {
   sma: boolean;
@@ -171,7 +171,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const fetchFallbackCandles = async () => {
       try {
         const tfSec = TIMEFRAME_SECONDS[timeframeRef.current] || 5;
-        const res = await fetch(`/api/candles/${encodeURIComponent(selectedAssetId)}?timeframe=${tfSec}`);
+        const res = await fetch(apiUrl(`/api/candles/${encodeURIComponent(selectedAssetId)}?timeframe=${tfSec}`));
         if (res.ok) {
           const data = await res.json();
           if (isMounted && Array.isArray(data) && data.length > 0) {
